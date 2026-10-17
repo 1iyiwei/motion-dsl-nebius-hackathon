@@ -128,6 +128,37 @@ def _type_str(s: dict) -> str:
     return {"number": "num", "integer": "int", "string": "str", "boolean": "bool"}.get(t or "", t or "any")
 
 
+def _model_fields(model: type) -> str:
+    ps = model.model_json_schema(by_alias=True)  # type: ignore[attr-defined]
+    req = set(ps.get("required", []))
+    out = []
+    for name, f in ps.get("properties", {}).items():
+        if name == "kind":
+            continue
+        s = f"{name}{'' if name in req else '?'}: {_type_str(f)}"
+        if f.get("default") not in (None, [], {}):
+            s += f" = {json.dumps(f['default'])}"
+        out.append(s)
+    return ", ".join(out)
+
+
+def _actors_section() -> list[str]:
+    from typing import get_args
+
+    from .model import Actor, Init, Shape, Style
+
+    union = get_args(get_args(Shape)[0])
+    lines = ["## Actors", f"actor: {{{_model_fields(Actor).replace(': any', '')}}}"]
+    for m in union:
+        kind = m.model_fields["kind"].annotation.__args__[0]
+        fields = _model_fields(m)
+        lines.append(f'- shape {{"kind": "{kind}"{", " + fields if fields else ""}}}')
+    lines.append(f"- style: {{{_model_fields(Style)}}}")
+    lines.append(f"- init: {{{_model_fields(Init)}}} (omit x/y only for drawn shapes; others default to canvas center)")
+    lines.append('Strokes: document.strokes = {"id": {"points": [[x, y], ...], "width"?: num}}.')
+    return lines
+
+
 def prompt_reference() -> str:
     """Compact Markdown reference of the language for an LLM system prompt."""
     registry = load_plugins()
@@ -137,6 +168,8 @@ def prompt_reference() -> str:
         "Coordinates: canvas px, origin top-left, +y down. Angles: degrees, clockwise-positive. Time: seconds.",
         "Actor props: x, y (pivot position), rotation, sx, sy (scale), opacity, trim (0–1 visible part of a stroke), fill, stroke.",
         "Built-in actor `camera` (x, y = point shown at canvas center; zoom; rotation).",
+        "",
+        *_actors_section(),
         "",
         "## Containers",
         '- {"id", "seq": [blocks]}: one after another',

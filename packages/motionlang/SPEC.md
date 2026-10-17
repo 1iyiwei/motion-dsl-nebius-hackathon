@@ -67,7 +67,7 @@ Motion sits above these and compiles down to them.
 - **`style` defaults**: `fill` `#333333` for closed shapes (rect, ellipse, polygon, text, closed path), none for open strokes; `stroke` `#333333` for open strokes/paths, none otherwise; `stroke_width` 4.
 - Children (`parent`) are positioned in the parent's local box and inherit its transform and opacity.
 - **Animatable properties**: `x, y, rotation, sx, sy, opacity, fill, stroke`, plus `trim` (0–1, visible fraction of a path/stroke shape). These are the only things verbs touch.
-- **Built-in `camera` actor**: always present, with props `x, y, zoom, rotation` (initially centered on the canvas, zoom 1). Constraints like `in_bounds` are checked in camera (screen) space.
+- **Built-in `camera` actor**: always present, with props `x, y, zoom, rotation` (initially centered on the canvas, zoom 1). Constraints are checked on the stage (before the camera), so the camera can frame freely.
 - `parent`: hierarchical transforms (a child moves with its group). `pivot`: rotate/scale origin, as a fraction of the bounding box.
 
 ## 5. Timeline: blocks
@@ -139,7 +139,7 @@ These are declarative checks run against tracks sampled at `canvas.fps`. They ex
 
 | Constraint | Params | Fails when |
 | --- | --- | --- |
-| `in_bounds` | `actors="*"`, `margin=0` | Any part of the actor's bounding box leaves the canvas |
+| `in_bounds` | `actors="*"`, `margin=0`, `ignore=[block ids]` | Any part of a visible actor's bounding box leaves the canvas. Blocks in `ignore` are deliberate entrances/exits: their actor isn't checked while they run |
 | `max_speed` | `actor`, `px_per_s` | The speed exceeds the limit at any sample |
 | `smooth` | `actor`, `max_jerk` | The third derivative of position spikes (catches visual "pops" at block seams) |
 | `no_overlap` | `a`, `b`, `during:[t0,t1]?` | The bounding boxes intersect |
@@ -148,7 +148,7 @@ These are declarative checks run against tracks sampled at `canvas.fps`. They ex
 
 Built-in checks (always on): schema validity, unique ids, existing references, `E_CONFLICT`, and continuity (no jump at a block boundary unless one was asked for). Timelines over 300 s are refused (`E_DURATION`) before baking.
 
-`in_bounds` is checked in **screen space** (after the camera) and ignores frames where the actor is invisible (opacity ≤ 0.01), so things may wait off-screen while hidden. The other constraints use **world space** (canvas coordinates). Positions mean the actor's pivot.
+All constraints use **world space** (canvas coordinates, before the camera), so `in_bounds` means "stays on the stage". Camera moves are deliberate framing: zooming in on one actor may push others out of frame without breaking `in_bounds`. `in_bounds` also ignores frames where the actor is invisible (opacity ≤ 0.01), so things may wait off-stage while hidden. Positions mean the actor's pivot.
 
 ### Two tiers of verification
 

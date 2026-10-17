@@ -100,6 +100,27 @@ def test_invisible_actors_may_leave_the_canvas(doc_factory):
     assert validate(doc).ok
 
 
+def test_in_bounds_ignore_allows_deliberate_exits(doc_factory):
+    doc = doc_factory(
+        {"id": "exit", "verb": "move", "actor": "a", "by": [2000, 0]},
+        constraints=[{"type": "in_bounds", "ignore": ["exit"]}],
+    )
+    assert validate(doc).ok
+    doc["constraints"][0]["ignore"] = []
+    (e,) = validate(doc).errors
+    assert e.code == "E_BOUNDS" and "ignore" in e.hint
+    doc["constraints"][0]["ignore"] = ["nope"]
+    assert "E_REF" in codes(doc)
+
+
+def test_camera_framing_never_breaks_in_bounds(doc_factory):
+    doc = doc_factory(
+        {"id": "z", "verb": "camera", "to": {"zoom": 4, "x": 300, "y": 300}},
+        constraints=[{"type": "in_bounds", "margin": 8}],
+    )
+    assert validate(doc).ok  # actor b (at x=550) is pushed out of frame by the zoom; that's the point
+
+
 def test_speed_jerk_overlap_ends_duration(doc_factory):
     doc = doc_factory(
         {"id": "m", "verb": "move", "actor": "a", "to": [560, 300], "duration": 0.2, "ease": "linear"},

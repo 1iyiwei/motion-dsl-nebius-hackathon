@@ -42,6 +42,25 @@ tracks = result.baked.to_json()         # player format
 doc2, issues = motionlang.apply_edits(doc, [{"op": "set", "id": "hop", "field": "height", "value": 60}])
 ```
 
+## LLM loop (Nemotron on Nebius Token Factory)
+
+`pip install motionlang[agent]` and set `NEBIUS_API_KEY` (a `.env` file is picked up automatically):
+
+```bash
+motionlang generate "a red ball drops, bounces three times, then rolls off to the right" -o ball.motion.json --preview ball.html
+motionlang tweak ball.motion.json "higher bounces, slower roll" -o ball2.motion.json --preview ball2.html
+```
+
+- **generate**: Nemotron 3 Ultra writes a document; validator errors (with hints) go back to it until it's clean.
+- **tweak**: Nemotron 3 Nano emits a few edit ops with reasoning turned off (~1–2 s). If they don't validate, it retries once with reasoning, then Ultra regenerates the document.
+- Every call is logged with model, latency and tokens (`-v` also shows raw replies). Override models with `MOTION_PLANNER_MODEL` / `MOTION_EDITOR_MODEL`.
+
+```python
+from motionlang.agent import generate, tweak
+out = generate("three circles orbit a sun, then the camera zooms in")
+print(out.ok, out.seconds, [str(a) for a in out.attempts])
+```
+
 ## A document
 
 ```json

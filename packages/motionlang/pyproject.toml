@@ -8,6 +8,10 @@ license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = ["pydantic>=2.7", "numpy>=1.26"]
 
+[project.optional-dependencies]
+# LLM generate/repair/edit loop against an OpenAI-compatible endpoint (Nebius Token Factory).
+agent = ["openai>=1.40"]
+
 [project.scripts]
 motionlang = "motionlang.cli:main"
 

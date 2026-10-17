@@ -129,6 +129,7 @@ class InBounds(Strict):
     type: Literal["in_bounds"]
     actors: ActorSel = "*"
     margin: float = 0
+    ignore: list[str] = Field(default_factory=list, description="block ids of deliberate entrances/exits; their actor isn't checked while they run")
 
 
 class MaxSpeed(Strict):

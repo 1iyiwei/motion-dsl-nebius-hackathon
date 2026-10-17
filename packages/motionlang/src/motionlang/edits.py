@@ -2,7 +2,8 @@
 
 Ops (applied in order, atomically; on any error the original document is untouched):
   {"op": "set", "id": ID, "field": "duration" | "init.x" | ..., "value": V}   block or actor field
-  {"op": "set", "pointer": "/canvas/fps", "value": V}                       anything else (JSON pointer)
+  {"op": "set", "pointer": "/canvas/fps", "value": V}                       canvas, constraints, meta (JSON pointer;
+                                                                            for blocks and actors use id + field)
   {"op": "unset", "id": ID, "field": F}                                     remove an optional field
   {"op": "insert", "parent": ID, "block": B, "after"|"before": ID | "index": N}
   {"op": "remove", "id": ID}
@@ -60,11 +61,17 @@ def _target(doc: dict, oid: str) -> dict:
 
 def _walk_field(obj: dict, field: str, create: bool) -> tuple[dict, str]:
     parts = field.split(".")
-    for p in parts[:-1]:
-        if p not in obj or not isinstance(obj[p], dict):
+    for i, p in enumerate(parts[:-1]):
+        if p not in obj:
             if not create:
                 raise EditError(f"field {field!r} not found")
             obj[p] = {}
+        elif not isinstance(obj[p], dict):
+            kind = "a list" if isinstance(obj[p], list) else "a value"
+            raise EditError(
+                f"field path {field!r}: {'.'.join(parts[: i + 1])!r} is {kind}, not an object; "
+                "address nested blocks by their own id, or use a JSON pointer"
+            )
         obj = obj[p]
     return obj, parts[-1]
 
@@ -74,10 +81,23 @@ def _pointer_parent(doc: Any, pointer: str) -> tuple[Any, str | int]:
         raise EditError("pointer must start with '/'")
     parts = [p.replace("~1", "/").replace("~0", "~") for p in pointer[1:].split("/")]
     cur = doc
-    for p in parts[:-1]:
-        cur = cur[int(p)] if isinstance(cur, list) else cur.setdefault(p, {})
-    last: str | int = int(parts[-1]) if isinstance(cur, list) else parts[-1]
-    return cur, last
+    for i, p in enumerate(parts):
+        where = "/" + "/".join(parts[:i])
+        if isinstance(cur, list):
+            if not p.isdigit() or int(p) >= len(cur):
+                raise EditError(f"pointer {pointer}: {where} is a list of {len(cur)}; {p!r} is not a valid index")
+            if i == len(parts) - 1:
+                return cur, int(p)
+            cur = cur[int(p)]
+        elif isinstance(cur, dict):
+            if i == len(parts) - 1:
+                return cur, p
+            if p not in cur:
+                raise EditError(f"pointer {pointer}: {where} has no key {p!r} (keys: {', '.join(cur) or 'none'})")
+            cur = cur[p]
+        else:
+            raise EditError(f"pointer {pointer}: {where} is a value ({cur!r}), not an object or list")
+    raise EditError(f"pointer {pointer} is empty")
 
 
 def _apply_one(doc: dict, op: dict) -> None:

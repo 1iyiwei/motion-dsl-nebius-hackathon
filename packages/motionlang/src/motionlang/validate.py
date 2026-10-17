@@ -109,7 +109,7 @@ def check_discontinuities(baked: Baked) -> list[Issue]:
 
 
 def _sel(sel: Any, baked: Baked) -> list[str]:
-    return list(baked.aabb_screen) if sel == "*" else [a for a in sel if a in baked.aabb_screen]
+    return list(baked.aabb_world) if sel == "*" else [a for a in sel if a in baked.aabb_world]
 
 
 def check_constraints(baked: Baked) -> list[Issue]:
@@ -128,8 +128,16 @@ def check_constraints(baked: Baked) -> list[Issue]:
             continue
 
         if isinstance(c, InBounds):
+            unknown = [b for b in c.ignore if b not in baked.parsed.blocks]
+            if unknown:
+                out.append(Issue("E_REF", f"in_bounds.ignore names unknown block(s) {unknown}", pointer=f"{ptr}/ignore"))
+            exempt = [lf for lf in sched.leaves if lf.block.id in c.ignore]
             for aid in _sel(c.actors, baked):
-                box, vis = baked.aabb_screen[aid], baked.opacity[aid] > VISIBLE
+                # Stage (world) space: camera moves are deliberate framing and never count.
+                box, vis = baked.aabb_world[aid], baked.opacity[aid] > VISIBLE
+                for lf in exempt:
+                    if lf.block.actor == aid:
+                        vis = vis & ~((times >= lf.start - 1e-9) & (times <= lf.end + 1e-9))
                 m = c.margin
                 over = np.stack([m - box[:, 0], m - box[:, 1], box[:, 2] - (W - m), box[:, 3] - (H - m)], axis=1)
                 over[~vis] = -np.inf
@@ -140,7 +148,8 @@ def check_constraints(baked: Baked) -> list[Issue]:
                     bid, who = _blame(sched, aid, float(times[i]))
                     out.append(Issue(
                         "E_BOUNDS", f"{aid} goes {worst[i]:.0f}px past the {side} edge (margin {m:g}) at t={times[i]:.2f}s",
-                        hint=f"active: {who}; move that motion inward or make it smaller", block=bid, actor=aid, t=float(times[i]), pointer=ptr,
+                        hint=f"active: {who}; move that motion inward or make it smaller. If it's a deliberate entrance/exit, add its block id to this constraint's `ignore` list",
+                        block=bid, actor=aid, t=float(times[i]), pointer=ptr,
                     ))
         elif isinstance(c, MaxSpeed):
             pos = baked.pos[c.actor]

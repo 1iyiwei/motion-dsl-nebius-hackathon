@@ -64,3 +64,16 @@ def test_prompt_reference_lists_every_verb():
     for name in load_plugins():
         assert f"**{name}**" in ref
     json.dumps(ref)
+
+
+def test_bad_field_paths_explain_themselves(doc):
+    _, issues = apply_edits(doc, [{"op": "set", "id": "root", "field": "seq.0.duration", "value": 1}])
+    assert "is a list, not an object" in issues[0].message
+    _, issues = apply_edits(doc, [{"op": "set", "pointer": "/timeline/seq/0/verb/x", "value": 1}])
+    assert "is a value" in issues[0].message
+    _, issues = apply_edits(doc, [{"op": "set", "pointer": "/timeline/seq/9/duration", "value": 1}])
+    assert "not a valid index" in issues[0].message
+    _, issues = apply_edits(doc, [{"op": "set", "pointer": "/timeline/zoom/to/zoom", "value": 1}])
+    assert "has no key 'zoom'" in issues[0].message
+    new, issues = apply_edits(doc, [{"op": "set", "pointer": "/timeline/seq/0/duration", "value": 3}])
+    assert not issues and new["timeline"]["seq"][0]["duration"] == 3

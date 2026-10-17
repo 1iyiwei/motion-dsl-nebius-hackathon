@@ -45,6 +45,22 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("ops", help="JSON file with a list of ops")
     e.add_argument("-o", "--out")
 
+    g = sub.add_parser("generate", help="write a document from a sentence with Nemotron (needs NEBIUS_API_KEY)")
+    g.add_argument("intent")
+    g.add_argument("-o", "--out", required=True, help="where to write the .motion.json")
+    g.add_argument("--preview", help="also write an HTML preview here")
+    g.add_argument("--strokes", help="JSON file: {id: {points: [[x, y], ...]}} drawn by the user")
+    g.add_argument("--size", default="1280x720", help="canvas WxH")
+    g.add_argument("--repairs", type=int, default=3)
+
+    t = sub.add_parser("tweak", help="change a document with a short instruction (fast edit model, escalates if needed)")
+    t.add_argument("file")
+    t.add_argument("instruction")
+    t.add_argument("-o", "--out", required=True)
+    t.add_argument("--preview", help="also write an HTML preview here")
+    for sp in (g, t):
+        sp.add_argument("-v", "--verbose", action="store_true", help="show the model's raw replies")
+
     sub.add_parser("schema", help="print the document JSON Schema")
     sub.add_parser("prompt", help="print the LLM prompt reference")
 
@@ -56,6 +72,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "prompt":
         _write(prompt_reference(), None)
         return 0
+    if args.cmd in ("generate", "tweak"):
+        return _agent(args)
     if args.cmd == "edit":
         doc, issues = apply_edits(_load(args.file), _load(args.ops))
         if issues:
@@ -84,6 +102,45 @@ def main(argv: list[str] | None = None) -> int:
         title = result.parsed.doc.meta.get("title") or Path(args.file).stem  # type: ignore[union-attr]
         _write(preview_html(tracks, title), args.out)
     return 0
+
+
+def _agent(args: argparse.Namespace) -> int:
+    from .agent import generate, tweak  # needs the optional `agent` extra
+
+    if args.cmd == "generate":
+        w, h = (float(v) for v in args.size.lower().split("x"))
+        strokes = _load(args.strokes) if args.strokes else None
+        print(f"generating: {args.intent!r}", file=sys.stderr)
+        out = generate(args.intent, canvas={"width": w, "height": h}, strokes=strokes, max_repairs=args.repairs)
+    else:
+        print(f"tweaking: {args.instruction!r}", file=sys.stderr)
+        out = tweak(_load(args.file), args.instruction)
+    for i, a in enumerate(out.attempts, 1):
+        print(f"  {i}. {a}", file=sys.stderr)
+        if not a.ok:
+            for p in a.problems()[:6]:
+                print(f"       - {p}", file=sys.stderr)
+        if args.verbose:
+            print("       reply: " + a.raw[:1500].replace("\n", " "), file=sys.stderr)
+    print(f"{'ok' if out.ok else 'FAILED'} via {out.path} in {out.seconds:.1f}s", file=sys.stderr)
+    if out.note:
+        print(out.note, file=sys.stderr)
+    if not out.ok:
+        best = out.best
+        if best is not None:  # keep it for inspection, but never where a valid doc is expected
+            rejected = Path(args.out).with_name(Path(args.out).name.replace(".motion.json", "") + ".rejected.motion.json")
+            rejected.write_text(json.dumps(best.doc, indent=2) + "\n")
+            print(f"{args.out} left unchanged; closest attempt ({len(best.problems())} problem(s)) saved to {rejected}", file=sys.stderr)
+        return 1
+    Path(args.out).write_text(json.dumps(out.doc, indent=2) + "\n")
+    print(f"wrote {args.out}", file=sys.stderr)
+    if args.preview:
+        result = check(out.doc)
+        if result.baked is not None:
+            title = out.doc.get("meta", {}).get("title") or Path(args.out).stem
+            Path(args.preview).write_text(preview_html(result.baked.to_json(), title))
+            print(f"wrote {args.preview}", file=sys.stderr)
+    return 0 if out.ok else 1
 
 
 if __name__ == "__main__":

@@ -35,6 +35,9 @@ uv run motionlang bake FILE.motion.json -o tracks.json
 uv run motionlang preview FILE.motion.json -o preview.html   # self-contained SVG player
 uv run motionlang schema                  # JSON Schema (also the LLM structured-output schema)
 uv run motionlang prompt                  # verb reference for LLM system prompts
+uv run motionlang generate "INTENT" -o out/x.motion.json --preview out/x.html   # Nemotron (needs NEBIUS_API_KEY in .env)
+uv run motionlang tweak out/x.motion.json "slower" -o out/y.motion.json        # fast edit path
+RUN_LIVE=1 uv run pytest -m live          # live Token Factory test (costs tokens)
 ```
 
 ## motionlang architecture
@@ -49,6 +52,7 @@ edits.py     id-addressed edit ops (set/insert/remove/wrap)
 verbs/       Verb base class + registry (entry point group `motionlang.verbs`); core verbs in verbs/core.py
 schema.py    JSON Schema + LLM prompt reference generated from the registry
 preview.py   baked tracks → standalone HTML/SVG player
+agent/       LLM loop (optional extra `agent`): llm.py client + telemetry, prompts.py, loop.py generate/tweak
 ```
 
 Adding a verb: subclass `Verb` in a module, decorate with `@register`, expose the module via the `motionlang.verbs` entry point, and give it `examples`. The contract tests in `tests/test_contract.py` run automatically over every registered verb.
@@ -58,3 +62,7 @@ Adding a verb: subclass `Verb` in a module, decorate with `@register`, expose th
 - Python ≥ 3.11, type hints, pydantic v2, numpy. No other runtime deps in `motionlang` without a reason.
 - Error messages are written for an LLM repair loop: every `Issue` has a concrete `message` and an actionable `hint`.
 - Keep comments sparse; explain *why*, not *what*.
+- Token Factory models (Oct 17): planner `nvidia/Nemotron-3-Ultra-550b-a55b`, editor `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`
+  (call with `chat_template_kwargs.enable_thinking=false` for speed), vision `nvidia/Nemotron-3.5-Super-VL`.
+  Also available: `nvidia/nemotron-3-super-120b-a12b`, `nvidia/Nemotron-3_5-Lightning`.
+- Log platform friction in `docs/token-factory-feedback.md` as you hit it (it feeds the submission's feedback section).
