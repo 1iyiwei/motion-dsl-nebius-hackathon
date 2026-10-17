@@ -4,7 +4,7 @@ Deadline: **Fri Oct 30, 10:00 am PT**. Three separate submissions, one per track
 
 ## Ground rules (from the Official Rules)
 
-- Each submission must be "unique and substantially different" → separate repos, separate users, separate UIs. Sharing a library is fine; sharing a product is not.
+- Each submission must be "unique and substantially different" → separate users and UIs. Sharing a library is fine; sharing a product is not. Decided Oct 17: build all projects in this one repo under `apps/`; possibly split into per-project repos (git subtree split) before judging, so apps stay splittable.
 - Each project can win one Overall award, **or** one Track award + one Bonus award. Every project gets a real runtime Tavily call (Best Use of Tavily, $3k).
 - Judges may score from the video + description alone → budget real time for each 3-min video.
 - Each repo: OSI license visible at top (Apache-2.0), README with setup, a section on how Nemotron/Token Factory/Nebius services are used, and feedback on the tools.

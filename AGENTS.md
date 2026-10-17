@@ -4,7 +4,7 @@ Guidance for AI coding agents (Claude Code and others) working in this repo.
 
 ## What this is
 
-Private development workspace for three Nebius x NVIDIA Global AI Hackathon submissions (deadline **Fri Oct 30 2026, 10:00 am PT**), all built on one shared library:
+The single repo for all Nebius x NVIDIA Global AI Hackathon submissions (deadline **Fri Oct 30 2026, 10:00 am PT**), all built on one shared library. Each project is submitted as soon as it is ready, with Devpost linking to its `apps/<name>/` folder:
 
 | Path | What | Track |
 | --- | --- | --- |
@@ -12,13 +12,15 @@ Private development workspace for three Nebius x NVIDIA Global AI Hackathon subm
 | `apps/sketchdynamics/` (planned) | Sketch + talk → animation app | Best Apps & Agents |
 | `apps/motionharness/` (planned) | Coding agent that writes and tests Motion verbs/exporters in Token Factory Sandboxes | Coding & Agentic Engineering |
 | `apps/canvasmind/` (planned) | Private creative-memory assistant (Hermes Agent + OpenShell/NemoClaw) | Personal AI |
+| `apps/embodiedsketcher/` (maybe) | Sketches → robot/edge-agent motion, only if time allows | Physical AI |
 
 Plans and rationale are in `docs/` (`implementation-plan.md`, `ideation.md`). `docs/` is private planning and is never published.
 
 ## Hard rules
 
 - **The spec is the contract.** `packages/motionlang/SPEC.md` describes the language. Any behavior change in `motionlang` updates the spec in the same change.
-- **Apps depend on `motionlang` by name** (`motionlang>=0.1` in their `pyproject.toml`), never by path. Only the root `pyproject.toml` maps it to the workspace. Each app must stay splittable into its own public repo (own README, LICENSE, `.env.example`).
+- **Apps depend on `motionlang` by name** (`motionlang>=0.1` in their `pyproject.toml`), never by path. Only the root `pyproject.toml` maps it to the workspace. Everything lives in this one repo for now, but we may split apps into their own repos for judging, so keep each app splittable: depend on `motionlang` by name only, never import from another app, and give each app its own README (setup, how Nemotron/Token Factory is used, feedback) and `.env.example`.
+- **Submitted projects must keep working through judging (Dec 1–15, 2026).** Once an app is submitted, tag the repo (`<app>-submitted`) and don't make breaking `motionlang` changes without re-checking that app.
 - **Secrets** live in `.env` (gitignored). Never commit keys, never print them, never put them in examples.
 - **Models**: all LLM calls go through NVIDIA open models (Nemotron family) on Nebius Token Factory (OpenAI-compatible API). Don't add other LLM providers to app runtime paths.
 - **License**: Apache-2.0 everywhere.
