@@ -4,6 +4,7 @@ A declarative, intent-level motion language that LLMs write, machines verify, an
 It is shared by SketchDynamics (P1, produces it), MotionHarness (P2, extends it with new verbs and exporters) and CanvasMind (P3, indexes it).
 
 > Decisions from the Oct 17 review are in §13. Related work (MoVer, OmniLottie) is in §14.
+> Reference implementation: the `motionlang` Python package next to this file. Where this spec and the code disagree, that's a bug in one of them; fix both together.
 
 ---
 
@@ -60,7 +61,11 @@ Motion sits above these and compiles down to them.
   "pivot": [0.5, 0.5], "parent": null, "z": 0 }
 ```
 
-- `shape.kind`: `rect | ellipse | polygon | path (svg d) | text | image (url) | stroke (ref) | group`.
+- `shape.kind` and its fields: `rect {w, h, r?}`, `ellipse {rx, ry}`, `polygon {points}`, `path {d, closed?}` (SVG M/L/H/V/C/S/Q/T/Z; no arcs), `text {text, size?, font?, weight?}`, `image {url, w, h}`, `stroke {ref}` (a sketch stroke), `group {}` (no geometry; a parent for others).
+- **Placement**: each shape has a local bounding box `[0, w] × [0, h]`. `pivot` is a point in that box as fractions (default center). The actor's `x, y` is **where its pivot sits** in its parent's space: world = parent · T(x, y) · R(rotation) · S(sx, sy) · T(−pivot).
+- **`init` defaults**: rotation 0, sx = sy = 1, opacity 1, trim 1. If `x`/`y` are omitted, drawn shapes (`stroke`, `polygon`, `path`) stay exactly where they were drawn; other shapes start at the canvas center.
+- **`style` defaults**: `fill` `#333333` for closed shapes (rect, ellipse, polygon, text, closed path), none for open strokes; `stroke` `#333333` for open strokes/paths, none otherwise; `stroke_width` 4.
+- Children (`parent`) are positioned in the parent's local box and inherit its transform and opacity.
 - **Animatable properties**: `x, y, rotation, sx, sy, opacity, fill, stroke`, plus `trim` (0–1, visible fraction of a path/stroke shape). These are the only things verbs touch.
 - **Built-in `camera` actor**: always present, with props `x, y, zoom, rotation` (initially centered on the canvas, zoom 1). Constraints like `in_bounds` are checked in camera (screen) space.
 - `parent`: hierarchical transforms (a child moves with its group). `pivot`: rotate/scale origin, as a fraction of the bounding box.
@@ -74,7 +79,9 @@ The timeline is a **tree**. Containers arrange time; verbs (leaves) change prope
 | `seq` | Children one after another |
 | `par` | Children start together; duration = the longest child |
 | `stagger` | Like `par`, but child *i* starts at `i × offset` |
-| `repeat` | Plays its single child `count` times (`count: "inf"` loops in the player; for validation, sampled for 1 cycle) |
+| `repeat` | `{"id", "repeat": <one block>, "count": 2}` plays the block `count` times (`"inf"` loops in the player; one cycle is validated) |
+
+`stagger` takes `offset` (default 0.1 s). Each iteration of a repeat starts from wherever the previous one ended, so a repeated `rotate by 90` accumulates while a repeated `move to` only moves once.
 
 Every block has `id` (required, unique), plus optional `delay` (s, before it starts) and `label`.
 
@@ -90,23 +97,24 @@ Every block has `id` (required, unique), plus optional `delay` (s, before it sta
 
 ## 6. Verbs (v0.1 core set: 14)
 
-Common fields: `actor`, `duration` (default per verb), `ease` (default `inOutQuad`), `delay`.
+Common fields: `actor`, `duration` (default per verb, usually 1 s), `ease` (default `inOutQuad`; `orbit` defaults to `linear`; physical verbs ignore it), `delay`.
+Any verb may target the built-in `camera` actor when its props are camera props (`x, y, zoom, rotation`), e.g. `spring_to` on `zoom`.
 Most property verbs take **either** `to` (absolute target) **or** `by` (relative delta), never both.
 
 | Verb | Params | Composes as (§ rule below) | Notes |
 | --- | --- | --- | --- |
 | `move` | `to:[x,y]` \| `by:[dx,dy]` | abs (`to`) / rel (`by`) | |
-| `move_along` | `path`, `orient:bool=false`, `reverse:bool=false`, `relative:bool=false` | abs (rel if `relative`) | Constant speed along the path's length, shaped by `ease`; `orient` turns the actor along the path direction. If the actor isn't at the path start → `E_DISCONTINUITY` (fix: add a `move` first, or set `relative: true` to translate the path to the actor) |
+| `move_along` | `path`, `orient:bool=false`, `reverse:bool=false`, `relative:bool=false` | abs (rel if `relative`) | Constant speed along the path's length, shaped by `ease`. `orient` turns the actor as the path turns, keeping its starting heading (so pre-rotate an arrow to face the path's initial direction). If the actor isn't at the path start → `E_DISCONTINUITY` (fix: add a `move` first, or set `relative: true` to translate the path to the actor) |
 | `rotate` | `to` \| `by` (deg) | abs / rel | |
 | `scale` | `to` \| `by` (number or `[sx,sy]`) | abs / rel | |
 | `fade` | `to` (0–1) | abs | |
 | `recolor` | `prop: fill\|stroke`, `to: color` | abs | Interpolated in OKLab |
-| `orbit` | `center:[x,y]` \| `around:actorId`, `radius`, `turns=1`, `start_angle=0` | abs | |
+| `orbit` | `center:[x,y]` \| `around:actorId`, `radius?`, `turns=1`, `start_angle?` | abs | `radius`/`start_angle` default to the actor's current distance and angle, so it starts without a jump. Giving them explicitly moves the start point → `E_DISCONTINUITY` unless the actor is already there |
 | `bounce` | `height`, `count=3`, `decay=0.6`, `squash=0.15` | rel | Physically shaped arcs in place; squash-and-stretch on landing |
-| `wiggle` | `amplitude`, `frequency=4`, `props=[x,y]`, `seed` | rel | Smooth noise, returns to rest at both ends |
-| `spring_to` | `prop`, `to`, `stiffness=170`, `damping=26` | abs | Duration is derived (settles below a threshold) unless given |
+| `wiggle` | `amplitude`, `frequency=4`, `props=[x,y]`, `seed` | rel | Smooth noise, returns to rest at both ends. Amplitude is px for x/y, degrees for rotation, hundredths for sx/sy/opacity |
+| `spring_to` | `prop`, `to`, `stiffness=170`, `damping=26` | abs | Duration is the time to settle within 0.1%; a given `duration` time-scales it. Damping ratio must be ≥ 0.05 |
 | `follow` | `target:actorId`, `lag=0.2`, `offset:[dx,dy]` | abs | Tracks another actor's position with delay |
-| `draw_on` | `from=0`, `to=1` | abs | Reveals a `path`/`stroke` actor progressively (animates `trim`), the classic "line draws itself" effect |
+| `draw_on` | `from=0`, `to=1` | abs (deliberate jump to `from`) | Reveals a `path`/`stroke` actor progressively (animates `trim`), the classic "line draws itself" effect |
 | `camera` | `to:{x?,y?,zoom?,rotation?}` \| `by:{...}` | abs / rel | Pans/zooms/rotates the view; targets the built-in `camera` actor, so `actor` is omitted |
 | `hold` | `duration` | — | Explicit wait |
 
@@ -138,7 +146,9 @@ These are declarative checks run against tracks sampled at `canvas.fps`. They ex
 | `ends_at` | `actor`, `pos:[x,y]`, `t?`, `tol=2` | The final (or time-`t`) position is off target |
 | `total_duration` | `max` \| `exact`, `tol` | The timeline length is outside the limit |
 
-Built-in checks (always on): schema validity, unique ids, existing references, `E_CONFLICT`, and continuity (no jump at a block boundary unless one was asked for).
+Built-in checks (always on): schema validity, unique ids, existing references, `E_CONFLICT`, and continuity (no jump at a block boundary unless one was asked for). Timelines over 300 s are refused (`E_DURATION`) before baking.
+
+`in_bounds` is checked in **screen space** (after the camera) and ignores frames where the actor is invisible (opacity ≤ 0.01), so things may wait off-screen while hidden. The other constraints use **world space** (canvas coordinates). Positions mean the actor's pivot.
 
 ### Two tiers of verification
 
@@ -161,6 +171,8 @@ Edits are a list of id-addressed operations, applied atomically and then revalid
   { "op": "wrap",   "ids": ["b1"], "with": "par", "id": "b6" } ]
 ```
 
+Also: `set` on an actor id (`"field": "init.x"`), `set` with a JSON `pointer` for anything else (`"/canvas/fps"`), `unset`, and `replace` (`{"op": "replace", "id", "block"}`). On any failing op nothing is applied and a single `E_EDIT` names the op index.
+
 "Slower" → one `set` op from a small model in about 200 ms, instead of regenerating the whole document with the big one. This is the latency and credit-saving story judges want to see.
 
 ## 9. Validator output
@@ -176,7 +188,7 @@ Edits are a list of id-addressed operations, applied atomically and then revalid
   "stats": { "duration": 3.4, "actors": 2, "blocks": 5 } }
 ```
 
-Error codes: `E_SCHEMA, E_DUP_ID, E_REF, E_CONFLICT, E_DISCONTINUITY, E_BOUNDS, E_SPEED, E_JERK, E_OVERLAP, E_ENDS_AT, E_DURATION`.
+Error codes: `E_SCHEMA, E_DUP_ID, E_REF, E_CONFLICT, E_DISCONTINUITY, E_BOUNDS, E_SPEED, E_JERK, E_OVERLAP, E_ENDS_AT, E_DURATION`, plus `E_EDIT` from edit ops. Warnings use the same codes with `"severity": "warning"`.
 Each error carries `hint`, a sentence the repair prompt includes word for word.
 
 ## 10. Execution model
@@ -198,28 +210,37 @@ document ──validate(schema/refs)──► resolve timing ──► sample(t)
 
 The trade-off is that the client can't play un-baked documents offline. That's acceptable for the hackathon.
 
+**Baked tracks format** (`motionlang bake`): `{motion, fps, duration, frames, loop, canvas, actors[], tweens[]}`. Each actor is `{id, geom, style, tracks: {m, opacity, fill, stroke, trim}}`, sorted by `z`. `m` is the bbox-local → screen matrix `[a, b, c, d, e, f]` (SVG order), and `opacity` already includes parents. A track that never changes is stored once; otherwise it's one value per frame. `tweens` lists every scheduled verb with `{block, verb, actor, start, end, props}`, which is what the MoVer exporter needs.
+
 ## 11. Verb plugin contract (what MotionHarness writes)
 
-A verb is a Python module that registers:
+A verb is a class registered with `@register`:
 
 ```python
+@register
 class Bounce(Verb):
-    name = "bounce"
-    kind = "relative"                 # relative | absolute (may depend on params, e.g. to vs by)
-    props = ("y", "sx", "sy")         # properties it writes
-    Params = BounceParams             # pydantic model → JSON Schema fragment
+    """Hop in place with gravity-shaped arcs ... (first paragraph = LLM-facing summary)"""
+    name = "bounce"                       # third-party verbs must be namespaced: "acme.spring_follow"
+    Params = BounceParams                 # pydantic model (extra fields forbidden) → JSON Schema
+    uses_ease = False                     # physical timing; ignore `ease`
+    examples = [{"height": 80, "count": 3}]   # used by docs, the prompt reference and the contract tests
+    def mode(self, p): return "rel"       # "abs" | "rel" (may depend on params, e.g. to vs by) | None
+    def props(self, p): return ("y", "sx", "sy")
     def default_duration(self, p): ...
-    def sample(self, p, u: float, base: State) -> Delta: ...   # u ∈ [0,1], after easing
+    def sample(self, p, u, t, ctx) -> dict: ...
+    # optional: jumps_at_start, actor_refs, path_specs, check_target
 ```
 
-Every verb must pass the generic **contract test suite** (run in Token Factory Sandboxes by MotionHarness):
+`sample(p, u, t, ctx)` gets progress `u ∈ [0, 1]` (already eased if `uses_ease`), local time `t` in seconds, and a context: `ctx.start` (the composed values of its props just before it starts), `ctx.t0`, `ctx.duration`, `ctx.value(actor, prop, t)` (read other actors), and `ctx.path(spec)` (resolved, arc-length-parameterized paths). abs verbs return values; rel verbs return deltas.
 
-1. **Deterministic**: same inputs, same output.
-2. **Identity at start**: a relative verb gives a zero delta at u=0.
-3. **Continuous**: no jumps inside [0,1], and the end state matches the next block's start.
-4. **Bounded**: finite output for any parameters within schema range (property-based, with Hypothesis).
-5. **Schema round-trip**: the params validate, and defaults fill in.
-6. **Golden frames**: rendered sample frames match a reference. This applies once a verb is accepted; for new verbs, a vision-model critique is used instead.
+Every verb must pass the generic **contract test suite** (`tests/test_contract.py`, run in Token Factory Sandboxes by MotionHarness):
+
+1. **Valid + deterministic**: each example validates, and baking twice gives identical tracks.
+2. **Identity at start**: a rel verb returns 0 at u=0; an abs verb returns `ctx.start` at u=0 (unless `jumps_at_start`).
+3. **Continuous**: the largest step between samples must shrink under 8× finer sampling. A real jump doesn't shrink.
+4. **Bounded**: finite output for any numeric params within their declared bounds (property-based, with Hypothesis).
+5. **Schema round-trip**: example params validate, dump and re-validate; the verb has a docstring summary.
+6. **Golden frames** (planned): rendered frames match a reference once a verb is accepted; for new verbs, a vision-model critique is used instead.
 
 Exporters follow the same pattern: `Exporter.export(tracks) -> bytes`, plus round-trip tests.
 
@@ -232,8 +253,8 @@ Adding a verb must not require touching the core. That's what makes MotionHarnes
   2. the **verb reference section of the LLM system prompt** (name, params with defaults, composes-as, one example each, taken from each verb's docstring);
   3. the docs page.
   A new verb is therefore usable by SketchDynamics' planner on the next run, with no prompt editing.
-- **Entry-point plugins**: third-party verbs ship as Python packages registered under the `motionlang.verbs` entry point. Namespaced names (`acme.spring_follow`) avoid collisions; core verbs are unprefixed.
-- **Versioned**: each verb declares `since: "0.1"`. Documents declare `"motion": "0.1"` plus `"requires": ["acme.spring_follow>=1"]` for non-core verbs, so a missing plugin fails as `E_REF` at validation, not mid-render.
+- **Entry-point plugins**: third-party verbs ship as Python packages registered under the `motionlang.verbs` entry point. Namespaced names (`acme.spring_follow`) avoid collisions and are enforced at registration; core verbs are unprefixed.
+- **Versioned**: each verb declares `since: "0.1"`. Documents declare `"motion": "0.1"` plus `"requires": ["acme.spring_follow>=1"]` for non-core verbs, so a missing plugin fails as `E_REF` (unknown verb) at validation, not mid-render. A plugin verb that's used but not listed in `requires` gets a warning.
 - **The contract test suite is the acceptance gate.** A verb that passes it is valid, whoever (or whatever agent) wrote it.
 
 ## 12. Worked example

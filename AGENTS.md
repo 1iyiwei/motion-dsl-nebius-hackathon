@@ -1,0 +1,60 @@
+# AGENTS.md
+
+Guidance for AI coding agents (Claude Code and others) working in this repo.
+
+## What this is
+
+Private development workspace for three Nebius x NVIDIA Global AI Hackathon submissions (deadline **Fri Oct 30 2026, 10:00 am PT**), all built on one shared library:
+
+| Path | What | Track |
+| --- | --- | --- |
+| `packages/motionlang/` | **Motion**, the DSL: spec, schema, validator, baker, exporters | (shared library) |
+| `apps/sketchdynamics/` (planned) | Sketch + talk → animation app | Best Apps & Agents |
+| `apps/motionharness/` (planned) | Coding agent that writes and tests Motion verbs/exporters in Token Factory Sandboxes | Coding & Agentic Engineering |
+| `apps/canvasmind/` (planned) | Private creative-memory assistant (Hermes Agent + OpenShell/NemoClaw) | Personal AI |
+
+Plans and rationale are in `docs/` (`implementation-plan.md`, `ideation.md`). `docs/` is private planning and is never published.
+
+## Hard rules
+
+- **The spec is the contract.** `packages/motionlang/SPEC.md` describes the language. Any behavior change in `motionlang` updates the spec in the same change.
+- **Apps depend on `motionlang` by name** (`motionlang>=0.1` in their `pyproject.toml`), never by path. Only the root `pyproject.toml` maps it to the workspace. Each app must stay splittable into its own public repo (own README, LICENSE, `.env.example`).
+- **Secrets** live in `.env` (gitignored). Never commit keys, never print them, never put them in examples.
+- **Models**: all LLM calls go through NVIDIA open models (Nemotron family) on Nebius Token Factory (OpenAI-compatible API). Don't add other LLM providers to app runtime paths.
+- **License**: Apache-2.0 everywhere.
+- Commit or push only when the human asks.
+
+## Commands
+
+```bash
+uv sync                                   # install workspace (creates .venv)
+uv run pytest                             # all tests
+uv run pytest packages/motionlang -q      # library tests only
+uv run motionlang validate FILE.motion.json
+uv run motionlang bake FILE.motion.json -o tracks.json
+uv run motionlang preview FILE.motion.json -o preview.html   # self-contained SVG player
+uv run motionlang schema                  # JSON Schema (also the LLM structured-output schema)
+uv run motionlang prompt                  # verb reference for LLM system prompts
+```
+
+## motionlang architecture
+
+```
+parse.py     JSON → Document (pydantic) + block tree; schema errors with JSON pointers
+timing.py    block tree → scheduled leaves (absolute start/end per verb)
+evaluate.py  lazy per-(actor, prop, t) evaluation applying the composition rule
+bake.py      evaluator → per-frame tracks (props, world/screen matrices, AABBs)
+validate.py  tier-1 checks: refs, conflicts, discontinuities, constraints → Report
+edits.py     id-addressed edit ops (set/insert/remove/wrap)
+verbs/       Verb base class + registry (entry point group `motionlang.verbs`); core verbs in verbs/core.py
+schema.py    JSON Schema + LLM prompt reference generated from the registry
+preview.py   baked tracks → standalone HTML/SVG player
+```
+
+Adding a verb: subclass `Verb` in a module, decorate with `@register`, expose the module via the `motionlang.verbs` entry point, and give it `examples`. The contract tests in `tests/test_contract.py` run automatically over every registered verb.
+
+## Conventions
+
+- Python ≥ 3.11, type hints, pydantic v2, numpy. No other runtime deps in `motionlang` without a reason.
+- Error messages are written for an LLM repair loop: every `Issue` has a concrete `message` and an actionable `hint`.
+- Keep comments sparse; explain *why*, not *what*.

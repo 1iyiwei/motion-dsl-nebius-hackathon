@@ -1,0 +1,121 @@
+{
+  "motion": "0.1",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "fps": 60
+  },
+  "strokes": {
+    "s1": {
+      "points": [
+        [
+          80,
+          560
+        ],
+        [
+          400,
+          380
+        ],
+        [
+          760,
+          600
+        ],
+        [
+          1000,
+          560
+        ]
+      ]
+    }
+  },
+  "actors": [
+    {
+      "id": "ball",
+      "shape": {
+        "kind": "ellipse",
+        "rx": 28,
+        "ry": 28
+      },
+      "style": {
+        "fill": "#e4572e"
+      },
+      "init": {
+        "x": 80,
+        "y": 560
+      }
+    },
+    {
+      "id": "logo",
+      "shape": {
+        "kind": "text",
+        "text": "ACME",
+        "size": 96
+      },
+      "style": {
+        "fill": "#222"
+      },
+      "init": {
+        "x": 640,
+        "y": 260,
+        "opacity": 0,
+        "sx": 0.6,
+        "sy": 0.6
+      }
+    }
+  ],
+  "timeline": {
+    "id": "root",
+    "seq": [
+      {
+        "id": "roll",
+        "verb": "move_along",
+        "actor": "ball",
+        "path": {
+          "stroke": "s1"
+        },
+        "orient": true,
+        "duration": 1.6,
+        "ease": "inOutSine"
+      },
+      {
+        "id": "hop",
+        "verb": "bounce",
+        "actor": "ball",
+        "height": 90,
+        "count": 3
+      },
+      {
+        "id": "reveal",
+        "par": [
+          {
+            "id": "in",
+            "verb": "fade",
+            "actor": "logo",
+            "to": 1,
+            "duration": 0.4
+          },
+          {
+            "id": "pop",
+            "verb": "spring_to",
+            "actor": "logo",
+            "prop": "scale",
+            "to": 1
+          }
+        ]
+      }
+    ]
+  },
+  "constraints": [
+    {
+      "type": "in_bounds",
+      "actors": "*",
+      "margin": 8
+    },
+    {
+      "type": "total_duration",
+      "max": 5
+    }
+  ],
+  "meta": {
+    "intent": "the ball rolls along my line, bounces three times, then the logo fades in and pops"
+  }
+}

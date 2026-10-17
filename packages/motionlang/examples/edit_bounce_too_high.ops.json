@@ -1,0 +1,4 @@
+[
+  { "op": "set", "id": "hop", "field": "height", "value": 700 },
+  { "op": "set", "id": "roll", "field": "duration", "value": 0.6 }
+]

@@ -1,0 +1,32 @@
+{
+  "motion": "0.1",
+  "canvas": { "width": 1280, "height": 720, "background": "#fbfaf7", "fps": 60 },
+  "strokes": {
+    "wave": { "points": [[160, 420], [360, 300], [560, 460], [760, 300], [960, 440], [1120, 360]], "width": 6 }
+  },
+  "actors": [
+    { "id": "line", "shape": { "kind": "stroke", "ref": "wave" }, "style": { "stroke": "#2e86de" } },
+    { "id": "d1", "shape": { "kind": "ellipse", "rx": 18, "ry": 18 }, "style": { "fill": "#e4572e" }, "init": { "x": 360, "y": 300, "sx": 0, "sy": 0 } },
+    { "id": "d2", "shape": { "kind": "ellipse", "rx": 18, "ry": 18 }, "style": { "fill": "#f3a712" }, "init": { "x": 760, "y": 300, "sx": 0, "sy": 0 } },
+    { "id": "d3", "shape": { "kind": "ellipse", "rx": 18, "ry": 18 }, "style": { "fill": "#29bf12" }, "init": { "x": 1120, "y": 360, "sx": 0, "sy": 0 } },
+    { "id": "title", "shape": { "kind": "text", "text": "Motion", "size": 72 }, "init": { "x": 640, "y": 150, "opacity": 0 } }
+  ],
+  "timeline": { "id": "root", "seq": [
+    { "id": "draw", "verb": "draw_on", "actor": "line", "duration": 1.4, "ease": "inOutSine" },
+    { "id": "pops", "stagger": [
+      { "id": "p1", "verb": "spring_to", "actor": "d1", "prop": "scale", "to": 1, "stiffness": 220, "damping": 14 },
+      { "id": "p2", "verb": "spring_to", "actor": "d2", "prop": "scale", "to": 1, "stiffness": 220, "damping": 14 },
+      { "id": "p3", "verb": "spring_to", "actor": "d3", "prop": "scale", "to": 1, "stiffness": 220, "damping": 14 }
+    ], "offset": 0.15 },
+    { "id": "finale", "par": [
+      { "id": "zoom", "verb": "camera", "to": { "zoom": 1.15, "y": 330 }, "duration": 1.2, "ease": "inOutCubic" },
+      { "id": "hello", "verb": "fade", "actor": "title", "to": 1, "duration": 0.6, "delay": 0.3 },
+      { "id": "jig", "verb": "wiggle", "actor": "d2", "amplitude": 12, "props": ["rotation"], "duration": 1.2, "seed": 3 }
+    ] }
+  ] },
+  "constraints": [
+    { "type": "in_bounds", "actors": "*", "margin": 4 },
+    { "type": "total_duration", "max": 5 }
+  ],
+  "meta": { "title": "Draw and zoom", "intent": "draw the wave, pop three dots in one after another, then zoom in a little and fade in the title" }
+}

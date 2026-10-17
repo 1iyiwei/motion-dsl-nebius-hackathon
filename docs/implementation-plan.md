@@ -30,7 +30,7 @@ Log tokens and latency per call. That gives concrete numbers for the "credits st
 
 ## Shared core: Motion DSL, package `motionlang` (Oct 18–19)
 
-The motion DSL. You own the spec: see [motion-dsl-spec.md](motion-dsl-spec.md). Goal: easy for an LLM to generate and mechanically checkable.
+The motion DSL. You own the spec: see [packages/motionlang/SPEC.md](../packages/motionlang/SPEC.md). Goal: easy for an LLM to generate and mechanically checkable.
 
 - **Schema**: Pydantic models → JSON Schema (also used as the Token Factory structured-output schema).
   - `Scene { canvas, actors[], timeline }`
