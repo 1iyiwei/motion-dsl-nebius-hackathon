@@ -26,7 +26,7 @@ Live timings measured Oct 18 (Super unless noted):
 | 2:30–2:50 | Under the hood | Panel totals, MotionLang JSON, Export → HTML player opened in a new tab | "Every call runs on Nemotron via Nebius Token Factory; the output is an open, verifiable format." |
 | 2:50–3:00 | Close | Sunrise rising, then the title card | Track, team, repo link |
 
-Before each take: **Clear**, then reload. Use the sample buttons for SVG shots. Draw strokes slowly with a mouse or tablet; they're simplified automatically.
+Before each take: **Clear**, then reload. For SVG shots, drag files in from `apps/sketchdynamics/src/sketchdynamics/static/samples/`. Draw strokes slowly with a mouse or tablet; they're simplified automatically.
 
 ## Known gaps (prioritised for the video)
 

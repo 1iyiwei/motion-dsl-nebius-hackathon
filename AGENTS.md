@@ -14,7 +14,7 @@ The single repo for all Nebius x NVIDIA Global AI Hackathon submissions (deadlin
 | `apps/canvasmind/` (planned) | Private creative-memory assistant (Hermes Agent + OpenShell/NemoClaw) | Personal AI |
 | `apps/embodiedsketcher/` (maybe) | Sketches → robot/edge-agent motion, only if time allows | Physical AI |
 
-Plans and rationale are in `docs/` (`implementation-plan.md`, `ideation.md`). `docs/` is private planning and is never published.
+Plans and rationale are in `docs/` (`implementation-plan.md`, `ideation.md`). `docs/` stays in this repo: if this repo goes public, so does `docs/`. Per-app public repos made with `scripts/export_submission.py` never include it.
 
 ## Hard rules
 
@@ -40,6 +40,7 @@ uv run motionlang prompt                  # verb reference for LLM system prompt
 uv run motionlang generate "INTENT" -o out/x.motion.json --preview out/x.html   # Nemotron (needs NEBIUS_API_KEY in .env)
 uv run motionlang tweak out/x.motion.json "slower" -o out/y.motion.json        # fast edit path
 RUN_LIVE=1 uv run pytest -m live          # live Token Factory test (costs tokens)
+python3 scripts/export_submission.py sketchdynamics   # public, self-contained copy of one app → ../sketchdynamics-public
 ```
 
 ## motionlang architecture

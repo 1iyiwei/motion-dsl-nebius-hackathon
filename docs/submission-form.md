@@ -14,7 +14,6 @@ Provide a short tagline for the project. You can change this later.
 
 ## Project details
 For public project page
-
 Information entered below will appear on your public project page.
 
 ### Project Story
@@ -33,7 +32,7 @@ Be sure to write what inspired you, what you learned, how you built your project
 
 #### What we learned
 
-#### What's next for TBD
+#### What's next
 
 * Built with
 You can add up to 25 tags.
@@ -41,6 +40,7 @@ Languages, frameworks, platforms, cloud services, databases, APIS, etc.
 
 "Try it out" links
 Add links where people can try your project or see your code.
+UL for demo site, app store listing, GitHub repo, etc.
 
 ### Project Media
 Image gallery
@@ -53,7 +53,6 @@ Visibility: Set to public or unlisted with no password.
 
 ## Additional info
 For judges and organizers
-
 Unless noted, additional info is for judges and hackathon organizers and will not appear on your public project page.
 
 Upload a File

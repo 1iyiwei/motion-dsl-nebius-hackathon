@@ -218,7 +218,7 @@ function setBusy(on, text = "") {
   state.busy = on;
   $("busy").hidden = !on;
   $("busy-text").textContent = text;
-  for (const id of ["gen", "tweak", "intent", "instruction", "mic-intent", "mic-instruction", "clear", "undo-stroke", "logo-pick", "logo-sample", "logo-sample-2", "logo-sample-3", "planner"]) $(id).disabled = on;
+  for (const id of ["gen", "tweak", "intent", "instruction", "mic-intent", "mic-instruction", "clear", "undo-stroke", "logo-pick", "planner"]) $(id).disabled = on;
 }
 function setStatus(text, bad = false, retry = null) {
   $("status").textContent = text;
@@ -746,9 +746,6 @@ async function importFile(file) {
 
 $("logo-file").onchange = (e) => { importFile(e.target.files[0]); e.target.value = ""; };
 $("logo-pick").onclick = () => $("logo-file").click();
-$("logo-sample").onclick = async () => importLogo(await (await fetch("/static/samples/sunrise.svg")).text(), "sunrise.svg");
-$("logo-sample-3").onclick = async () => importLogo(await (await fetch("/static/samples/cloud-bolt-svgrepo-com.svg")).text(), "cloud-bolt-svgrepo-com.svg");
-$("logo-sample-2").onclick = async () => importLogo(await (await fetch("/static/samples/wind-energy-svgrepo-com.svg")).text(), "wind-energy-svgrepo-com.svg");
 const wrap = stage.parentElement;
 wrap.addEventListener("dragover", (e) => { e.preventDefault(); wrap.classList.add("drop"); });
 wrap.addEventListener("dragleave", () => wrap.classList.remove("drop"));
