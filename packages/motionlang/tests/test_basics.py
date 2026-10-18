@@ -45,8 +45,10 @@ def test_svg_flatten():
     curve = flatten_svg_path("M0,0 C 0,-50 100,-50 100,0")
     assert curve[-1].tolist() == pytest.approx([100, 0])
     assert curve[:, 1].min() < -30
-    with pytest.raises(ValueError, match="arc"):
-        flatten_svg_path("M0 0 A 10 10 0 0 1 20 0")
+    arc = flatten_svg_path("M0 0 A 10 10 0 0 1 20 0")  # upper half circle (sweep=1 is clockwise in y-down)
+    assert arc[-1].tolist() == pytest.approx([20, 0])
+    assert np.hypot(arc[:, 0] - 10, arc[:, 1]).tolist() == pytest.approx([10] * len(arc), abs=0.02)
+    assert arc[:, 1].min() == pytest.approx(-10, abs=0.02)
 
 
 def test_catmull_rom_passes_through_points():

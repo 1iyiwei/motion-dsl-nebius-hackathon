@@ -1,6 +1,6 @@
 """Generic verb contract (spec §11). Runs over every registered verb, core or plugin.
 
-A verb that passes this suite is a valid Motion verb, whoever (or whatever agent) wrote it.
+A verb that passes this suite is a valid MotionLang verb, whoever (or whatever agent) wrote it.
 """
 
 from __future__ import annotations

@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 
 from .model import Actor, Document
-from .paths import catmull_rom, flatten_svg_path
+from .paths import catmull_rom, flatten_svg_path, transform_path
 
 TEXT_ADVANCE = 0.6  # rough glyph width / font size, enough for bounds checks
 
@@ -53,6 +53,18 @@ def actor_geometry(actor: Actor, doc: Document) -> Geometry:
         g = _points_geometry(catmull_rom(st.points), False, k)
         g.svg["width"] = st.width
         return g
+    if k == "asset":
+        asset = doc.assets[s.ref]
+        pts = flatten_svg_path(asset.d)
+        mn = pts.min(axis=0)
+        local = pts - mn
+        w, h = (float(v) for v in np.maximum(local.max(axis=0), 1e-6))
+        closed = asset.fill is not None or asset.stroke is None
+        # Keep the real curves for rendering; the flattened outline is only for bounds checks.
+        svg = {"tag": "path", "d": transform_path(asset.d, (1, 0, 0, 1, -mn[0], -mn[1])), "closed": closed, "kind": k, "fill_rule": asset.fill_rule}
+        if asset.stroke_width is not None:
+            svg["width"] = asset.stroke_width
+        return Geometry(w, h, local, (float(mn[0]), float(mn[1])), True, svg)
     if k == "text":
         w, h = TEXT_ADVANCE * s.size * len(s.text), s.size
         o = np.array([[0, 0], [w, 0], [w, h], [0, h]], dtype=float)
@@ -81,6 +93,15 @@ def local_matrix(x: float, y: float, rot_deg: float, sx: float, sy: float, px: f
     cs, sn = math.cos(r), math.sin(r)
     a, b, c, d = cs * sx, sn * sx, -sn * sy, cs * sy
     return (a, b, c, d, x - (a * px + c * py), y - (b * px + d * py))
+
+
+def invert(m: Mat) -> Mat:
+    a, b, c, d, e, f = m
+    det = a * d - b * c
+    if abs(det) < 1e-12:
+        raise ValueError("matrix is not invertible (a scale of 0?)")
+    ia, ib, ic, id_ = d / det, -b / det, -c / det, a / det
+    return (ia, ib, ic, id_, -(ia * e + ic * f), -(ib * e + id_ * f))
 
 
 def camera_matrix(width: float, height: float, cx: float, cy: float, zoom: float, rot_deg: float) -> Mat:

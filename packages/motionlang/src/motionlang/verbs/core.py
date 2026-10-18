@@ -1,4 +1,4 @@
-"""The 14 core verbs of Motion v0.1."""
+"""The 15 core verbs of MotionLang v0.1."""
 
 from __future__ import annotations
 
@@ -170,7 +170,7 @@ class DrawOnParams(VerbParams):
 
 @register
 class DrawOn(Verb):
-    """Reveal a stroke/path/polygon progressively, as if being drawn (animates `trim`)."""
+    """Reveal a stroke/path/polygon/asset outline progressively, as if being drawn (animates `trim`)."""
 
     name = "draw_on"
     Params = DrawOnParams
@@ -188,9 +188,59 @@ class DrawOn(Verb):
     def jumps_at_start(self, p: DrawOnParams) -> bool:
         return True
 
+    def holds_before(self, p: DrawOnParams) -> bool:
+        return True
+
     def check_target(self, p: DrawOnParams, actor: Actor | None) -> str | None:
-        if actor is not None and actor.shape.kind not in ("stroke", "path", "polygon"):
-            return f"draw_on needs a stroke, path or polygon actor, not {actor.shape.kind}"
+        if actor is not None and actor.shape.kind not in ("stroke", "path", "polygon", "asset"):
+            return f"draw_on needs a stroke, path, polygon or asset actor, not {actor.shape.kind}"
+        return None
+
+
+REVEAL_SIDES: dict[str, tuple[str, ...]] = {
+    "left_to_right": ("clip_r",), "right_to_left": ("clip_l",),
+    "top_to_bottom": ("clip_b",), "bottom_to_top": ("clip_t",),
+    "from_center": ("clip_l", "clip_t", "clip_r", "clip_b"),
+}
+
+
+class RevealParams(VerbParams):
+    direction: Literal["left_to_right", "right_to_left", "top_to_bottom", "bottom_to_top", "from_center"] = Field(
+        "left_to_right", description="the way the visible edge travels")
+    from_: float = Field(0.0, alias="from", ge=0, le=1, description="visible fraction at start")
+    to: float = Field(1.0, ge=0, le=1, description="visible fraction at end")
+
+
+@register
+class Reveal(Verb):
+    """Wipe a shape into view behind a moving straight edge (a directional mask; works on filled shapes,
+    unlike draw_on). `from: 1, to: 0` wipes it out again."""
+
+    name = "reveal"
+    Params = RevealParams
+    examples = [{"direction": "left_to_right", "duration": 0.8}, {"direction": "from_center", "from": 1.0, "to": 0.0}]
+
+    def mode(self, p: RevealParams) -> Mode:
+        return "abs"
+
+    def props(self, p: RevealParams) -> tuple[str, ...]:
+        return REVEAL_SIDES[p.direction]
+
+    def sample(self, p: RevealParams, u: float, t: float, ctx: SampleContext) -> dict[str, Any]:
+        hidden = 1.0 - _lerp(p.from_, p.to, u)
+        sides = self.props(p)
+        share = hidden / 2 if len(sides) == 4 else hidden
+        return {side: share for side in sides}
+
+    def jumps_at_start(self, p: RevealParams) -> bool:
+        return True
+
+    def holds_before(self, p: RevealParams) -> bool:
+        return True
+
+    def check_target(self, p: RevealParams, actor: Actor | None) -> str | None:
+        if actor is not None and actor.shape.kind == "group":
+            return "reveal needs an actor with a shape, not a group; reveal each child (a stagger works well)"
         return None
 
 

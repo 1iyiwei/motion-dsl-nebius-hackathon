@@ -3,6 +3,8 @@
 For a property at time t:
   * the governing absolute leaf A is the latest abs leaf on that prop that has started;
     A interpolates from the composed value just before it started (its `from` state);
+  * before the first abs leaf starts, the base is the actor's init value, or that leaf's starting
+    value if its verb `holds_before` (draw_on, reveal);
   * every relative leaf r adds δr(t) − δr(A.start): offsets already absorbed into A's
     `from` are not counted twice. With no governing A, the base is the actor's init value.
 δr(τ) is 0 before r starts, r's sample during r, and r's final sample after it ends.
@@ -14,6 +16,9 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
+
+from .geometry import Mat, apply, invert, local_matrix, mul
 from .model import CAMERA_ID, COLOR_PROPS, Canvas
 from .parse import Parsed
 from .paths import Polyline, resolve_path
@@ -31,25 +36,51 @@ def initial_values(parsed: Parsed) -> dict[str, dict[str, Any]]:
     doc = parsed.doc
     cw, ch = doc.canvas.width, doc.canvas.height
     out: dict[str, dict[str, Any]] = {CAMERA_ID: {"x": cw / 2, "y": ch / 2, "zoom": 1.0, "rotation": 0.0}}
-    for a in doc.actors:
-        g = parsed.geometry[a.id]
+    rest: dict[str, Mat] = {}
+
+    def rest_world(aid: str) -> Mat:
+        """bbox-local → world at rest: initial position and rotation, unit scale (so a group that
+        pops in from scale 0 still places its children where they were drawn)."""
+        if aid not in rest:
+            resolve(aid)
+            a, g, v = parsed.actors[aid], parsed.geometry[aid], out[aid]
+            m = local_matrix(v["x"], v["y"], v["rotation"], 1.0, 1.0, a.pivot[0] * g.w, a.pivot[1] * g.h)
+            rest[aid] = mul(rest_world(a.parent), m) if a.parent else m
+        return rest[aid]
+
+    def resolve(aid: str) -> None:
+        if aid in out:
+            return
+        a = parsed.actors[aid]
+        g = parsed.geometry[aid]
         px, py = a.pivot
         if g.drawn:
             dx, dy = g.origin[0] + px * g.w, g.origin[1] + py * g.h
+            if a.parent:  # stay where drawn: express the drawn spot in the parent's initial frame
+                (dx, dy), = apply(invert(rest_world(a.parent)), np.array([[dx, dy]]))
         else:
             dx, dy = cw / 2, ch / 2
         kind = a.shape.kind
-        closed = kind in CLOSED_KINDS or (kind == "path" and a.shape.closed)
-        fill = a.style.fill if a.style.fill is not None else (DEFAULT_INK if closed else None)
-        stroke = a.style.stroke if a.style.stroke is not None else (DEFAULT_INK if kind in ("stroke", "path") and not closed else None)
+        asset = doc.assets[a.shape.ref] if kind == "asset" else None
+        if asset is not None:
+            fill = a.style.fill if a.style.fill is not None else asset.fill
+            stroke = a.style.stroke if a.style.stroke is not None else asset.stroke
+        else:
+            closed = kind in CLOSED_KINDS or (kind == "path" and a.shape.closed)
+            fill = a.style.fill if a.style.fill is not None else (DEFAULT_INK if closed else None)
+            stroke = a.style.stroke if a.style.stroke is not None else (DEFAULT_INK if kind in ("stroke", "path") and not closed else None)
         i = a.init
-        out[a.id] = {
-            "x": i.x if i.x is not None else dx,
-            "y": i.y if i.y is not None else dy,
+        out[aid] = {
+            "x": i.x if i.x is not None else float(dx),
+            "y": i.y if i.y is not None else float(dy),
             "rotation": i.rotation, "sx": i.sx, "sy": i.sy, "opacity": i.opacity, "trim": i.trim,
+            "clip_l": 0.0, "clip_t": 0.0, "clip_r": 0.0, "clip_b": 0.0,
             "fill": fill, "stroke": stroke,
         }
-    return out
+
+    for a in doc.actors:
+        resolve(a.id)
+    return {CAMERA_ID: out[CAMERA_ID], **{a.id: out[a.id] for a in doc.actors}}
 
 
 @dataclass
@@ -103,14 +134,19 @@ class Evaluator:
         self._active.add(key)
         try:
             A = None
-            for lf in self.abs.get((actor, prop), ()):
+            leaves = self.abs.get((actor, prop), ())
+            for lf in leaves:
                 if lf.start <= t + 1e-12 and (before is None or lf.key < before):
                     A = lf
                 else:
                     break
+            first = leaves[0] if leaves else None
             if A is not None:
                 base = self.sample(A, t)[prop]
                 ref = A.start
+            elif first is not None and (before is None or first.key < before) and first.block.verb.holds_before(first.block.params):
+                base = self.sample(first, first.start)[prop]  # e.g. a part revealed later stays hidden until then
+                ref = None
             else:
                 base = self.init[actor][prop]
                 ref = None

@@ -11,7 +11,7 @@ import numpy as np
 
 from .evaluate import Evaluator
 from .geometry import IDENTITY, Mat, apply, camera_matrix, local_matrix, mul
-from .model import CAMERA_ID, COLOR_PROPS
+from .model import CAMERA_ID, CLIP_PROPS, COLOR_PROPS
 from .parse import Parsed
 from .timing import Schedule, schedule
 
@@ -62,7 +62,7 @@ class Baked:
             p = self.props[a.id]
             actors.append({
                 "id": a.id,
-                "geom": g.svg,
+                "geom": {**g.svg, "bw": round(g.w, precision), "bh": round(g.h, precision)},
                 "style": {"stroke_width": a.style.stroke_width},
                 "tracks": {
                     "m": pack(self.screen[a.id]),
@@ -70,6 +70,7 @@ class Baked:
                     "fill": pack(p["fill"]),
                     "stroke": pack(p["stroke"]),
                     "trim": pack([float(v) for v in p["trim"]]),
+                    "clip": pack([tuple(float(p[c][k]) for c in CLIP_PROPS) for k in range(len(self.times))]),
                 },
             })
         return {

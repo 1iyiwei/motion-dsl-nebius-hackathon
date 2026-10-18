@@ -1,4 +1,4 @@
-"""LLM loop for Motion: generate → validate → repair, and fast edits (needs motionlang[agent])."""
+"""LLM loop for MotionLang: generate → validate → repair, and fast edits (needs motionlang[agent])."""
 
 from .llm import LLM, Call, TokenFactory, load_env, model_for
 from .loop import Attempt, Outcome, generate, tweak

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SketchDynamics</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">✎</span> SketchDynamics <span class="sub">sketch + talk → motion</span></div>
+  <div class="powered">Nemotron on Nebius Token Factory</div>
+</header>
+
+<main class="layout">
+  <section class="work">
+    <div class="stage-wrap">
+      <svg id="stage" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
+        <g id="anim"></g>
+        <g id="ink"></g>
+      </svg>
+      <div id="hint" class="stage-hint">Draw a path, a shape, anything. Then say what should happen.</div>
+      <div id="busy" class="busy" hidden><span class="spinner"></span><span id="busy-text">Planning…</span></div>
+    </div>
+
+    <div class="bar">
+      <button id="play" class="icon" title="Play / pause (space)" disabled>▶</button>
+      <input id="scrub" type="range" min="0" max="0" step="1" value="0" disabled>
+      <span id="time" class="time">0.00 / 0.00s</span>
+      <label class="check"><input id="loop" type="checkbox" checked> loop</label>
+      <span class="sep"></span>
+      <label class="check"><input id="show-ink" type="checkbox" checked> sketch</label>
+      <button id="undo-stroke" title="Remove last stroke">Undo stroke</button>
+      <button id="clear">Clear</button>
+    </div>
+
+    <form id="gen-form" class="ask">
+      <input id="intent" autocomplete="off" placeholder="What should happen? e.g. a ball rolls along my line and bounces">
+      <button id="gen" type="submit" class="primary">Generate</button>
+    </form>
+    <div id="examples" class="examples"></div>
+
+    <form id="tweak-form" class="ask" hidden>
+      <input id="instruction" autocomplete="off" placeholder="Refine: slower, more bounce, make it blue…">
+      <button id="tweak" type="submit">Tweak</button>
+    </form>
+    <div id="tweak-examples" class="examples" hidden></div>
+
+    <div id="versions" class="versions"></div>
+    <div id="status" class="status"></div>
+  </section>
+
+  <aside class="panel">
+    <div class="panel-head">
+      <h2>Model calls</h2>
+      <div id="totals" class="totals">No calls yet</div>
+    </div>
+    <ol id="runs" class="runs"></ol>
+    <details id="program" class="program">
+      <summary>MotionLang program</summary>
+      <pre id="program-json"></pre>
+    </details>
+  </aside>
+</main>
+
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

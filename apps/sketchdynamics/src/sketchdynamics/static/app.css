@@ -1,0 +1,101 @@
+:root {
+  --bg: #f4f4f1; --surface: #ffffff; --fg: #1d1d1b; --muted: #6b6b66; --line: #dcdcd5;
+  --accent: #e4572e; --accent-fg: #ffffff; --ok: #2a8a4a; --bad: #c0392b; --warn: #b7791f;
+  --ultra: #5b3fd1; --nano: #0b7f8a; --ink: #1d1d1b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141413; --surface: #1d1d1b; --fg: #ececea; --muted: #9a9a94; --line: #34342f;
+    --ok: #4cc27a; --bad: #ef6b5b; --warn: #e0a84a; --ultra: #a08cff; --nano: #4fc7d2;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, -apple-system, sans-serif; }
+button, input { font: inherit; color: inherit; }
+button {
+  padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--muted); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+button.icon { width: 36px; padding: 6px 0; }
+
+.top { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 20px; border-bottom: 1px solid var(--line); }
+.brand { font-weight: 700; font-size: 16px; }
+.brand .logo { color: var(--accent); }
+.brand .sub { font-weight: 400; color: var(--muted); margin-left: 8px; font-size: 13px; }
+.powered { color: var(--muted); font-size: 12px; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; padding: 16px 20px; max-width: 1500px; margin: 0 auto; }
+@media (max-width: 960px) { .layout { grid-template-columns: 1fr; padding: 12px 16px; } }
+
+.stage-wrap { position: relative; }
+#stage {
+  width: 100%; height: auto; display: block; background: #fff; border: 1px solid var(--line); border-radius: 10px;
+  touch-action: none; cursor: crosshair; aspect-ratio: 16 / 9;
+}
+#ink path { fill: none; stroke: var(--ink); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+#ink text { font: 600 22px system-ui, sans-serif; fill: #888; }
+#stage.has-anim #ink path { stroke: #e4572e; stroke-width: 3; stroke-dasharray: 10 8; opacity: .45; }
+#stage.has-anim #ink text { opacity: .6; }
+#stage.hide-ink #ink { display: none; }
+.stage-hint {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;
+  color: #9a9a94; font-size: 18px;
+}
+.busy {
+  position: absolute; top: 12px; left: 12px; display: flex; gap: 8px; align-items: center; padding: 6px 12px;
+  background: rgba(20, 20, 19, .82); color: #fff; border-radius: 999px; font-size: 13px;
+}
+.spinner { width: 12px; height: 12px; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.bar { display: flex; gap: 10px; align-items: center; margin: 10px 0 14px; flex-wrap: wrap; }
+.bar input[type=range] { flex: 1; min-width: 120px; accent-color: var(--accent); }
+.time { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 10ch; text-align: right; }
+.check { color: var(--muted); display: flex; gap: 4px; align-items: center; }
+.sep { width: 1px; height: 20px; background: var(--line); }
+
+.ask { display: flex; gap: 8px; margin-bottom: 6px; }
+.ask input {
+  flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); outline: none;
+}
+.ask input:focus { border-color: var(--accent); }
+.examples { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.examples button { font-size: 12px; padding: 3px 10px; border-radius: 999px; color: var(--muted); }
+.versions { display: flex; flex-wrap: wrap; gap: 6px; }
+.versions button { font-size: 12px; padding: 3px 10px; }
+.versions button.current { border-color: var(--accent); color: var(--accent); }
+.status { margin-top: 8px; color: var(--muted); min-height: 1.4em; }
+.status.bad { color: var(--bad); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; align-self: start; max-height: calc(100vh - 90px); overflow: auto; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.panel h2 { font-size: 14px; margin: 0; }
+.totals { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.runs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column-reverse; gap: 14px; }
+.run-title { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.run-title b { color: var(--fg); font-weight: 600; }
+.run-note { font-size: 12px; color: var(--warn); margin-top: 4px; }
+.calls { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.call { border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 6px; padding: 7px 9px; }
+.call.ultra { border-left-color: var(--ultra); }
+.call.nano { border-left-color: var(--nano); }
+.call-head { display: flex; gap: 8px; align-items: baseline; }
+.model { font-weight: 600; }
+.call.ultra .model { color: var(--ultra); }
+.call.nano .model { color: var(--nano); }
+.purpose { color: var(--muted); font-size: 12px; }
+.metrics { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.verdict { font-size: 12px; margin-top: 3px; }
+.verdict.ok { color: var(--ok); }
+.verdict.bad { color: var(--bad); }
+.verdict.pending { color: var(--muted); }
+.problems { margin: 4px 0 0; padding-left: 16px; font-size: 12px; color: var(--muted); }
+.problems code { color: var(--bad); font-size: 11px; }
+.problems .hint { display: block; font-style: italic; }
+.program { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 10px; }
+.program summary { cursor: pointer; font-weight: 600; }
+.program pre { font-size: 11px; max-height: 360px; overflow: auto; background: var(--bg); padding: 8px; border-radius: 6px; }
+@media (max-width: 600px) { .brand .sub, .powered { display: none; } .top { padding: 10px 16px; } }

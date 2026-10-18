@@ -1,8 +1,8 @@
-# motionlang: the Motion DSL
+# motionlang: the MotionLang DSL
 
 License: Apache-2.0
 
-**Motion** is a declarative 2D motion language designed to be **written by LLMs, checked by machines, and played anywhere**.
+**MotionLang** is a declarative 2D motion language designed to be **written by LLMs, checked by machines, and played anywhere**.
 Instead of asking a model for keyframes (Lottie) or imperative animation code (GSAP), you ask it for *intent*: actors, a timeline of verbs (`move_along`, `bounce`, `spring_to`, `draw_on`, `camera`, …) and constraints. `motionlang` then:
 
 - **validates** it, returning errors written for an LLM repair loop: every error has a JSON pointer, the block to blame, and a concrete hint;
@@ -28,6 +28,7 @@ motionlang bake     examples/ball_logo.motion.json -o tracks.json
 motionlang schema   > motion.schema.json                                 # JSON Schema (draft 2020-12)
 motionlang prompt   > motion-reference.md                                # verb reference for system prompts
 motionlang edit     doc.motion.json ops.json -o doc2.motion.json
+motionlang import-svg logo.svg --fit 1280x720 -o logo.json             # SVG → assets + suggested actors
 ```
 
 ```python
@@ -61,6 +62,33 @@ out = generate("three circles orbit a sun, then the camera zooms in")
 print(out.ok, out.seconds, [str(a) for a in out.attempts])
 ```
 
+## Animating your own logo
+
+Import an SVG once, then let the model animate it part by part. The model never sees or writes path data: it gets each part's id, label, bounding box and colour, references parts by id (`shape: {"kind": "asset", "ref": "swoosh"}`), and the agent merges your assets back into every document.
+
+Try it on a test logo from the repo root (`out/` is gitignored; `generate` and `tweak` need `NEBIUS_API_KEY`):
+
+```bash
+uv run motionlang import-svg packages/motionlang/tests/fixtures/svg/nested.svg --fit 1280x720 -o out/logo.json
+uv run motionlang generate "reveal the logo part by part, then the mark spins once and the whole logo pops" \
+    --assets out/logo.json -o out/logo_ai.motion.json --preview out/logo_ai.html
+uv run motionlang tweak out/logo_ai.motion.json "slower, and reveal right to left" -o out/logo_ai2.motion.json --preview out/logo_ai2.html
+open out/logo_ai.html
+```
+
+`import-svg` prints what it couldn't keep (gradients become solid colours; text and filters are skipped). The other fixtures (`arcs.svg`, `styled.svg`) and your own SVGs work the same way. `import-svg ... --doc -o x.motion.json` writes a complete static document you can animate by hand.
+
+```python
+from motionlang.importers import import_svg
+from motionlang.agent import generate
+
+logo = import_svg(svg_text, fit=(1280, 720))   # {"canvas", "assets", "actors", "dropped"}
+out = generate("the swoosh wipes in, then the wordmark fades up", canvas=logo["canvas"],
+               assets=logo["assets"], suggested_actors=logo["actors"])
+```
+
+The importer flattens transforms, converts circles, rects, polygons and arcs to path data, keeps `<g>` groups as suggested group actors, and names parts from `id`, `inkscape:label` or `<title>`. Filled parts are wiped in with `reveal`; stroked parts can also `draw_on`.
+
 ## A document
 
 ```json
@@ -84,12 +112,14 @@ print(out.ok, out.seconds, [str(a) for a in out.attempts])
 - **Composition rule**: absolute verbs set a value and relative verbs add on top. Two absolute verbs fighting over the same property at the same time is an error (`E_CONFLICT`), never a silent heuristic.
 - **No surprise jumps**: absolute verbs start from the current value. If one would make an actor teleport, you get `E_DISCONTINUITY` with a fix.
 - **One source of truth**: Python resolves timing, samples, and checks constraints. Players just play the baked tracks.
-- **Extensible**: verbs are plugins (`motionlang.verbs` entry point). Any verb that passes the generic contract suite in `tests/test_contract.py` (deterministic, identity at start, continuous, bounded, schema round-trip) is a valid Motion verb.
+- **Extensible**: verbs are plugins (`motionlang.verbs` entry point). Any verb that passes the generic contract suite in `tests/test_contract.py` (deterministic, identity at start, continuous, bounded, schema round-trip) is a valid MotionLang verb.
 
 ## Verbs (v0.1)
 
-`move`, `move_along`, `rotate`, `scale`, `fade`, `recolor`, `draw_on`, `camera`, `orbit`, `bounce`, `wiggle`, `spring_to`, `follow`, `hold`. Run `motionlang prompt` for parameters and examples.
+Verbs are MotionLang's *kinemes*, the smallest meaningful units of movement (a term from kinesics). A timeline composes them into larger motion.
+
+`move`, `move_along`, `rotate`, `scale`, `fade`, `recolor`, `draw_on`, `reveal`, `camera`, `orbit`, `bounce`, `wiggle`, `spring_to`, `follow`, `hold`. Run `motionlang prompt` for parameters and examples.
 
 ## Related work
 
-Motion complements [MoVer](https://github.com/jama1017/MoVer) (SIGGRAPH 2025), a first-order-logic language for *verifying* motion graphics against a prompt. Motion is the generation target, and MoVer checks intent. See SPEC.md §14.
+MotionLang complements [MoVer](https://github.com/jama1017/MoVer) (SIGGRAPH 2025), a first-order-logic language for *verifying* motion graphics against a prompt. MotionLang is the generation target, and MoVer checks intent. Unlike [OmniLottie](https://github.com/OpenVGLab/OmniLottie) (CVPR 2026), a fine-tuned model that generates Lottie directly, MotionLang uses a general LLM plus a validator. Its composition rule (absolute verbs as the primary motion, relative verbs layered on top) parallels the primary/secondary motion split in [fog](https://fog-motion-emotion.vercel.app/) (Liu & Chilton, 2026). See SPEC.md §14.

@@ -1,7 +1,7 @@
 [project]
 name = "motionlang"
 version = "0.1.0"
-description = "Motion: a declarative, verifiable 2D motion DSL designed for LLM generation"
+description = "MotionLang: a declarative, verifiable 2D motion DSL designed for LLM generation"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]

@@ -1,4 +1,4 @@
-"""Parse a Motion JSON document into a typed model + block tree, collecting every error at once."""
+"""Parse a MotionLang JSON document into a typed model + block tree, collecting every error at once."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from .ease import EaseFn, resolve_ease
 from .geometry import Geometry, actor_geometry
 from .issues import Issue
 from .model import ACTOR_PROPS, CAMERA_ID, CAMERA_PROPS, Actor, Document
-from .paths import resolve_path
+from .paths import flatten_svg_path, resolve_path
 from .verbs import Verb, load_plugins
 
 CONTAINERS = ("seq", "par", "stagger", "repeat")
@@ -196,6 +196,14 @@ def _parse_block(raw: Any, ptr: str, issues: list[Issue], registry: dict[str, Ve
     return VerbBlock(bid or "?", verb, params, actor, duration, ease, delay, ptr, label=label)
 
 
+def _asset_hint(ref: str, doc: Document) -> str:
+    if not doc.assets:
+        return "this document has no assets; use another shape kind, or import the SVG first (motionlang import-svg) and pass its assets"
+    listed = ", ".join(f"{k} ({v.label})" if v.label and v.label != k else k for k, v in doc.assets.items())
+    close = difflib.get_close_matches(ref, list(doc.assets), n=1, cutoff=0.6)
+    return (f"did you mean `{close[0]}`? " if close else "") + f"use one of the given asset ids exactly: {listed}"
+
+
 def _walk(b: Block):
     yield b
     if isinstance(b, ContainerBlock):
@@ -239,6 +247,8 @@ def parse(raw: dict) -> tuple[Parsed | None, list[Issue]]:
             issues.append(Issue("E_REF", f"actor {a.id!r} has unknown parent {a.parent!r}", actor=a.id, pointer=f"/actors/{i}/parent"))
         if a.shape.kind == "stroke" and a.shape.ref not in strokes:
             issues.append(Issue("E_REF", f"actor {a.id!r} references unknown stroke {a.shape.ref!r}", hint=f"defined strokes: {sorted(strokes) or 'none'}", actor=a.id, pointer=f"/actors/{i}/shape/ref"))
+        if a.shape.kind == "asset" and a.shape.ref not in doc.assets:
+            issues.append(Issue("E_REF", f"actor {a.id!r} references unknown asset {a.shape.ref!r}", hint=_asset_hint(a.shape.ref, doc), actor=a.id, pointer=f"/actors/{i}/shape/ref"))
     # parent cycles
     for a in doc.actors:
         seen, cur = set(), a
@@ -279,6 +289,14 @@ def parse(raw: dict) -> tuple[Parsed | None, list[Issue]]:
                 issues.append(Issue("E_SCHEMA", msg, block=b.id, pointer=b.pointer))
         if "." in v.name and not any(r.split(">")[0].split("=")[0].strip() == v.name for r in doc.requires):
             issues.append(Issue("E_REF", f"plugin verb {v.name!r} is not listed in `requires`", hint=f"add \"{v.name}\" to requires", severity="warning", block=b.id))
+    if any(i.severity == "error" for i in issues):
+        return None, issues
+
+    for k, asset in doc.assets.items():
+        try:
+            flatten_svg_path(asset.d)
+        except ValueError as e:
+            issues.append(Issue("E_SCHEMA", f"asset {k!r}: bad path data: {e}", hint="assets come from the SVG importer; re-import instead of editing `d`", pointer=f"/assets/{k}/d"))
     if any(i.severity == "error" for i in issues):
         return None, issues
 

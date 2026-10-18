@@ -1,4 +1,4 @@
-"""motionlang command line: validate, bake, preview, edit, schema, prompt."""
+"""motionlang command line: validate, bake, preview, edit, import-svg, schema, prompt."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def _write(text: str, out: str | None) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="motionlang", description="Motion DSL tools")
+    ap = argparse.ArgumentParser(prog="motionlang", description="MotionLang DSL tools")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     v = sub.add_parser("validate", help="check a document; exit 1 on errors")
@@ -45,12 +45,20 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("ops", help="JSON file with a list of ops")
     e.add_argument("-o", "--out")
 
+    s = sub.add_parser("import-svg", help="turn an SVG (e.g. a logo) into MotionLang assets + suggested actors")
+    s.add_argument("file")
+    s.add_argument("-o", "--out")
+    s.add_argument("--fit", metavar="WxH", help="scale and centre the artwork into a canvas of this size, e.g. 1280x720")
+    s.add_argument("--margin", type=float, default=0.1, help="with --fit: empty border as a fraction of the canvas")
+    s.add_argument("--doc", action="store_true", help="write a complete, valid document (static scene) instead of the bare import")
+
     g = sub.add_parser("generate", help="write a document from a sentence with Nemotron (needs NEBIUS_API_KEY)")
     g.add_argument("intent")
     g.add_argument("-o", "--out", required=True, help="where to write the .motion.json")
     g.add_argument("--preview", help="also write an HTML preview here")
     g.add_argument("--strokes", help="JSON file: {id: {points: [[x, y], ...]}} drawn by the user")
-    g.add_argument("--size", default="1280x720", help="canvas WxH")
+    g.add_argument("--assets", help="JSON file from `motionlang import-svg` (assets + suggested actors)")
+    g.add_argument("--size", help="canvas WxH (default: the --assets canvas, else 1280x720)")
     g.add_argument("--repairs", type=int, default=3)
 
     t = sub.add_parser("tweak", help="change a document with a short instruction (fast edit model, escalates if needed)")
@@ -74,6 +82,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd in ("generate", "tweak"):
         return _agent(args)
+    if args.cmd == "import-svg":
+        return _import_svg(args)
     if args.cmd == "edit":
         doc, issues = apply_edits(_load(args.file), _load(args.ops))
         if issues:
@@ -104,14 +114,43 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def _import_svg(args: argparse.Namespace) -> int:
+    from .importers import import_svg
+
+    fit = tuple(float(v) for v in args.fit.lower().split("x")) if args.fit else None
+    try:
+        result = import_svg(Path(args.file).read_text(), fit=fit, margin=args.margin)  # type: ignore[arg-type]
+    except ValueError as e:
+        print(f"import-svg: {e}", file=sys.stderr)
+        return 1
+    for msg in result["dropped"]:
+        print(f"dropped: {msg}", file=sys.stderr)
+    print(f"{len(result['assets'])} asset(s), {sum(a['shape']['kind'] == 'group' for a in result['actors'])} group(s)", file=sys.stderr)
+    if args.doc:
+        result = {
+            "motion": "0.1", "canvas": result["canvas"], "assets": result["assets"], "actors": result["actors"],
+            "timeline": {"id": "root", "seq": [{"id": "still", "verb": "hold", "duration": 1}]},
+            "meta": {"title": Path(args.file).stem},
+        }
+    _write(json.dumps(result, indent=2), args.out)
+    return 0
+
+
 def _agent(args: argparse.Namespace) -> int:
     from .agent import generate, tweak  # needs the optional `agent` extra
 
     if args.cmd == "generate":
-        w, h = (float(v) for v in args.size.lower().split("x"))
         strokes = _load(args.strokes) if args.strokes else None
+        imported = _load(args.assets) if args.assets else {}
+        if args.size:
+            w, h = (float(v) for v in args.size.lower().split("x"))
+        else:
+            w, h = imported.get("canvas", {}).get("width", 1280), imported.get("canvas", {}).get("height", 720)
         print(f"generating: {args.intent!r}", file=sys.stderr)
-        out = generate(args.intent, canvas={"width": w, "height": h}, strokes=strokes, max_repairs=args.repairs)
+        out = generate(
+            args.intent, canvas={"width": w, "height": h}, strokes=strokes, max_repairs=args.repairs,
+            assets=imported.get("assets"), suggested_actors=imported.get("actors"),
+        )
     else:
         print(f"tweaking: {args.instruction!r}", file=sys.stderr)
         out = tweak(_load(args.file), args.instruction)

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="10 10 100 100">
+  <defs>
+    <style>.cls-1{fill:#0ea5e9;} .cls-2 { fill: url(#grad); } #leaf { fill-rule: evenodd }</style>
+    <linearGradient id="grad"><stop offset="0" stop-color="#ff0000"/><stop offset="1" style="stop-color:#0000ff"/></linearGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="2"/></filter>
+    <ellipse id="seed" cx="0" cy="0" rx="4" ry="2"/>
+  </defs>
+  <ellipse class="cls-1" cx="60" cy="40" rx="30" ry="15"/>
+  <path id="leaf" class="cls-2" filter="url(#blur)" d="M20 80 L100 80 L60 100 Z M50 85 L70 85 L60 92 Z"><title>Leaf</title></path>
+  <use xlink:href="#seed" x="60" y="60" fill="green"/>
+  <text x="20" y="20">ACME</text>
+  <rect x="0" y="0" width="5" height="5" style="display:none"/>
+</svg>

@@ -9,7 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field
 SPEC_VERSION = "0.1"
 CAMERA_ID = "camera"
 
-NUMERIC_PROPS = ("x", "y", "rotation", "sx", "sy", "opacity", "trim")
+CLIP_PROPS = ("clip_l", "clip_t", "clip_r", "clip_b")  # hidden fraction of the bbox from each side (reveal)
+NUMERIC_PROPS = ("x", "y", "rotation", "sx", "sy", "opacity", "trim") + CLIP_PROPS
 COLOR_PROPS = ("fill", "stroke")
 ACTOR_PROPS = NUMERIC_PROPS + COLOR_PROPS
 CAMERA_PROPS = ("x", "y", "zoom", "rotation")
@@ -38,6 +39,19 @@ class Stroke(Strict):
     width: float = Field(4, gt=0)
 
 
+class Asset(Strict):
+    """An imported vector part (e.g. one piece of a logo), in canvas coordinates. See importers/svg.py."""
+
+    kind: Literal["path"] = "path"
+    d: str = Field(description="SVG path data in canvas coordinates (any command)")
+    fill: str | None = Field(None, description="fill colour; null = no fill")
+    stroke: str | None = None
+    stroke_width: float | None = Field(None, ge=0)
+    fill_rule: Literal["nonzero", "evenodd"] = "nonzero"
+    bbox: tuple[float, float, float, float] | None = Field(None, description="[x, y, w, h]; informational, recomputed from d")
+    label: str | None = Field(None, description="human/LLM-readable name of the part")
+
+
 class RectShape(Strict):
     kind: Literal["rect"]
     w: float = Field(gt=0)
@@ -58,7 +72,7 @@ class PolygonShape(Strict):
 
 class PathShape(Strict):
     kind: Literal["path"]
-    d: str = Field(description="SVG path data (M L H V C S Q T Z)")
+    d: str = Field(description="SVG path data (M L H V C S Q T A Z)")
     closed: bool = False
 
 
@@ -82,12 +96,17 @@ class StrokeShape(Strict):
     ref: str = Field(description="id of an entry in document.strokes")
 
 
+class AssetShape(Strict):
+    kind: Literal["asset"]
+    ref: str = Field(description="id of an entry in document.assets")
+
+
 class GroupShape(Strict):
     kind: Literal["group"]
 
 
 Shape = Annotated[
-    Union[RectShape, EllipseShape, PolygonShape, PathShape, TextShape, ImageShape, StrokeShape, GroupShape],
+    Union[RectShape, EllipseShape, PolygonShape, PathShape, TextShape, ImageShape, StrokeShape, AssetShape, GroupShape],
     Field(discriminator="kind"),
 ]
 
@@ -118,6 +137,7 @@ class Actor(Strict):
     pivot: tuple[float, float] = (0.5, 0.5)
     parent: str | None = None
     z: float = 0
+    label: str | None = Field(None, description="what this actor depicts, e.g. a logo part's name")
 
 
 # ---- constraints -------------------------------------------------------------------------
@@ -176,6 +196,7 @@ class Document(Strict):
     motion: Literal["0.1"] = SPEC_VERSION
     canvas: Canvas = Field(default_factory=Canvas)
     strokes: dict[str, Stroke] = Field(default_factory=dict)
+    assets: dict[str, Asset] = Field(default_factory=dict)
     actors: list[Actor] = Field(default_factory=list)
     timeline: dict[str, Any] = Field(description="root block")
     constraints: list[Constraint] = Field(default_factory=list)

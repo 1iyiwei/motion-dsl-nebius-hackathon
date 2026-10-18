@@ -1,4 +1,4 @@
-"""Motion: a declarative, verifiable 2D motion DSL designed for LLM generation."""
+"""MotionLang: a declarative, verifiable 2D motion DSL designed for LLM generation."""
 
 from .bake import Baked, bake
 from .edits import apply_edits

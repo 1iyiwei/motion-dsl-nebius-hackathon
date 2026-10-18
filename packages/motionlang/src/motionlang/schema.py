@@ -91,7 +91,7 @@ def _container_schemas() -> dict[str, dict]:
 
 
 def document_schema() -> dict:
-    """Full JSON Schema (draft 2020-12) for a Motion document."""
+    """Full JSON Schema (draft 2020-12) for a MotionLang document."""
     registry = load_plugins()
     schema = Document.model_json_schema(by_alias=True, ref_template="#/$defs/{model}")
     defs = schema.setdefault("$defs", {})
@@ -106,7 +106,7 @@ def document_schema() -> dict:
     defs["Block"] = {"anyOf": [{"$ref": f"#/$defs/{k}"} for k in containers] + verb_refs}
     schema["properties"]["timeline"] = {"$ref": "#/$defs/Block", "description": "root block"}
     schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
-    schema["title"] = "Motion document"
+    schema["title"] = "MotionLang document"
     return schema
 
 
@@ -154,8 +154,13 @@ def _actors_section() -> list[str]:
         fields = _model_fields(m)
         lines.append(f'- shape {{"kind": "{kind}"{", " + fields if fields else ""}}}')
     lines.append(f"- style: {{{_model_fields(Style)}}}")
-    lines.append(f"- init: {{{_model_fields(Init)}}} (omit x/y only for drawn shapes; others default to canvas center)")
+    lines.append(f"- init: {{{_model_fields(Init)}}} (omit x/y only for drawn shapes (stroke, polygon, path, asset): they stay where drawn, even inside a group; others default to canvas center)")
     lines.append('Strokes: document.strokes = {"id": {"points": [[x, y], ...], "width"?: num}}.')
+    lines.append(
+        'Assets: document.assets holds imported vector parts (e.g. pieces of a logo). They are given to you: '
+        'show one with shape {"kind": "asset", "ref": "<asset id>"} and omit init x/y so it sits where it was drawn. '
+        "Never write or change asset path data."
+    )
     return lines
 
 
@@ -163,10 +168,11 @@ def prompt_reference() -> str:
     """Compact Markdown reference of the language for an LLM system prompt."""
     registry = load_plugins()
     lines = [
-        "# Motion DSL v0.1 reference",
+        "# MotionLang DSL v0.1 reference",
         "",
         "Coordinates: canvas px, origin top-left, +y down. Angles: degrees, clockwise-positive. Time: seconds.",
-        "Actor props: x, y (pivot position), rotation, sx, sy (scale), opacity, trim (0–1 visible part of a stroke), fill, stroke.",
+        "Actor props: x, y (pivot position), rotation, sx, sy (scale), opacity, trim (0–1 visible part of a stroke), fill, stroke, "
+        "clip_l/clip_t/clip_r/clip_b (0–1 hidden part from each side; animate them with reveal).",
         "Built-in actor `camera` (x, y = point shown at canvas center; zoom; rotation).",
         "",
         *_actors_section(),

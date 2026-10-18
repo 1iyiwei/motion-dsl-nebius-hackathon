@@ -85,13 +85,17 @@ class Outcome:
         return sum(a.call.seconds for a in self.attempts)
 
 
-def _normalize(doc: dict[str, Any], canvas: dict[str, Any], intent: str | None, strokes: dict | None) -> dict[str, Any]:
-    """App policy the model shouldn't have to get right: version, canvas, strokes, on-screen check."""
+def _normalize(
+    doc: dict[str, Any], canvas: dict[str, Any], intent: str | None, strokes: dict | None, assets: dict | None = None,
+) -> dict[str, Any]:
+    """App policy the model shouldn't have to get right: version, canvas, strokes, assets, on-screen check."""
     doc = copy.deepcopy(doc)
     doc["motion"] = "0.1"
     doc["canvas"] = {**canvas, **{k: v for k, v in doc.get("canvas", {}).items() if k == "background"}}
     if strokes:
         doc["strokes"] = {**doc.get("strokes", {}), **strokes}
+    if assets:
+        doc["assets"] = copy.deepcopy(assets)  # the user's assets win over anything the model wrote
     cons = doc.setdefault("constraints", [])
     if isinstance(cons, list) and not any(isinstance(c, dict) and c.get("type") == "in_bounds" for c in cons):
         cons.append({"type": "in_bounds", "margin": 8})
@@ -114,7 +118,7 @@ def _parse_reply(text: str) -> tuple[dict | None, str | None]:
 
 def _document_rounds(
     llm: LLM, messages: list[dict], first_kind: str, canvas: dict, intent: str | None, strokes: dict | None,
-    max_repairs: int, out: Outcome,
+    max_repairs: int, out: Outcome, assets: dict | None = None,
 ) -> None:
     kind = first_kind
     for _ in range(max_repairs + 1):
@@ -122,7 +126,7 @@ def _document_rounds(
         doc, err = _parse_reply(text)
         att = Attempt(kind, call, error=err, raw=text)  # type: ignore[arg-type]
         if doc is not None:
-            att.doc = _normalize(doc, canvas, intent, strokes)
+            att.doc = _normalize(doc, canvas, intent, strokes, assets)
             att.report = check(att.doc).report
         out.attempts.append(att)
         if att.ok:
@@ -135,7 +139,7 @@ def _document_rounds(
             )
             return
         messages += [
-            {"role": "assistant", "content": text if doc is None else json.dumps(att.doc, separators=(",", ":"))},
+            {"role": "assistant", "content": text if doc is None else json.dumps(prompts.without_asset_data(att.doc), separators=(",", ":"))},
             {"role": "user", "content": prompts.repair_user(att.problems())},
         ]
         kind = "repair"
@@ -146,17 +150,21 @@ def generate(
     *,
     canvas: dict[str, Any] | None = None,
     strokes: dict[str, Any] | None = None,
+    assets: dict[str, Any] | None = None,
+    suggested_actors: list[dict] | None = None,
     llm: LLM | None = None,
     max_repairs: int = 3,
 ) -> Outcome:
+    """`assets` / `suggested_actors` are what importers.svg.import_svg returns; the model sees only a
+    summary (ids, labels, bboxes, colours) and the assets are merged into every document it writes."""
     llm = llm or LLM()
     canvas = {**DEFAULT_CANVAS, **(canvas or {})}
     messages = [
         {"role": "system", "content": prompts.generation_system()},
-        {"role": "user", "content": prompts.generation_user(intent, canvas, strokes)},
+        {"role": "user", "content": prompts.generation_user(intent, canvas, strokes, assets, suggested_actors)},
     ]
     out = Outcome(path="generate")
-    _document_rounds(llm, messages, "generate", canvas, intent, strokes, max_repairs, out)
+    _document_rounds(llm, messages, "generate", canvas, intent, strokes, max_repairs, out, assets)
     return out
 
 
@@ -200,5 +208,5 @@ def tweak(doc: dict[str, Any], instruction: str, *, llm: LLM | None = None, max_
         {"role": "system", "content": prompts.generation_system()},
         {"role": "user", "content": prompts.regenerate_user(doc, instruction)},
     ]
-    _document_rounds(llm, messages, "regenerate", canvas, None, None, max_repairs, out)
+    _document_rounds(llm, messages, "regenerate", canvas, None, None, max_repairs, out, doc.get("assets"))
     return out

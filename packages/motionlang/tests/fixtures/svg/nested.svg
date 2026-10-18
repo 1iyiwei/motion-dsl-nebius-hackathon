@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" viewBox="0 0 300 150">
+  <g id="mark" transform="translate(50,50)">
+    <g transform="rotate(90)">
+      <rect id="bar" x="0" y="-5" width="40" height="10" fill="#e4572e"/>
+    </g>
+    <path id="hook" transform="scale(2)" d="M0 0 Q10 -10 20 0" fill="none" stroke="#e4572e" stroke-width="3"/>
+  </g>
+  <g inkscape:label="Wordmark" transform="translate(120 40)">
+    <polygon points="0,0 40,0 20,30" fill="#333" fill-opacity="0.5"/>
+    <polyline points="50,0 60,30 70,0" fill="none" stroke="#333"/>
+  </g>
+</svg>

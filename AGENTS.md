@@ -8,9 +8,9 @@ The single repo for all Nebius x NVIDIA Global AI Hackathon submissions (deadlin
 
 | Path | What | Track |
 | --- | --- | --- |
-| `packages/motionlang/` | **Motion**, the DSL: spec, schema, validator, baker, exporters | (shared library) |
-| `apps/sketchdynamics/` (planned) | Sketch + talk → animation app | Best Apps & Agents |
-| `apps/motionharness/` (planned) | Coding agent that writes and tests Motion verbs/exporters in Token Factory Sandboxes | Coding & Agentic Engineering |
+| `packages/motionlang/` | **MotionLang**, the DSL: spec, schema, validator, baker, exporters | (shared library) |
+| `apps/sketchdynamics/` | Sketch + talk → animation app (`uv run sketchdynamics`) | Best Apps & Agents |
+| `apps/motionharness/` (planned) | Coding agent that writes and tests MotionLang verbs/exporters in Token Factory Sandboxes | Coding & Agentic Engineering |
 | `apps/canvasmind/` (planned) | Private creative-memory assistant (Hermes Agent + OpenShell/NemoClaw) | Personal AI |
 | `apps/embodiedsketcher/` (maybe) | Sketches → robot/edge-agent motion, only if time allows | Physical AI |
 
@@ -54,6 +54,7 @@ edits.py     id-addressed edit ops (set/insert/remove/wrap)
 verbs/       Verb base class + registry (entry point group `motionlang.verbs`); core verbs in verbs/core.py
 schema.py    JSON Schema + LLM prompt reference generated from the registry
 preview.py   baked tracks → standalone HTML/SVG player
+importers/   svg.py: SVG → assets (transforms flattened, arcs → cubics) + suggested group actors
 agent/       LLM loop (optional extra `agent`): llm.py client + telemetry, prompts.py, loop.py generate/tweak
 ```
 

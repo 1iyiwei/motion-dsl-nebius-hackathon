@@ -1,0 +1,16 @@
+[project]
+name = "sketchdynamics"
+version = "0.1.0"
+description = "SketchDynamics: draw rough strokes, say what should happen, get a playable animation (Nemotron on Nebius Token Factory)"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = ["motionlang[agent]>=0.1", "fastapi>=0.110", "uvicorn>=0.29"]
+
+[project.scripts]
+sketchdynamics = "sketchdynamics.server:main"
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"

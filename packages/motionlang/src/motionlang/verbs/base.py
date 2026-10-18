@@ -77,6 +77,11 @@ class Verb:
         """True if starting away from the current value is the point (e.g. draw_on from 0)."""
         return False
 
+    def holds_before(self, p: Any) -> bool:
+        """True if, as the first absolute verb on a prop, its starting value also applies before it
+        starts (a part revealed later stays hidden until its turn). Only for jumps_at_start verbs."""
+        return False
+
     def actor_refs(self, p: Any) -> list[str]:
         """Other actors this verb reads (validated as references; used for dependency checks)."""
         return []

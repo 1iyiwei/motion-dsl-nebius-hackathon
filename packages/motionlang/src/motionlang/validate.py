@@ -108,6 +108,36 @@ def check_discontinuities(baked: Baked) -> list[Issue]:
     return out
 
 
+def check_visibility(baked: Baked) -> list[Issue]:
+    """An actor with a shape that is never visible at any frame is almost always a mistake
+    (e.g. init.opacity 0 and nothing fades it in), and the preview looks blank."""
+    out = []
+    for i, a in enumerate(baked.parsed.doc.actors):
+        if a.id not in baked.aabb_world:
+            continue  # groups have no geometry
+        p = baked.props[a.id]
+        opaque = baked.opacity[a.id] > VISIBLE
+        det = np.array([abs(m[0] * m[3] - m[1] * m[2]) for m in baked.world[a.id]])
+        sized = det > 1e-6
+        open_ = (np.add(p["clip_l"], p["clip_r"]) < 0.999) & (np.add(p["clip_t"], p["clip_b"]) < 0.999)
+        filled = np.array([f is not None for f in p["fill"]])
+        traced = filled | (np.asarray(p["trim"]) > 1e-3)
+        if (opaque & sized & open_ & traced).any():
+            continue
+        if not opaque.any():
+            why = f"its opacity stays at {float(baked.opacity[a.id].max()):.2f} (init.opacity {a.init.opacity:g}"
+            why += ", or a parent's)" if a.parent else ")"
+            hint = "fade it in (fade to 1), or drop init.opacity: reveal and draw_on already keep a part hidden until they start"
+        elif not sized.any():
+            why, hint = "its scale stays at 0", "scale or spring_to it up to 1, or remove the zero init scale"
+        elif not open_.any():
+            why, hint = "it stays fully clipped", "end its reveal at to: 1"
+        else:
+            why, hint = "its trim stays at 0", "draw_on it to 1, or remove init.trim"
+        out.append(Issue("E_INVISIBLE", f"{a.id} is never visible: {why}", hint=hint, actor=a.id, pointer=f"/actors/{i}"))
+    return out
+
+
 def _sel(sel: Any, baked: Baked) -> list[str]:
     return list(baked.aabb_world) if sel == "*" else [a for a in sel if a in baked.aabb_world]
 
@@ -240,6 +270,7 @@ def check(raw: dict) -> Result:
         report.add(Issue("E_REF", str(e), hint="break the cycle: one of the follow/orbit verbs must target an actor that doesn't depend back on it (or use lag > 0)"))
         return Result(report, parsed)
     report.extend(check_discontinuities(baked))
+    report.extend(check_visibility(baked))
     report.extend(check_constraints(baked))
     return Result(report, parsed, baked)
 

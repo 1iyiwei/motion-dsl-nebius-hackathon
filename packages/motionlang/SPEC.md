@@ -1,9 +1,9 @@
-# Motion: DSL Spec v0.1 (DRAFT, decisions of Oct 17 applied)
+# MotionLang: DSL Spec v0.1 (DRAFT, decisions of Oct 17 applied)
 
 A declarative, intent-level motion language that LLMs write, machines verify, and runtimes play.
 It is shared by SketchDynamics (P1, produces it), MotionHarness (P2, extends it with new verbs and exporters) and CanvasMind (P3, indexes it).
 
-> Decisions from the Oct 17 review are in §13. Related work (MoVer, OmniLottie) is in §14.
+> Decisions from the Oct 17 review are in §13. Related work (MoVer, OmniLottie, LogoMotion, fog) is in §14.
 > Reference implementation: the `motionlang` Python package next to this file. Where this spec and the code disagree, that's a bug in one of them; fix both together.
 
 ---
@@ -25,7 +25,7 @@ It is shared by SketchDynamics (P1, produces it), MotionHarness (P2, extends it 
 | Manim / bpy scripts | Arbitrary code: unbounded, hard to validate or edit in small pieces. |
 | USD animation | 3D-pipeline-heavy; overkill for a 12-day 2D scope. |
 
-Motion sits above these and compiles down to them.
+MotionLang sits above these and compiles down to them.
 
 ---
 
@@ -43,6 +43,7 @@ Motion sits above these and compiles down to them.
   "motion": "0.1",
   "canvas": { "width": 1280, "height": 720, "background": "#ffffff", "fps": 60 },
   "strokes": { "s1": { "points": [[100,500],[300,320],[520,480]] } },
+  "assets": { "swoosh": { "kind": "path", "d": "M...", "fill": "#e4572e", "bbox": [x, y, w, h], "label": "Swoosh" } },
   "actors": [ ... ],
   "timeline": { ... },
   "constraints": [ ... ],
@@ -51,6 +52,19 @@ Motion sits above these and compiles down to them.
 ```
 
 `strokes` holds raw sketch input (vector points from the canvas). Paths reference them by id, so redrawing a stroke changes the motion without regenerating the timeline.
+
+`assets` holds imported vector parts, typically the pieces of a user's logo, in canvas coordinates. Each is `{kind: "path", d, fill?, stroke?, stroke_width?, fill_rule? ("nonzero" | "evenodd"), bbox? [x, y, w, h], label?}`; `d` accepts any SVG path command, `bbox` is informational (geometry always comes from `d`), and `label` names the part for people and models. Actors show an asset by reference (`shape: {kind: "asset", ref}`), so a document can be animated part by part without an LLM ever reading or writing path data: the agent shows the model only each asset's id, label, bbox and colours, tells it to reference assets by id, and merges the user's assets back into every document it returns (§3.1).
+
+### 3.1 Importing SVG (`motionlang.importers.svg`)
+
+`import_svg(text, fit=None, margin=0.1) -> {canvas, assets, actors, dropped}` (CLI: `motionlang import-svg logo.svg --fit 1280x720 -o logo.json`, or `--doc` for a complete static document):
+
+- One asset per drawn element (`path`, `rect` incl. rounded corners, `circle`, `ellipse`, `line`, `polyline`, `polygon`, and `<use>` of those). Every transform on the way down is flattened into the path data, and all shapes and arcs become absolute `M/L/C/Q/Z` data.
+- Ids come from the element's `id`, else `inkscape:label`, else a meaningful class (auto classes like `cls-1`/`st0` are skipped), else `<tag><n>`; they are made unique and never `camera`. `label` comes from `inkscape:label`, a `<title>` child, or the id.
+- Paint: presentation attributes, simple `<style>` rules (tag, `.class`, `#id`) and inline `style`, with inheritance. Gradients and patterns fall back to a solid colour (a gradient's middle colour); `opacity` × `fill-opacity` becomes the actor's `init.opacity`. Filters, clip paths, masks, text and images are not imported; each one is listed in `dropped`, and so is each gradient fallback.
+- `actors` is a suggested hierarchy: one `group` actor per named `<g>` (anonymous single-child wrappers collapse), a root group (`logo`) when there is more than one top-level part, and one asset actor per part. Group actors sit at the centre of their parts, so rotating or scaling a group pivots naturally; asset actors omit `x`/`y` and stay where they were drawn.
+- `fit=(W, H)` scales the artwork uniformly and centres it in a W×H canvas, leaving `margin` (a fraction of the canvas) on each side. Without it, coordinates stay in viewBox units (the viewBox origin moves to 0, 0).
+- Standard-library XML only; documents that declare XML entities are rejected.
 
 ## 4. Actors
 
@@ -61,12 +75,13 @@ Motion sits above these and compiles down to them.
   "pivot": [0.5, 0.5], "parent": null, "z": 0 }
 ```
 
-- `shape.kind` and its fields: `rect {w, h, r?}`, `ellipse {rx, ry}`, `polygon {points}`, `path {d, closed?}` (SVG M/L/H/V/C/S/Q/T/Z; no arcs), `text {text, size?, font?, weight?}`, `image {url, w, h}`, `stroke {ref}` (a sketch stroke), `group {}` (no geometry; a parent for others).
+- `shape.kind` and its fields: `rect {w, h, r?}`, `ellipse {rx, ry}`, `polygon {points}`, `path {d, closed?}` (any SVG path command, arcs included), `text {text, size?, font?, weight?}`, `image {url, w, h}`, `stroke {ref}` (a sketch stroke), `asset {ref}` (an entry of `document.assets`), `group {}` (no geometry; a parent for others).
+- `label` (optional): what the actor depicts, e.g. a logo part's name.
 - **Placement**: each shape has a local bounding box `[0, w] × [0, h]`. `pivot` is a point in that box as fractions (default center). The actor's `x, y` is **where its pivot sits** in its parent's space: world = parent · T(x, y) · R(rotation) · S(sx, sy) · T(−pivot).
-- **`init` defaults**: rotation 0, sx = sy = 1, opacity 1, trim 1. If `x`/`y` are omitted, drawn shapes (`stroke`, `polygon`, `path`) stay exactly where they were drawn; other shapes start at the canvas center.
-- **`style` defaults**: `fill` `#333333` for closed shapes (rect, ellipse, polygon, text, closed path), none for open strokes; `stroke` `#333333` for open strokes/paths, none otherwise; `stroke_width` 4.
+- **`init` defaults**: rotation 0, sx = sy = 1, opacity 1, trim 1, clips 0. If `x`/`y` are omitted, drawn shapes (`stroke`, `polygon`, `path`, `asset`) stay exactly where they were drawn; other shapes start at the canvas center. For a drawn shape with a `parent`, "where drawn" is expressed in the parent's frame at rest (its initial position and rotation, unit scale), so a part stays in place inside its group even if the group starts at scale 0 and pops in.
+- **`style` defaults**: `fill` `#333333` for closed shapes (rect, ellipse, polygon, text, closed path), none for open strokes; `stroke` `#333333` for open strokes/paths, none otherwise; `stroke_width` 4. Asset actors take `fill`, `stroke`, `stroke_width` and `fill_rule` from their asset; `style.fill`/`style.stroke` override them.
 - Children (`parent`) are positioned in the parent's local box and inherit its transform and opacity.
-- **Animatable properties**: `x, y, rotation, sx, sy, opacity, fill, stroke`, plus `trim` (0–1, visible fraction of a path/stroke shape). These are the only things verbs touch.
+- **Animatable properties**: `x, y, rotation, sx, sy, opacity, fill, stroke`, plus `trim` (0–1, visible fraction of a path/stroke outline) and `clip_l, clip_t, clip_r, clip_b` (0–1, the hidden fraction of the shape's bounding box from the left, top, right and bottom; the clip is applied in the shape's own frame, so it rotates and scales with it). These are the only things verbs touch.
 - **Built-in `camera` actor**: always present, with props `x, y, zoom, rotation` (initially centered on the canvas, zoom 1). Constraints are checked on the stage (before the camera), so the camera can frame freely.
 - `parent`: hierarchical transforms (a child moves with its group). `pivot`: rotate/scale origin, as a fraction of the bounding box.
 
@@ -95,7 +110,9 @@ Every block has `id` (required, unique), plus optional `delay` (s, before it sta
 
 **Sync**: v0.1 uses tree position only. An `after: "<blockId>"` field for cross-branch sync would be more expressive but makes timing a constraint-solving problem. **Deferred to v0.2**, to be revisited once hands-on authoring shows whether it's needed.
 
-## 6. Verbs (v0.1 core set: 14)
+## 6. Verbs (v0.1 core set: 15)
+
+Verbs are MotionLang's **kinemes**. The word comes from Ray Birdwhistell's kinesics, where a kineme is the smallest unit of movement that carries meaning, as a phoneme is for sound. Each verb is one such unit (a bounce, a reveal, a spring into place) and has a fixed, checkable meaning. A timeline composes kinemes into larger motion, by sequencing and by the composition rule below.
 
 Common fields: `actor`, `duration` (default per verb, usually 1 s), `ease` (default `inOutQuad`; `orbit` defaults to `linear`; physical verbs ignore it), `delay`.
 Any verb may target the built-in `camera` actor when its props are camera props (`x, y, zoom, rotation`), e.g. `spring_to` on `zoom`.
@@ -114,9 +131,12 @@ Most property verbs take **either** `to` (absolute target) **or** `by` (relative
 | `wiggle` | `amplitude`, `frequency=4`, `props=[x,y]`, `seed` | rel | Smooth noise, returns to rest at both ends. Amplitude is px for x/y, degrees for rotation, hundredths for sx/sy/opacity |
 | `spring_to` | `prop`, `to`, `stiffness=170`, `damping=26` | abs | Duration is the time to settle within 0.1%; a given `duration` time-scales it. Damping ratio must be ≥ 0.05 |
 | `follow` | `target:actorId`, `lag=0.2`, `offset:[dx,dy]` | abs | Tracks another actor's position with delay |
-| `draw_on` | `from=0`, `to=1` | abs (deliberate jump to `from`) | Reveals a `path`/`stroke` actor progressively (animates `trim`), the classic "line draws itself" effect |
+| `draw_on` | `from=0`, `to=1` | abs (deliberate jump to `from`) | Reveals a `stroke`/`path`/`polygon`/`asset` outline progressively (animates `trim`), the classic "line draws itself" effect |
+| `reveal` | `direction=left_to_right` (`right_to_left`, `top_to_bottom`, `bottom_to_top`, `from_center`), `from=0`, `to=1` (visible fraction) | abs (deliberate jump to `from`) | Wipes a shape into view behind a moving straight edge (a directional mask over its bounding box), so it works on filled shapes, where `draw_on` only traces outlines. `from_center` opens from the centre on both axes. `from: 1, to: 0` wipes it out. Not for groups: reveal each child |
 | `camera` | `to:{x?,y?,zoom?,rotation?}` \| `by:{...}` | abs / rel | Pans/zooms/rotates the view; targets the built-in `camera` actor, so `actor` is omitted |
 | `hold` | `duration` | — | Explicit wait |
+
+**Hidden until their turn**: when `draw_on` or `reveal` is the first absolute verb on its property, its starting value also applies before it starts. A logo part revealed at t = 1.2 s is therefore hidden from t = 0, not visible and then cut. (Verb hook: `holds_before`.)
 
 **Property aliases**: `position` = `x,y`; `scale` = `sx,sy`. They can be used anywhere a `prop` is named.
 
@@ -146,7 +166,7 @@ These are declarative checks run against tracks sampled at `canvas.fps`. They ex
 | `ends_at` | `actor`, `pos:[x,y]`, `t?`, `tol=2` | The final (or time-`t`) position is off target |
 | `total_duration` | `max` \| `exact`, `tol` | The timeline length is outside the limit |
 
-Built-in checks (always on): schema validity, unique ids, existing references, `E_CONFLICT`, and continuity (no jump at a block boundary unless one was asked for). Timelines over 300 s are refused (`E_DURATION`) before baking.
+Built-in checks (always on): schema validity, unique ids, existing references (actors, parents, strokes, assets: an unknown asset `ref` is `E_REF` with the defined asset ids and a "did you mean"), readable asset path data, visibility (`E_INVISIBLE`: an actor with a shape that is never visible at any frame, e.g. `init.opacity: 0` with nothing fading it in), `E_CONFLICT`, and continuity (no jump at a block boundary unless one was asked for). Timelines over 300 s are refused (`E_DURATION`) before baking.
 
 All constraints use **world space** (canvas coordinates, before the camera), so `in_bounds` means "stays on the stage". Camera moves are deliberate framing: zooming in on one actor may push others out of frame without breaking `in_bounds`. `in_bounds` also ignores frames where the actor is invisible (opacity ≤ 0.01), so things may wait off-stage while hidden. Positions mean the actor's pivot.
 
@@ -188,7 +208,7 @@ Also: `set` on an actor id (`"field": "init.x"`), `set` with a JSON `pointer` fo
   "stats": { "duration": 3.4, "actors": 2, "blocks": 5 } }
 ```
 
-Error codes: `E_SCHEMA, E_DUP_ID, E_REF, E_CONFLICT, E_DISCONTINUITY, E_BOUNDS, E_SPEED, E_JERK, E_OVERLAP, E_ENDS_AT, E_DURATION`, plus `E_EDIT` from edit ops. Warnings use the same codes with `"severity": "warning"`.
+Error codes: `E_SCHEMA, E_DUP_ID, E_REF, E_CONFLICT, E_DISCONTINUITY, E_INVISIBLE, E_BOUNDS, E_SPEED, E_JERK, E_OVERLAP, E_ENDS_AT, E_DURATION`, plus `E_EDIT` from edit ops. Warnings use the same codes with `"severity": "warning"`.
 Each error carries `hint`, a sentence the repair prompt includes word for word.
 
 ## 10. Execution model
@@ -210,7 +230,7 @@ document ──validate(schema/refs)──► resolve timing ──► sample(t)
 
 The trade-off is that the client can't play un-baked documents offline. That's acceptable for the hackathon.
 
-**Baked tracks format** (`motionlang bake`): `{motion, fps, duration, frames, loop, canvas, actors[], tweens[]}`. Each actor is `{id, geom, style, tracks: {m, opacity, fill, stroke, trim}}`, sorted by `z`. `m` is the bbox-local → screen matrix `[a, b, c, d, e, f]` (SVG order), and `opacity` already includes parents. A track that never changes is stored once; otherwise it's one value per frame. `tweens` lists every scheduled verb with `{block, verb, actor, start, end, props}`, which is what the MoVer exporter needs.
+**Baked tracks format** (`motionlang bake`): `{motion, fps, duration, frames, loop, canvas, actors[], tweens[]}`. Each actor is `{id, geom, style, tracks: {m, opacity, fill, stroke, trim, clip}}`, sorted by `z`. `geom` is the drawing primitive in bbox-local coordinates plus its bbox size `bw, bh` (asset paths keep their curves; `fill_rule` is included for paths). `clip` is `[l, t, r, b]`. `m` is the bbox-local → screen matrix `[a, b, c, d, e, f]` (SVG order), and `opacity` already includes parents. A track that never changes is stored once; otherwise it's one value per frame. `tweens` lists every scheduled verb with `{block, verb, actor, start, end, props}`, which is what the MoVer exporter needs.
 
 ## 11. Verb plugin contract (what MotionHarness writes)
 
@@ -228,7 +248,7 @@ class Bounce(Verb):
     def props(self, p): return ("y", "sx", "sy")
     def default_duration(self, p): ...
     def sample(self, p, u, t, ctx) -> dict: ...
-    # optional: jumps_at_start, actor_refs, path_specs, check_target
+    # optional: jumps_at_start, holds_before, actor_refs, path_specs, check_target
 ```
 
 `sample(p, u, t, ctx)` gets progress `u ∈ [0, 1]` (already eased if `uses_ease`), local time `t` in seconds, and a context: `ctx.start` (the composed values of its props just before it starts), `ctx.t0`, `ctx.duration`, `ctx.value(actor, prop, t)` (read other actors), and `ctx.path(spec)` (resolved, arc-length-parameterized paths). abs verbs return values; rel verbs return deltas.
@@ -295,7 +315,8 @@ User sketches a swoosh and says: *"the ball rolls along my line, bounces three t
 | 3 | Runtime | **Python-baked tracks**; browser plays tracks | (Neutral; chosen for a single implementation) |
 | 4 | Cross-branch `after:` sync | **v0.2** | Revisit after hands-on authoring shows whether it's needed |
 | 5 | Verb set | **+ `draw_on`, `camera`**; extensibility is a first-class goal (§11) | MotionHarness depends on adding verbs easily |
-| 6 | Name | Language: **Motion**. Document key: `"motion": "0.1"`. Files: `*.motion.json`. Package: **`motionlang`** | `motion` is taken on PyPI and on npm (Motion, formerly Framer Motion, a popular animation library); `motionlang` is free on both |
+| 6 | Name | Language: **MotionLang** (called "Motion" until Oct 18; renamed because the word is generic and is also the name of a popular animation library). Document key: `"motion": "0.1"`. Files: `*.motion.json`. Package: **`motionlang`** | `motion` is taken on PyPI and on npm (Motion, formerly Framer Motion, a popular animation library); `motionlang` is free on both |
+| 7 | Bring-your-own artwork (Oct 18) | **`assets` by reference**, imported from SVG; the model sees id/label/bbox/colour only | Path data is long and fragile: the LLM must never echo it. Parts stay editable by id, like strokes |
 
 ## 14. Related work
 
@@ -303,17 +324,47 @@ User sketches a swoosh and says: *"the ball rolls along my line, bounces three t
 
 A first-order-logic DSL for **verifying** spatio-temporal properties of motion graphics ("square translates right by 100 px, *before* the circle rotates"). Its pipeline: an LLM writes GSAP JavaScript → it renders and samples per-frame transforms → an LLM-synthesized MoVer program checks it → correction feedback → retry. It includes a 5,600-prompt dataset with ground-truth MoVer programs.
 
-**How Motion relates**: complementary, not competing.
-- MoVer verifies; Motion is what gets generated. MoVer's own generator writes *imperative GSAP code*, which is the thing Motion replaces with a declarative, constraint-checkable layer.
+**How MotionLang relates**: complementary, not competing.
+- MoVer verifies; MotionLang is what gets generated. MoVer's own generator writes *imperative GSAP code*, which is the thing MotionLang replaces with a declarative, constraint-checkable layer.
 - MoVer's verifier input is a per-object sampled JSON (`tweens` with type/start/end frames, per-frame `CTM`, `AABB`, `transformedPts`). Our baked tracks already contain all of this, so a `to_mover` exporter is small. And because we know each verb's semantics, our `tweens` list is exact rather than inferred.
-- **Benchmark opportunity (P2 MotionHarness)**: run a subset of the MoVer dataset through (a) LLM → GSAP and (b) LLM → Motion, both with Nemotron on Token Factory, and compare first-try and after-repair pass rates. Batch runs fit Nebius Serverless Jobs. This turns "our DSL is easier for LLMs" from a claim into a measured result.
+- **Benchmark opportunity (P2 MotionHarness)**: run a subset of the MoVer dataset through (a) LLM → GSAP and (b) LLM → MotionLang, both with Nemotron on Token Factory, and compare first-try and after-repair pass rates. Batch runs fit Nebius Serverless Jobs. This turns "our DSL is easier for LLMs" from a claim into a measured result.
 - Checked in MoVer's source: the verifier reads `info.objects[] = {id, size, shape, fill, stroke}` and matches color by **substring on a color name** (`"royal blue"` matches `"blue"`). So the exporter must emit **named colors** (map hex → nearest CSS color name) and **shape words** (`ellipse` with rx = ry → `"circle"`, `rect` with w = h → `"square"`).
 
-### OmniLottie (CVPR 2026), weights, MMLottie-2M dataset, MMLottieBench
+### OmniLottie (CVPR 2026), Apache-2.0, 4B weights, MMLottie-2M dataset, MMLottieBench
+
+Code: <https://github.com/OpenVGLab/OmniLottie>. Project page: <https://omnilottie.com/>.
 
 A 4B VLM fine-tuned to generate Lottie from text/image/video, using a **parameterized Lottie token** representation because raw Lottie JSON is too verbose and fragile for language models.
 
-**How Motion relates**:
-- It independently confirms our premise that raw Lottie is a poor generation target. They solve it by **training a specialized model** on a compact token format; we solve it with an **intent-level DSL + a general LLM (Nemotron) + verification**. Ours needs no training, is human-readable and editable by id, and can be checked. Theirs captures complex shape/style detail that a 14-verb DSL can't. That's a fair contrast for the write-up.
-- Not usable as our core model: it isn't an NVIDIA model, and it needs a ~15 GB GPU. Possible stretch baseline on Nebius AI Cloud.
-- **MMLottie-2M / MMLottieBench**: a source of eval prompts and reference animations (check the dataset license), and possibly seed content for CanvasMind. Our Lottie exporter makes Motion outputs comparable on their benchmark.
+**How MotionLang relates**:
+- It independently confirms our premise that raw Lottie is a poor generation target. They solve it by **training a specialized model** on a compact token format; we solve it with an **intent-level DSL + a general LLM (Nemotron) + verification**. Ours needs no training, is human-readable and editable by id, and can be checked. Theirs captures complex shape/style detail that a 15-verb DSL can't. That's a fair contrast for the write-up.
+- Not usable as our core model: it isn't an NVIDIA model, and it needs a ~15 GB GPU (its README reports about 8 s per 256 Lottie tokens). Possible stretch baseline on Nebius AI Cloud.
+- **Logos**: its image-to-Lottie mode redraws the artwork as part of the generated Lottie, so the output only approximates the user's logo. MotionLang keeps the user's exact paths by reference (`assets`, §3) and generates only the motion.
+- **MMLottie-2M / MMLottieBench**: a source of eval prompts and reference animations (check the dataset license), and possibly seed content for CanvasMind. Our Lottie exporter makes MotionLang outputs comparable on their benchmark.
+
+### LogoMotion (Liu, Kazi, Wei, Fisher, Langlois, Walker, Chilton; arXiv 2024, rev. 2025)
+
+Paper: [arXiv 2405.07065](https://arxiv.org/abs/2405.07065).
+
+LogoMotion generates animation code for a logo's parts with **visually-grounded code synthesis and program repair**. It analyses the logo visually, writes down a design concept, generates the animation code, then checks the result visually and repairs it. Code-connected AI editing widgets let novices adjust the motion, grouping and timing afterwards. In a comparison on 276 animations it produced more content-aware animation than an industry-leading tool. In a user study (n=16), the widgets supported control, iteration and creative expression better than a prompt-only baseline.
+
+**How MotionLang relates**: MotionLang's bring-your-own-logo path (§3, §3.1) follows LogoMotion's pipeline. The artifact is a checkable document instead of code:
+- **Parts, grounded.** LogoMotion grounds generation in the logo's actual parts. MotionLang does the same with `assets`: the importer splits the SVG into parts and keeps the `<g>` hierarchy as suggested group actors. Labels can come from the file or from a vision model (Nemotron-3.5-Super-VL in SketchDynamics). The model plans over ids, labels, bounding boxes and colours, and never reads or writes path data, so it can't damage the artwork.
+- **Synthesis and repair.** LogoMotion repairs code after checking it visually. MotionLang repairs a declarative document using structured validator errors with hints (§9): deterministic checks such as bounds, conflicts, discontinuities and never-visible parts (`E_INVISIBLE`). A rendered-frame critique by a vision model would fit as a third tier above §7's two.
+- **Editing.** LogoMotion's code-connected widgets for motion, grouping and timing map onto id-addressed edit ops (§8): `set` a block's `duration` or `delay`, `set` an actor's `parent` to regroup, `wrap` blocks in a `stagger`. A widget can therefore emit ops directly, without regenerating anything.
+- **Logo vocabulary.** Logo reveals mostly wipe filled shapes, so MotionLang added `reveal` (a directional mask) next to `draw_on`. Parts revealed later stay hidden until their turn (§6).
+- **Evaluation.** Its 276-animation comparison protocol is a template for evaluating SketchDynamics' logo mode against a prompt-only or code-generating baseline.
+
+### fog (Liu & Chilton, 2026, under submission): motion and emotion through function composition
+
+Paper: [arXiv 2607.07952](https://arxiv.org/abs/2607.07952). Project page: <https://fog-motion-emotion.vercel.app/>.
+
+An LLM writes motion *functions* for an open-ended vocabulary of Verbs (chase, avoid, swoop), Adverbs (hesitantly, forcefully), Gestures (nod, wave) and Emotions (anger as tremor → lunge → recoil), applied to Heider-Simmel-style shapes. Functions compose like f(g(x)): an Adverb wraps a Verb (`hesitantly(follow)`) and reshapes its dynamics through shared *channels* (speed, wait, easing, acceleration, offset). Each entity has one **PrimaryMotion** and several **SecondaryMotion** slots (Adverbs, Gestures, Emotions decorate the primary). The engine integrates velocity over time, with choreography guarantees such as arriving from A to B in a set time. In a perceptual study, people recognised the intended meaning 68% of the time (2.68× chance); composed motions scored lower (58–70%), because motions contributed by different functions can overlap and cancel out.
+
+**How MotionLang relates, especially on composition**:
+- **Same split, different layer.** fog's primary/secondary split is close to our abs/rel rule (§6): an absolute verb is the primary motion of a property, and relative verbs (wiggle, bounce, `by`) layer on top, like fog's secondary motions. The difference is where composition happens. fog composes *functions* through a channel contract, so an adverb changes how a verb runs. MotionLang composes *property values* over time with a fixed rule, which can be checked and edited by id.
+- **Conflicts are explicit.** fog reports that composed functions can cancel each other out. MotionLang makes the dangerous case an error: two absolute verbs on the same property at the same time is `E_CONFLICT`, with both block ids in the message. Relative layers still add and can cancel, so the tier-2 intent check (MoVer, §7) is what catches "valid but means something else".
+- **Open vocabulary, gated.** fog generates new functions on the fly, and found that this randomness can hurt the user experience. MotionHarness also has an LLM write new verbs, but only as registered plugins that must pass the contract suite (§11) before the planner sees them. MotionLang documents stay declarative data, and code lives only in verbs.
+- **Closed form vs. integration.** fog integrates velocity (x = ∫v dt), which suits reactive, agent-like motion (chase, flee). MotionLang evaluates each property at any t in closed form, which makes baking deterministic and lets the validator sample constraints exactly. Relational verbs here (`follow`, `orbit`) read other actors' values at t instead.
+- **Ideas to borrow (v0.2 candidates).** (1) An *adverb* layer: a container or field that reshapes the timing of the blocks it wraps (speed, easing, hesitation pauses, overshoot) without changing what they do, e.g. `{"adverb": "hesitantly", "of": block}`. This maps closely to fog's channel contract and is easy for an LLM to say. (2) *Gestures* as named relative verbs (nod, shrug, perk up) that layer on any primary motion. (3) *Emotions* as macros that expand to phased verb sequences (tremor → lunge → recoil), so they stay checkable.
+

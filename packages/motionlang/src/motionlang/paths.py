@@ -110,54 +110,96 @@ def arc_points(center: Point, radius: float, start_deg: float, end_deg: float) -
 
 
 _TOKEN = re.compile(r"[MmLlHhVvCcSsQqTtZzAa]|[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?")
-_ARITY = {"M": 2, "L": 2, "H": 1, "V": 1, "C": 6, "S": 4, "Q": 4, "T": 2, "Z": 0}
+_ARITY = {"M": 2, "L": 2, "H": 1, "V": 1, "C": 6, "S": 4, "Q": 4, "T": 2, "A": 7, "Z": 0}
+
+Segment = tuple[str, list[Point]]  # ("M"|"L"|"C"|"Q"|"Z", absolute points)
 
 
-def flatten_svg_path(d: str) -> np.ndarray:
-    """Flatten an SVG path `d` string (M L H V C S Q T Z, absolute and relative) to points.
+def _arc_to_cubics(p0: Point, rx: float, ry: float, phi_deg: float, large: bool, sweep: bool, p1: Point) -> list[list[Point]]:
+    """SVG elliptical arc (endpoint form) → cubic Béziers, one per ≤90° (SVG spec F.6.5)."""
+    if p0 == p1:
+        return []
+    rx, ry = abs(rx), abs(ry)
+    if rx < 1e-12 or ry < 1e-12:
+        return [[p0, p1, p1]]  # degenerate: straight line, kept as a cubic so callers stay uniform
+    phi = math.radians(phi_deg % 360)
+    cp, sp = math.cos(phi), math.sin(phi)
+    dx, dy = (p0[0] - p1[0]) / 2, (p0[1] - p1[1]) / 2
+    x1, y1 = cp * dx + sp * dy, -sp * dx + cp * dy
+    lam = (x1 / rx) ** 2 + (y1 / ry) ** 2
+    if lam > 1:
+        rx, ry = rx * math.sqrt(lam), ry * math.sqrt(lam)
+    num = rx * rx * ry * ry - rx * rx * y1 * y1 - ry * ry * x1 * x1
+    den = rx * rx * y1 * y1 + ry * ry * x1 * x1
+    k = math.sqrt(max(num, 0.0) / den) if den else 0.0
+    if large == sweep:
+        k = -k
+    cx1, cy1 = k * rx * y1 / ry, -k * ry * x1 / rx
+    cx = cp * cx1 - sp * cy1 + (p0[0] + p1[0]) / 2
+    cy = sp * cx1 + cp * cy1 + (p0[1] + p1[1]) / 2
 
-    Subpaths are concatenated in order. Elliptical arcs (A) are not supported in v0.1.
+    def ang(ux: float, uy: float, vx: float, vy: float) -> float:
+        return math.atan2(ux * vy - uy * vx, ux * vx + uy * vy)
+
+    th1 = ang(1, 0, (x1 - cx1) / rx, (y1 - cy1) / ry)
+    dth = ang((x1 - cx1) / rx, (y1 - cy1) / ry, (-x1 - cx1) / rx, (-y1 - cy1) / ry)
+    if not sweep and dth > 0:
+        dth -= 2 * math.pi
+    elif sweep and dth < 0:
+        dth += 2 * math.pi
+    n = max(1, math.ceil(abs(dth) / (math.pi / 2) - 1e-9))
+    step = dth / n
+    t = 4 / 3 * math.tan(step / 4)
+
+    def pt(th: float) -> Point:
+        x, y = rx * math.cos(th), ry * math.sin(th)
+        return (cp * x - sp * y + cx, sp * x + cp * y + cy)
+
+    def deriv(th: float) -> Point:
+        x, y = -rx * math.sin(th), ry * math.cos(th)
+        return (cp * x - sp * y, sp * x + cp * y)
+
+    out = []
+    a = th1
+    start = p0
+    for i in range(n):
+        b = a + step
+        end = p1 if i == n - 1 else pt(b)
+        da, db = deriv(a), deriv(b)
+        out.append([(start[0] + t * da[0], start[1] + t * da[1]), (end[0] - t * db[0], end[1] - t * db[1]), end])
+        a, start = b, end
+    return out
+
+
+def parse_path(d: str) -> list[Segment]:
+    """Parse SVG path data (all commands, absolute and relative) into absolute M/L/C/Q/Z segments.
+
+    H/V become L, S/T become C/Q with explicit control points, and arcs (A) become cubics.
     """
     tokens = _TOKEN.findall(d)
     if not tokens:
         raise ValueError("empty SVG path")
-    out: list[Point] = []
+    segs: list[Segment] = []
     cur = (0.0, 0.0)
     start = (0.0, 0.0)
     last_ctrl: Point | None = None
     last_cmd = ""
     i = 0
     cmd = ""
-
-    def bez(pts: list[Point]) -> None:
-        nonlocal cur
-        for t in np.linspace(0, 1, CURVE_SEGMENTS + 1)[1:]:
-            if len(pts) == 3:
-                (x0, y0), (x1, y1), (x2, y2) = pts
-                x = (1 - t) ** 2 * x0 + 2 * (1 - t) * t * x1 + t * t * x2
-                y = (1 - t) ** 2 * y0 + 2 * (1 - t) * t * y1 + t * t * y2
-            else:
-                (x0, y0), (x1, y1), (x2, y2), (x3, y3) = pts
-                x = (1 - t) ** 3 * x0 + 3 * (1 - t) ** 2 * t * x1 + 3 * (1 - t) * t * t * x2 + t**3 * x3
-                y = (1 - t) ** 3 * y0 + 3 * (1 - t) ** 2 * t * y1 + 3 * (1 - t) * t * t * y2 + t**3 * y3
-            out.append((float(x), float(y)))
-        cur = pts[-1]
-
     while i < len(tokens):
         tok = tokens[i]
         if tok.isalpha():
             cmd = tok
             i += 1
-            if cmd in "Aa":
-                raise ValueError("SVG arc commands (A) are not supported in v0.1; use C curves or an arc path")
             if cmd in "Zz":
-                if out:
-                    out.append(start)
+                segs.append(("Z", []))
                 cur = start
                 last_cmd, last_ctrl = "Z", None
                 continue
         elif not cmd:
             raise ValueError("SVG path must start with a command")
+        elif cmd in "Zz":
+            raise ValueError("SVG path has numbers after Z without a command")
         up = cmd.upper()
         n = _ARITY[up]
         arg_tokens = tokens[i : i + n]
@@ -171,20 +213,17 @@ def flatten_svg_path(d: str) -> np.ndarray:
         if up == "M":
             cur = (args[0] + ox, args[1] + oy)
             start = cur
-            out.append(cur)
+            segs.append(("M", [cur]))
             cmd = "l" if rel else "L"  # implicit lineto after moveto
             last_ctrl = None
-        elif up == "L":
-            cur = (args[0] + ox, args[1] + oy)
-            out.append(cur)
-            last_ctrl = None
-        elif up == "H":
-            cur = (args[0] + ox, cur[1])
-            out.append(cur)
-            last_ctrl = None
-        elif up == "V":
-            cur = (cur[0], args[0] + (cur[1] if rel else 0.0))
-            out.append(cur)
+        elif up in "LHV":
+            if up == "L":
+                cur = (args[0] + ox, args[1] + oy)
+            elif up == "H":
+                cur = (args[0] + ox, cur[1])
+            else:
+                cur = (cur[0], args[0] + (cur[1] if rel else 0.0))
+            segs.append(("L", [cur]))
             last_ctrl = None
         elif up in "CS":
             if up == "C":
@@ -193,22 +232,88 @@ def flatten_svg_path(d: str) -> np.ndarray:
             else:
                 c1 = (2 * cur[0] - last_ctrl[0], 2 * cur[1] - last_ctrl[1]) if last_cmd in "CS" and last_ctrl else cur
                 c2, end = (args[0] + ox, args[1] + oy), (args[2] + ox, args[3] + oy)
-            if not out:
-                out.append(cur)
-            bez([cur, c1, c2, end])
-            last_ctrl = c2
+            segs.append(("C", [c1, c2, end]))
+            cur, last_ctrl = end, c2
         elif up in "QT":
             if up == "Q":
                 c1, end = (args[0] + ox, args[1] + oy), (args[2] + ox, args[3] + oy)
             else:
                 c1 = (2 * cur[0] - last_ctrl[0], 2 * cur[1] - last_ctrl[1]) if last_cmd in "QT" and last_ctrl else cur
                 end = (args[0] + ox, args[1] + oy)
+            segs.append(("Q", [c1, end]))
+            cur, last_ctrl = end, c1
+        elif up == "A":
+            end = (args[5] + ox, args[6] + oy)
+            for c in _arc_to_cubics(cur, args[0], args[1], args[2], bool(args[3]), bool(args[4]), end):
+                segs.append(("C", c))
+            cur, last_ctrl = end, None
+        last_cmd = up
+    return segs
+
+
+def flatten_svg_path(d: str) -> np.ndarray:
+    """Flatten an SVG path `d` string (any command, absolute or relative) to points.
+
+    Subpaths are concatenated in order.
+    """
+    out: list[Point] = []
+    cur = (0.0, 0.0)
+    start = (0.0, 0.0)
+    for cmd, pts in parse_path(d):
+        if cmd == "M":
+            cur = start = pts[0]
+            out.append(cur)
+        elif cmd == "L":
+            cur = pts[0]
+            out.append(cur)
+        elif cmd == "Z":
+            if out:
+                out.append(start)
+            cur = start
+        else:
             if not out:
                 out.append(cur)
-            bez([cur, c1, end])
-            last_ctrl = c1
-        last_cmd = up
+            ctrl = [cur, *pts]
+            for t in np.linspace(0, 1, CURVE_SEGMENTS + 1)[1:]:
+                if len(ctrl) == 3:
+                    (x0, y0), (x1, y1), (x2, y2) = ctrl
+                    x = (1 - t) ** 2 * x0 + 2 * (1 - t) * t * x1 + t * t * x2
+                    y = (1 - t) ** 2 * y0 + 2 * (1 - t) * t * y1 + t * t * y2
+                else:
+                    (x0, y0), (x1, y1), (x2, y2), (x3, y3) = ctrl
+                    x = (1 - t) ** 3 * x0 + 3 * (1 - t) ** 2 * t * x1 + 3 * (1 - t) * t * t * x2 + t**3 * x3
+                    y = (1 - t) ** 3 * y0 + 3 * (1 - t) ** 2 * t * y1 + 3 * (1 - t) * t * t * y2 + t**3 * y3
+                out.append((float(x), float(y)))
+            cur = pts[-1]
+    if not out:
+        raise ValueError("SVG path has no points")
     return np.asarray(out, dtype=float)
+
+
+def _num(v: float, precision: int) -> str:
+    s = f"{v:.{precision}f}".rstrip("0").rstrip(".")
+    return "0" if s in ("-0", "") else s
+
+
+def format_path(segs: list[Segment], precision: int = 2) -> str:
+    return " ".join(cmd + " ".join(f"{_num(x, precision)},{_num(y, precision)}" for x, y in pts) for cmd, pts in segs)
+
+
+def transform_path(d: str, m: tuple[float, float, float, float, float, float], precision: int = 2) -> str:
+    """Apply an affine matrix (SVG order a b c d e f) to path data; returns absolute M/L/C/Q/Z data.
+
+    Exact for every command, because arcs are converted to cubics before transforming.
+    """
+    a, b, c, dd, e, f = m
+    segs = [(cmd, [(a * x + c * y + e, b * x + dd * y + f) for x, y in pts]) for cmd, pts in parse_path(d)]
+    return format_path(segs, precision)
+
+
+def path_bbox(d: str) -> tuple[float, float, float, float]:
+    """(x, y, w, h) of the flattened path."""
+    pts = flatten_svg_path(d)
+    mn, mx = pts.min(axis=0), pts.max(axis=0)
+    return float(mn[0]), float(mn[1]), float(mx[0] - mn[0]), float(mx[1] - mn[1])
 
 
 def resolve_path(spec: dict, strokes: dict[str, "list[Point]"]) -> Polyline:

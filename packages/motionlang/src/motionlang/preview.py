@@ -49,21 +49,38 @@ const idx = (i, n) => Math.min(Math.max(i, 0), n - 1);
 const at = (v, i) => Array.isArray(v) ? v[idx(i, v.length)] : v;
 const atM = (m, i) => Array.isArray(m[0]) ? m[idx(i, m.length)] : m;
 function el(tag, attrs) { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; }
+let nodes_n = 0;
 const nodes = T.actors.map(a => {
   const g = a.geom; let e = null;
   if (g.tag === "rect") e = el("rect", { width: g.w, height: g.h, rx: g.r || 0 });
   else if (g.tag === "ellipse") e = el("ellipse", { cx: g.rx, cy: g.ry, rx: g.rx, ry: g.ry });
-  else if (g.tag === "path") e = el("path", { d: g.d, pathLength: 1, "stroke-linecap": "round", "stroke-linejoin": "round" });
+  else if (g.tag === "path") e = el("path", { d: g.d, pathLength: 1, "stroke-linecap": "round", "stroke-linejoin": "round", "fill-rule": g.fill_rule || "nonzero" });
   else if (g.tag === "text") { e = el("text", { x: 0, y: g.size * 0.8, "font-size": g.size, "font-family": g.font, "font-weight": g.weight }); e.textContent = g.text; }
   else if (g.tag === "image") e = el("image", { href: g.url, width: g.w, height: g.h });
-  if (e) { e.setAttribute("stroke-width", g.width || a.style.stroke_width); svg.appendChild(e); }
-  return { a, e };
+  let clip = null;
+  if (e) {
+    e.setAttribute("stroke-width", g.width || a.style.stroke_width); svg.appendChild(e);
+    const c = a.tracks.clip;
+    if (Array.isArray(c[0]) || c.some(v => v > 0)) {  // reveal: a clip rect in the shape's own (bbox-local) space
+      const cp = el("clipPath", { id: `clip-${nodes_n}`, clipPathUnits: "userSpaceOnUse" });
+      clip = el("rect", {}); cp.appendChild(clip); svg.appendChild(cp);
+      e.setAttribute("clip-path", `url(#clip-${nodes_n})`);
+    }
+  }
+  nodes_n++;
+  return { a, e, clip };
 });
 const scrub = document.getElementById("scrub"), time = document.getElementById("time"), play = document.getElementById("play"), loop = document.getElementById("loop");
 scrub.max = T.frames - 1; loop.checked = true;
 function frame(i) {
-  for (const { a, e } of nodes) {
+  for (const { a, e, clip } of nodes) {
     if (!e) continue;
+    if (clip) {
+      const [l, t, r, b] = atM(a.tracks.clip, i), W = a.geom.bw, H = a.geom.bh;
+      const pad = Math.max(W, H);  // an untouched side doesn't cut strokes or glyph overhang
+      const x0 = l > 0 ? l * W : -pad, y0 = t > 0 ? t * H : -pad, x1 = r > 0 ? (1 - r) * W : W + pad, y1 = b > 0 ? (1 - b) * H : H + pad;
+      Object.entries({ x: x0, y: y0, width: Math.max(0, x1 - x0), height: Math.max(0, y1 - y0) }).forEach(([k, v]) => clip.setAttribute(k, v));
+    }
     const m = atM(a.tracks.m, i), tr = a.tracks;
     e.setAttribute("transform", `matrix(${m.join(" ")})`);
     e.setAttribute("opacity", at(tr.opacity, i));
@@ -93,6 +110,6 @@ frame(0); requestAnimationFrame(tick);
 """
 
 
-def preview_html(tracks: dict[str, Any], title: str = "Motion preview") -> str:
+def preview_html(tracks: dict[str, Any], title: str = "MotionLang preview") -> str:
     data = json.dumps(tracks, separators=(",", ":")).replace("</", "<\\/")
     return _TEMPLATE.replace("__TITLE__", html.escape(title)).replace("__TRACKS__", data)

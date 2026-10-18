@@ -9,7 +9,7 @@
     { "id": "d1", "shape": { "kind": "ellipse", "rx": 18, "ry": 18 }, "style": { "fill": "#e4572e" }, "init": { "x": 360, "y": 300, "sx": 0, "sy": 0 } },
     { "id": "d2", "shape": { "kind": "ellipse", "rx": 18, "ry": 18 }, "style": { "fill": "#f3a712" }, "init": { "x": 760, "y": 300, "sx": 0, "sy": 0 } },
     { "id": "d3", "shape": { "kind": "ellipse", "rx": 18, "ry": 18 }, "style": { "fill": "#29bf12" }, "init": { "x": 1120, "y": 360, "sx": 0, "sy": 0 } },
-    { "id": "title", "shape": { "kind": "text", "text": "Motion", "size": 72 }, "init": { "x": 640, "y": 150, "opacity": 0 } }
+    { "id": "title", "shape": { "kind": "text", "text": "MotionLang", "size": 72 }, "init": { "x": 640, "y": 150, "opacity": 0 } }
   ],
   "timeline": { "id": "root", "seq": [
     { "id": "draw", "verb": "draw_on", "actor": "line", "duration": 1.4, "ease": "inOutSine" },
