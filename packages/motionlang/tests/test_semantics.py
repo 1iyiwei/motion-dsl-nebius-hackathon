@@ -148,3 +148,56 @@ def test_drawn_shapes_default_to_their_drawn_position(doc_factory):
     x0, y0, x1, y1 = r.baked.aabb_world["line"][0]
     assert x0 == pytest.approx(300, abs=0.5) and x1 == pytest.approx(520, abs=0.5)
     assert r.baked.props["line"]["trim"][0] == 0 and r.baked.props["line"]["trim"][-1] == 1
+
+
+@pytest.mark.parametrize("gx,gy,scale", [(0, 0, 1.0), (100, 50, 1.0), (100, 50, 0.5)])
+def test_move_along_a_stroke_follows_it_on_canvas_for_a_parented_actor(doc_factory, gx, gy, scale):
+    # the actor starts on the stroke's first point in world space; its own x/y are in the group's frame
+    x0, y0 = (300 - gx) / scale, (300 - gy) / scale
+    doc = doc_factory({"id": "go", "verb": "move_along", "actor": "a", "path": {"stroke": "s1"}, "duration": 1})
+    doc["actors"].append({"id": "g", "shape": {"kind": "group"}, "init": {"x": gx, "y": gy, "sx": scale, "sy": scale}})
+    doc["actors"][0].update(parent="g", init={"x": x0, "y": y0})
+    r = check(doc)
+    assert r.ok, r.report.summary()
+    pos = r.baked.pos["a"]
+    assert pos[0] == pytest.approx([300, 300], abs=0.01) and pos[-1] == pytest.approx([520, 320], abs=0.01)
+
+
+def test_path_space_can_be_set_explicitly(doc_factory):
+    pts = [[300, 300], [500, 300]]
+    doc = doc_factory({"id": "go", "verb": "move_along", "actor": "a", "path": {"points": pts, "space": "canvas"}, "duration": 1})
+    doc["actors"].append({"id": "g", "shape": {"kind": "group"}, "init": {"x": 100, "y": 0}})
+    doc["actors"][0].update(parent="g", init={"x": 200, "y": 300})
+    r = check(doc)
+    assert r.ok, r.report.summary()
+    assert r.baked.pos["a"][-1] == pytest.approx([500, 300], abs=0.01)
+    doc["timeline"]["seq"][0]["path"]["space"] = "parent"  # the same points in the group's frame end 100 px further right
+    assert check(doc).baked.pos["a"][-1] == pytest.approx([600, 300], abs=0.01)
+    doc["timeline"]["seq"][0]["path"]["space"] = "world"
+    assert check(doc).report.errors[0].code == "E_SCHEMA"
+
+
+def test_discontinuity_hint_gives_the_move_to_the_stroke_start_in_parent_space(doc_factory):
+    import re
+
+    doc = doc_factory({"id": "go", "verb": "move_along", "actor": "a", "path": {"stroke": "s1"}, "duration": 1})
+    doc["actors"].append({"id": "g", "shape": {"kind": "group"}, "init": {"x": 100, "y": 50, "sx": 0.5, "sy": 0.5}})
+    doc["actors"][0].update(parent="g", init={"x": 0, "y": 0})
+    e = check(doc).report.errors[0]
+    m = re.search(r'"to": \[(-?\d+), (-?\d+)\]', e.hint)
+    assert e.code == "E_DISCONTINUITY" and m, e.hint
+    doc["timeline"]["seq"].insert(0, {"id": "go_start", "verb": "move", "actor": "a", "to": [int(m.group(1)), int(m.group(2))]})
+    r = check(doc)
+    assert r.ok, r.report.summary()
+    assert r.baked.pos["a"][-1] == pytest.approx([520, 320], abs=0.5)
+
+
+def test_following_a_drawn_stroke_checks_only_the_point_on_the_line(doc_factory):
+    doc = doc_factory({"id": "go", "verb": "move_along", "actor": "a", "path": {"stroke": "edge"}, "duration": 1})
+    doc["strokes"]["edge"] = {"points": [[300, 300], [400, 595]]}  # the user drew to the bottom edge
+    doc["constraints"] = [{"type": "in_bounds", "margin": 2}]
+    assert check(doc).ok  # half the rect hangs below the canvas at the end: that's the drawing
+    doc["timeline"]["seq"].append({"id": "after", "verb": "hold", "duration": 0.5})
+    assert check(doc).ok
+    doc["timeline"]["seq"].append({"id": "nudge", "verb": "move", "actor": "a", "by": [0, 5]})
+    assert [e.code for e in check(doc).report.errors] == ["E_BOUNDS"]  # once off the line, the whole box counts again

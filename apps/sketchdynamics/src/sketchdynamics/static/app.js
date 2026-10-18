@@ -218,7 +218,7 @@ function setBusy(on, text = "") {
   state.busy = on;
   $("busy").hidden = !on;
   $("busy-text").textContent = text;
-  for (const id of ["gen", "tweak", "intent", "instruction", "clear", "undo-stroke", "logo-pick", "logo-sample", "logo-sample-2", "logo-sample-3", "planner"]) $(id).disabled = on;
+  for (const id of ["gen", "tweak", "intent", "instruction", "mic-intent", "mic-instruction", "clear", "undo-stroke", "logo-pick", "logo-sample", "logo-sample-2", "logo-sample-3", "planner"]) $(id).disabled = on;
 }
 function setStatus(text, bad = false, retry = null) {
   $("status").textContent = text;
@@ -295,7 +295,29 @@ function show(version) {
   renderInk(); renderVersions();
 }
 
+function download(blob, name) {
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: name });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+const exportName = () => (state.versions[state.current]?.doc?.meta?.title || "animation").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "animation";
+$("export-json").onclick = () => {
+  const v = state.versions[state.current];
+  if (v) download(new Blob([JSON.stringify(v.doc, null, 2)], { type: "application/json" }), `${exportName()}.motion.json`);
+};
+$("export-html").onclick = async () => {
+  const v = state.versions[state.current];
+  if (!v) return;
+  try {
+    const res = await fetch("/export.html", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ doc: v.doc, title: v.doc.meta?.title || "SketchDynamics animation" }) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+    download(await res.blob(), `${exportName()}.html`);
+  } catch (err) { setStatus(`Couldn't export: ${err.message}`, true); }
+};
+
 function renderVersions() {
+  $("export").hidden = state.current < 0;
   $("versions").replaceChildren(...state.versions.map((v, i) => {
     const b = document.createElement("button");
     b.type = "button";
@@ -355,6 +377,94 @@ $("tweak-form").onsubmit = async (e) => {
   } catch (err) { setStatus(String(err.message || err), true, retryWithUltra()); }
   finally { setBusy(false); }
 };
+
+// ---------- voice ----------
+// "Sketch + talk": the browser's Web Speech API turns speech into the prompt or tweak text, which then goes
+// through the same path as typing (Nemotron sees text only). Hidden where the browser lacks it.
+const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let listening = null;
+
+// A level meter on the mic button, from the same default microphone the speech service uses. If the
+// meter stays flat while you talk, the browser is listening to the wrong (or a muted) input.
+async function startMeter(btn) {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const ctx = new AudioContext();
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    ctx.createMediaStreamSource(stream).connect(analyser);
+    const data = new Uint8Array(analyser.fftSize);
+    let peak = 0, raf = 0;
+    const tick = () => {
+      analyser.getByteTimeDomainData(data);
+      const level = Math.min(1, Math.max(...data.map((v) => Math.abs(v - 128))) / 64);
+      peak = Math.max(peak, level);
+      btn.style.boxShadow = `0 0 0 ${2 + level * 10}px rgba(228, 87, 46, ${0.15 + level * 0.5})`;
+      raf = requestAnimationFrame(tick);
+    };
+    tick();
+    const device = stream.getAudioTracks()[0]?.label || "the default microphone";
+    return {
+      device,
+      peak: () => peak,
+      stop: () => { cancelAnimationFrame(raf); stream.getTracks().forEach((t) => t.stop()); ctx.close(); btn.style.boxShadow = ""; },
+    };
+  } catch (err) {
+    console.warn("[mic] meter unavailable", err);
+    return null;
+  }
+}
+
+function attachMic(buttonId, inputId) {
+  const btn = $(buttonId), input = $(inputId);
+  if (!Recognition) return;
+  btn.hidden = false;
+  btn.onclick = async () => {
+    if (listening) { listening.stop(); return; }
+    const meter = await startMeter(btn);
+    const rec = new Recognition();
+    rec.lang = navigator.language || "en-US";
+    rec.interimResults = true; // show words as they're recognized
+    let heard = false, failed = false;
+    // Say what's happening at every step: when speech fails, the status line shows where.
+    const say = (text, bad = false) => { setStatus(`🎤 ${text}`, bad); console.info("[mic]", text); };
+    const on = meter ? ` on “${meter.device}”` : "";
+    rec.onstart = () => say(`Listening${on}… speak now (click the mic again to stop).`);
+    rec.onaudiostart = () => say(`Microphone on${on}. Listening…`);
+    rec.onspeechstart = () => say("Hearing speech…");
+    rec.onresult = (e) => {
+      heard = true;
+      input.value = [...e.results].map((r) => r[0].transcript).join("").trim();
+    };
+    rec.onerror = (e) => {
+      failed = true;
+      console.warn("[mic] error", e.error, e.message);
+      const why = {
+        "not-allowed": "Microphone access is blocked. Allow it for this site (the icon in the address bar), and on macOS also for the browser in System Settings → Privacy & Security → Microphone.",
+        "service-not-allowed": "The browser's speech service is turned off or unavailable here.",
+        "audio-capture": "No microphone found. Check that one is connected and selected in the browser's settings.",
+        "no-speech": meter && meter.peak() < 0.05
+          ? `Didn't hear any speech, and “${meter.device}” picked up almost no sound. Pick another input: click the site icon in the address bar → Site settings → Microphone (Chrome), or check macOS System Settings → Privacy & Security → Microphone for the browser and the input level in System Settings → Sound.`
+          : `Didn't hear any speech${on}, though the microphone picked up sound. Speak right after clicking, a little louder or closer.`,
+        "network": "The speech service is unreachable. Chromium browsers other than Chrome (Brave, Arc, …) often lack Google's speech service: try Chrome or Safari, or type.",
+        "language-not-supported": `Speech recognition doesn't support ${rec.lang}.`,
+      }[e.error];
+      if (e.error !== "aborted") say(why || `Speech recognition failed: ${e.error}`, true);
+    };
+    rec.onend = () => {
+      listening = null; btn.classList.remove("listening"); input.focus();
+      meter?.stop();
+      if (heard) say(`Got it. Edit if needed, then press ${inputId === "intent" ? "Generate" : "Tweak"}.`);
+      else if (!failed) say("Stopped without hearing any speech.", true);
+    };
+    listening = rec;
+    btn.classList.add("listening");
+    input.value = "";
+    try { rec.start(); } catch (err) { listening = null; btn.classList.remove("listening"); meter?.stop(); say(`Couldn't start speech recognition: ${err.message}`, true); }
+  };
+}
+attachMic("mic-intent", "intent");
+attachMic("mic-instruction", "instruction");
 
 renderInk(); renderTotals();
 

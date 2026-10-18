@@ -13,6 +13,7 @@ from .evaluate import DependencyCycle
 from .issues import Issue, Report
 from .model import COLOR_PROPS, EndsAt, InBounds, MaxSpeed, NoOverlap, Smooth, TotalDuration
 from .parse import Parsed, parse
+from .paths import path_space
 from .timing import Leaf, Schedule, schedule
 
 MAX_BAKE_SECONDS = 300.0
@@ -108,7 +109,10 @@ def check_discontinuities(baked: Baked) -> list[Issue]:
                     msg = f"{b.verb.name} makes {b.actor}.{prop} jump from {ref:.2f} to {float(v):.2f} when it starts"
                     hint = "start the verb where the actor already is"
                     if b.verb.name == "move_along":
-                        hint = "add a move to the path start first, or set `relative: true` to carry the path to the actor"
+                        sx, sy = float(at0["x"]), float(at0["y"])
+                        hint = (f'put {b.actor} at the path start first: add {{"id": "{b.id}_start", "verb": "move", "actor": "{b.actor}", '
+                                f'"to": [{sx:.0f}, {sy:.0f}]}} (or an enter that ends there) before {b.id!r}, or set "relative": true '
+                                "to carry the path to the actor")
                 else:
                     msg = f"{b.verb.name} (relative) is not zero at its start ({prop} = {float(v):.3f}); this is a verb implementation bug"
                     hint = "relative verbs must return 0 at u=0"
@@ -254,6 +258,8 @@ def check_constraints(baked: Baked) -> list[Issue]:
                 out.append(Issue("E_REF", f"in_bounds.ignore names unknown block(s) {unknown}", pointer=f"{ptr}/ignore"))
             exempt = [lf for lf in sched.leaves if lf.block.id in c.ignore]
             offstage = [lf for lf in sched.leaves if lf.block.actor and lf.block.verb.offstage(lf.block.params)]
+            on_strokes = [lf for lf in sched.leaves if lf.block.actor and any(
+                path_space(spec) == "canvas" and "stroke" in spec for spec in lf.block.verb.path_specs(lf.block.params))]
             for aid in _sel(c.actors, baked):
                 # Stage (world) space: camera moves are deliberate framing and never count.
                 box, vis = baked.aabb_world[aid], baked.opacity[aid] > VISIBLE
@@ -269,6 +275,20 @@ def check_constraints(baked: Baked) -> list[Issue]:
                         when = lf.block.verb.offstage(lf.block.params)
                         vis = vis & ~((times <= lf.end + 1e-9) if when == "before" else (times >= lf.start - 1e-9))
                 m = c.margin
+                traced = [lf for lf in on_strokes if lf.block.actor == aid]
+                if traced:  # following the user's drawn line: only the point on the line must stay on canvas
+                    box = box.copy()
+                    pv = baked.pos[aid]
+                    for lf in traced:
+                        sel = (times >= lf.start - 1e-9) & (times <= lf.end + 1e-9)
+                        # ...and while it stays where the line left it, until something moves it on
+                        k = int(np.searchsorted(times, lf.end - 1e-9))
+                        k = min(k, len(times) - 1)
+                        for j in range(k, len(times)):
+                            if np.hypot(*(pv[j] - pv[k])) > 0.5:
+                                break
+                            sel[j] = True
+                        box[sel] = np.concatenate([pv[sel], pv[sel]], axis=1)
                 over = np.stack([m - box[:, 0], m - box[:, 1], box[:, 2] - (W - m), box[:, 3] - (H - m)], axis=1)
                 over[~vis] = -np.inf
                 worst = over.max(axis=1)

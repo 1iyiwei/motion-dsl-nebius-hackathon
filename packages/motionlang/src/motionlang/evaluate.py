@@ -21,7 +21,7 @@ import numpy as np
 from .geometry import Mat, apply, invert, local_matrix, mul
 from .model import CAMERA_ID, COLOR_PROPS, Canvas
 from .parse import Parsed
-from .paths import Polyline, resolve_path
+from .paths import Polyline, path_space, resolve_path
 from .timing import Leaf, Schedule
 
 DEFAULT_INK = "#333333"
@@ -96,7 +96,15 @@ class _Ctx:
         return self.ev.value(actor, prop, t)
 
     def path(self, spec: dict) -> Polyline:
-        return self.ev.path(spec)
+        """A path in this actor's own position space (its parent's frame). Canvas-space paths (strokes by
+        default, or "space": "canvas") are mapped through the parent's world transform at the block's start,
+        so a grouped part follows a drawn line exactly where it was drawn."""
+        poly = self.ev.path(spec)
+        parent = self.ev.parsed.actors[self.actor].parent if self.actor in self.ev.parsed.actors else None
+        if parent and path_space(spec) == "canvas":
+            m = invert(self.ev.world_matrix(parent, self.t0))
+            poly = Polyline(apply(m, poly.pts))
+        return poly
 
     def parent_scale(self) -> tuple[float, float]:
         sx = sy = 1.0
@@ -208,6 +216,13 @@ class Evaluator:
         if key not in self._paths:
             self._paths[key] = resolve_path(spec, self._strokes)
         return self._paths[key]
+
+    def world_matrix(self, actor: str, t: float) -> Mat:
+        """bbox-local → world for an actor at time t, from its composed props and its parents'."""
+        a, g = self.parsed.actors[actor], self.parsed.geometry[actor]
+        v = {k: self.value(actor, k, t) for k in ("x", "y", "rotation", "sx", "sy")}
+        m = local_matrix(v["x"], v["y"], v["rotation"], v["sx"], v["sy"], a.pivot[0] * g.w, a.pivot[1] * g.h)
+        return mul(self.world_matrix(a.parent, t), m) if a.parent else m
 
     def actor_props(self, actor: str, t: float) -> dict[str, Any]:
         return {p: self.value(actor, p, t) for p in self.init[actor]}

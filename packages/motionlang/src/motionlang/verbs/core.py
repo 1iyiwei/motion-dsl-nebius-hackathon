@@ -361,7 +361,9 @@ class Camera(Verb):
 
 
 class MoveAlongParams(VerbParams):
-    path: dict[str, Any] = Field(description='{"stroke": id} | {"points": [[x,y],...], "smooth": bool} | {"svg": d} | {"arc": {center, radius, from, to}}')
+    path: dict[str, Any] = Field(description='{"stroke": id} | {"points": [[x,y],...], "smooth": bool} | {"svg": d} | {"arc": {center, radius, from, to}}; '
+                                             'optional "space": "canvas" (default for strokes: follows the line where it was drawn, '
+                                             'even for a part inside a group) or "parent" (default for the others: the actor\'s own x/y space)')
     orient: bool = Field(False, description="turn with the path's direction")
     reverse: bool = False
     relative: bool = Field(False, description="translate the path so it starts at the actor")

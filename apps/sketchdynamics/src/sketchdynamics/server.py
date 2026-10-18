@@ -25,7 +25,7 @@ from importlib import resources
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -33,7 +33,7 @@ from motionlang import check
 from motionlang.agent import LLM, Attempt, Call, Outcome, generate, load_env, tweak
 from motionlang.agent.llm import extract_json_text
 from motionlang.importers import import_svg
-from motionlang.preview import player_js_path
+from motionlang.preview import player_js_path, preview_html
 
 from .grouping import build_actors, groups_from_actors, normalize_groups, part_opacity, split_part
 
@@ -86,6 +86,11 @@ class SplitRequest(BaseModel):
 
 class BakeRequest(BaseModel):
     doc: dict[str, Any]
+
+
+class ExportRequest(BaseModel):
+    doc: dict[str, Any]
+    title: str = Field("SketchDynamics animation", max_length=200)
 
 
 class ImportRequest(BaseModel):
@@ -313,6 +318,16 @@ def create_app(llm_factory: Callable[[], LLM] | None = None) -> FastAPI:
     @app.post("/bake")
     def post_bake(req: BakeRequest):
         return JSONResponse(bake_json(req.doc))
+
+    @app.post("/export.html")
+    def post_export_html(req: ExportRequest):
+        """A self-contained HTML player (motionlang's own) for the animation: open it anywhere, no server."""
+        res = check(req.doc)
+        if res.baked is None:
+            raise HTTPException(422, detail="this document can't be played: " + res.report.summary()[:300])
+        slug = re.sub(r"[^a-z0-9]+", "-", req.title.lower()).strip("-")[:60] or "animation"
+        return Response(preview_html(res.baked.to_json(), title=req.title), media_type="text/html",
+                        headers={"Content-Disposition": f'attachment; filename="{slug}.html"'})
 
     @app.post("/import-svg")
     def post_import_svg(req: ImportRequest):

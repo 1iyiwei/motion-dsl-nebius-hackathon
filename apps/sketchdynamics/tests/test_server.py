@@ -368,3 +368,13 @@ def test_label_parts_returns_motion_ideas():
     out = c.post("/label-parts", json={"image": "data:image/jpeg;base64,AA", "assets": {"a": {"bbox": [0, 0, 1, 1]}}}).json()
     assert out["suggestions"] == ["The rotor spins up slowly.", "The tower bounces in, then the rotor whirls.", "Lightning strikes."]
     assert "Suggest 3 animations" in fake.requests[0]["messages"][0]["content"][-1]["text"]
+
+
+def test_export_html_is_a_standalone_player():
+    c, _ = client_for()
+    r = c.post("/export.html", json={"doc": DOC, "title": "Roll & Bounce!"})
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")
+    assert 'filename="roll-bounce.html"' in r.headers["content-disposition"]
+    assert "class Player" in r.text and "<script src" not in r.text  # the player is inlined: no server needed
+    assert '"frames"' in r.text
+    assert c.post("/export.html", json={"doc": {"motion": "0.1"}}).status_code == 422

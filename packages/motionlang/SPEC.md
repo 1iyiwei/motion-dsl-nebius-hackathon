@@ -147,6 +147,8 @@ Most property verbs take **either** `to` (absolute target) **or** `by` (relative
 
 **Path forms**: `{ "stroke": "s1" }` (smoothed with Catmull-Rom), `{ "points": [[x,y],...], "smooth": true }`, `{ "svg": "M ... " }`, `{ "arc": { "center":[x,y], "radius": r, "from": deg, "to": deg } }`.
 
+**Path space**: any path form may set `"space": "canvas"` or `"space": "parent"`. Canvas space is where the user drew, and is the default for `stroke`. Parent space is the actor's own `x, y` space, and is the default for `points`, `svg` and `arc`. For an actor with a parent, a canvas-space path is mapped through the parent's world transform at the block's start, so a grouped logo part follows a drawn line exactly where it was drawn. The actor must still start at the path's first point (in its own space), unless `relative: true`. The `E_DISCONTINUITY` hint gives the exact `move` to get there.
+
 ### Composition rule
 
 When two verbs touch the same property over overlapping time:
@@ -162,7 +164,7 @@ These are declarative checks run against tracks sampled at `canvas.fps`. They ex
 
 | Constraint | Params | Fails when |
 | --- | --- | --- |
-| `in_bounds` | `actors="*"`, `margin=0`, `ignore=[block ids]` | Any part of a visible actor's bounding box leaves the canvas. Blocks in `ignore` are deliberate off-screen motion: their actor (and its parts, for a group) isn't checked while they run. `enter`/`exit` from or to an edge are exempt automatically: the actor isn't checked until its entrance ends, or from when its exit starts |
+| `in_bounds` | `actors="*"`, `margin=0`, `ignore=[block ids]` | Any part of a visible actor's bounding box leaves the canvas. Blocks in `ignore` are deliberate off-screen motion: their actor (and its parts, for a group) isn't checked while they run. `enter`/`exit` from or to an edge are exempt automatically: the actor isn't checked until its entrance ends, or from when its exit starts. While an actor follows a drawn stroke (`move_along` on a canvas-space stroke), and afterwards while it stays where the line left it, only its pivot (the point on the line) must stay on the canvas: the user's drawing decides where it goes |
 | `max_speed` | `actor`, `px_per_s` | The speed exceeds the limit at any sample |
 | `smooth` | `actor`, `max_jerk` | The third derivative of position spikes (catches visual "pops" at block seams) |
 | `no_overlap` | `a`, `b`, `during:[t0,t1]?` | The bounding boxes intersect |

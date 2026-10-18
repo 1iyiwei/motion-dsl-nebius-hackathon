@@ -70,6 +70,8 @@ button.icon { width: 36px; padding: 6px 0; }
 .chips-prefix { font-size: 12px; color: var(--muted); align-self: center; }
 .examples button { font-size: 12px; padding: 3px 10px; border-radius: 999px; color: var(--muted); }
 .versions { display: flex; flex-wrap: wrap; gap: 6px; }
+.export { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.export button { font-size: 12px; padding: 3px 10px; }
 .versions button { font-size: 12px; padding: 3px 10px; }
 .versions button.current { border-color: var(--accent); color: var(--accent); }
 .status { margin-top: 8px; color: var(--muted); min-height: 1.4em; }
@@ -130,3 +132,7 @@ button.icon { width: 36px; padding: 6px 0; }
 .part code { color: var(--muted); font-size: 11px; }
 .parts-dropped { color: var(--warn); margin-top: 6px; }
 .parts-notes { color: var(--muted); margin-top: 6px; }
+
+.mic { display: inline-flex; align-items: center; justify-content: center; width: 40px; padding: 0; color: var(--muted); }
+.mic:hover:not(:disabled) { color: var(--fg); }
+.mic.listening { color: #fff; background: var(--accent); border-color: var(--accent); transition: box-shadow 60ms linear; }

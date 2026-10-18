@@ -17,7 +17,7 @@ uv run sketchdynamics        # serves http://127.0.0.1:8765/ and opens it
 Options: `--port 8765`, `--host 127.0.0.1`, `--no-browser`. Outside this workspace, `pip install sketchdynamics` pulls `motionlang[agent]` from PyPI.
 
 1. Draw on the canvas. Each stroke gets an id (`s1`, `s2`, …) you can mention in the prompt.
-2. Type what should happen, e.g. "a ball rolls along my line and bounces", and press **Generate**.
+2. Type or say what should happen, e.g. "a ball rolls along my line and bounces", and press **Generate**. The 🎤 button next to the prompt and tweak boxes listens; press it again (or pause) to stop.
 3. Watch it play. Scrub, pause (space), toggle the sketch overlay.
 4. Type a change ("slower") and press **Tweak**. Every result is a version chip you can go back to.
 
@@ -30,6 +30,8 @@ The model's grouping is a starting point, and grouping is partly a matter of tas
 Icon SVGs often pack a whole object into one `<path>` per colour (all three blade fills in one path). The importer splits such compound paths into their pieces, keeping holes with their shapes. To tell 20+ pieces apart, VL gets two images: the logo, and the same logo with each part tagged by a number. It also gets the file name, which often says what the artwork is. In the same call, VL also suggests three animations for the artwork (subtle, playful, dramatic), in the spirit of LogoMotion. They show as chips under the prompt, and the first one fills an empty prompt box as a starting point.
 
 Try **Wind turbine**: VL rigs a rotor (blades and hub, pivoting on the hub), a tower and the motion lines. **Cloud bolt** is the minimal case: two parts that should animate separately. Gradients become solid colours, and text, filters and masks are skipped for now; the app lists what it simplified.
+
+**Voice**: speech recognition runs in the browser through the Web Speech API, not on Token Factory. It only turns speech into the prompt text, which then goes through the same path as typing. Where it's available depends on the browser (Chrome and Edge, Safari; not Firefox), and the mic buttons are hidden where it isn't. Chrome sends the audio to its own speech service, so use typing if that matters to you. While listening, the mic button shows a level ring and the status line names the input device. If the ring stays flat, the browser is using the wrong microphone: pick another one from the site icon in the address bar.
 
 ## How Nemotron / Token Factory is used
 
@@ -69,7 +71,6 @@ Layout: `src/sketchdynamics/server.py` (FastAPI app + CLI), `grouping.py` (seman
 ## Roadmap
 
 - **Redraw a path**: drag or redraw one stroke and re-bake with `POST /bake` (no model call), since paths reference strokes by id.
-- **Voice**: speak the prompt and tweaks (Web Speech API in the browser).
 - **Sketch understanding**: the logo labelling already sends a rendering to `Nemotron-3.5-Super-VL`; do the same for sketches so it can tell a "ball" circle from a "path" line.
 - **Raster logos**: vectorize or segment a PNG so its parts can move separately.
 - **Masks**: "rises from behind the waves" currently means drawn under the waves. A horizon mask would hide the sun below the line as well.

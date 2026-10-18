@@ -45,6 +45,7 @@
 
     <form id="gen-form" class="ask">
       <input id="intent" autocomplete="off" placeholder="What should happen? e.g. a ball rolls along my line and bounces">
+      <button id="mic-intent" type="button" class="mic" title="Say what should happen (speech recognition by your browser)" hidden><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z" fill="currentColor"/></svg></button>
       <select id="planner" title="Model that plans the animation">
         <option value="super">Super 120B · faster</option>
         <option value="ultra">Ultra 550B · stronger</option>
@@ -55,11 +56,17 @@
 
     <form id="tweak-form" class="ask" hidden>
       <input id="instruction" autocomplete="off" placeholder="Refine: slower, more bounce, make it blue…">
+      <button id="mic-instruction" type="button" class="mic" title="Say the change (speech recognition by your browser)" hidden><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z" fill="currentColor"/></svg></button>
       <button id="tweak" type="submit">Tweak</button>
     </form>
     <div id="tweak-examples" class="examples" hidden></div>
 
     <div id="versions" class="versions"></div>
+    <div id="export" class="export" hidden>
+      <span class="chips-prefix">Export:</span>
+      <button id="export-html" type="button" title="A self-contained HTML player you can open or share">HTML player</button>
+      <button id="export-json" type="button" title="The MotionLang program, with its artwork">MotionLang JSON</button>
+    </div>
     <div id="status" class="status"></div>
   </section>
 

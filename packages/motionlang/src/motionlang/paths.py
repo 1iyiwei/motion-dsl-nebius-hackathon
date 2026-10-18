@@ -316,9 +316,17 @@ def path_bbox(d: str) -> tuple[float, float, float, float]:
     return float(mn[0]), float(mn[1]), float(mx[0] - mn[0]), float(mx[1] - mn[1])
 
 
+def path_space(spec: dict) -> str:
+    """"canvas" (where the user drew: the default for strokes) or "parent" (the actor's own position space:
+    the default for points/svg/arc). Only matters for actors with a parent."""
+    return spec.get("space") or ("canvas" if "stroke" in spec else "parent")
+
+
 def resolve_path(spec: dict, strokes: dict[str, "list[Point]"]) -> Polyline:
     """Resolve a path spec ({stroke}|{points}|{svg}|{arc}) to a Polyline. Raises ValueError/KeyError."""
-    if not isinstance(spec, dict) or len(spec.keys() - {"smooth"}) != 1:
+    if isinstance(spec, dict) and spec.get("space") not in (None, "canvas", "parent"):
+        raise ValueError('path "space" must be "canvas" or "parent"')
+    if not isinstance(spec, dict) or len(spec.keys() - {"smooth", "space"}) != 1:
         raise ValueError('path must be exactly one of {"stroke"}, {"points"}, {"svg"}, {"arc"}')
     if "stroke" in spec:
         ref = spec["stroke"]

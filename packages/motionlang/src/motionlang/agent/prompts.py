@@ -21,6 +21,9 @@ Rules:
 - move_along: put the actor at the path's first point first, or use "relative": true.
 - Prefer durations between 0.3 and 2 s. Keep the whole timeline short unless asked otherwise.
 - When the user drew strokes, use them: as paths ({"stroke": id}) or as visible actors (shape kind "stroke").
+  A {"stroke": id} path follows the line exactly where it was drawn for any actor, grouped or not: never
+  convert stroke points by hand. The actor must be at the stroke's start when it begins (the validator
+  gives the exact move if it isn't), or use "relative": true to carry the path to the actor.
 - When the user gave assets (e.g. the parts of their logo), animate those parts: one actor per part with
   shape {"kind": "asset", "ref": <asset id>}, using the asset ids exactly as given. Don't include
   document.assets in your reply (it is added for you) and never write path data. Each suggested actor's

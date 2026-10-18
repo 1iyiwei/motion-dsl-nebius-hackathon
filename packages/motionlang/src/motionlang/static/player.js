@@ -2,7 +2,7 @@
 // Shipped with the motionlang package: Python gets the source from motionlang.preview.PLAYER_JS
 // (or the file path from motionlang.preview.player_js_path()). preview_html embeds this same file.
 //
-//   import { Player } from "./player.js";
+//   import { Player } from "<wherever this file is served>";
 //   const p = new Player(svgOrGroup, { onFrame(i, t, T) {}, onState(playing) {} });
 //   p.load(tracks); p.play(); p.pause(); p.toggle(); p.seek(i); p.loop = false;
 
