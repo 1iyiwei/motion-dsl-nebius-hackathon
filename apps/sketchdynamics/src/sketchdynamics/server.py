@@ -213,20 +213,27 @@ def label_messages(
          "This image is a logo on a canvas (coordinates in pixels of the image, origin top-left).\n")
         + (f'The file is called "{name}".\n' if name else "")
         + "It is made of these vector parts:\n" + "\n".join(parts) + "\n\n"
-        "1. Say what each part is, as a motion designer would name layers: 1-4 words, e.g. \"sun disc\", "
-        "\"left ray\", \"letter A\", \"wave\".\n"
+        "1. Say what each part is, as a motion designer would name layers: 1-4 words, e.g. \"front wheel\", "
+        "\"letter A\", \"leaf outline\".\n"
         "2. Group parts into the LARGEST pieces that move rigidly together, the way an animator would rig them: "
-        "a sun disc with all its rays; all letters of one word; all blades of a fan or turbine together WITH its hub "
-        "(one rotor, not one group per blade); a leaf with its stem. A part's fill, outline and highlight always go "
+        "a car body with its windows; all letters of one word; all blades of a propeller together WITH its hub "
+        "(one piece, not one group per blade); a leaf with its stem. A part's fill, outline and highlight always go "
         "together. Each part goes in at most one group, a group has at least 2 parts, and parts that move on their "
-        "own stay ungrouped. Parts that move differently (spinning blades vs the still tower) go in different groups.\n"
-        "3. If a group would naturally rotate (a fan, wheel, rotor, clock hand), give \"pivot\": the id of the part at "
-        "its rotation centre (e.g. the hub).\n"
+        "own stay ungrouped. Parts that move differently (a spinning propeller vs the plane it is on) go in different groups.\n"
+        "3. If a group would naturally rotate (a propeller, wheel, gear, clock hand), give \"pivot\": the id of the part at "
+        "its rotation centre (e.g. the hub or axle).\n"
+        "4. Suggest 3 animations a motion designer would make for this artwork, as requests a user could type "
+        "(15-30 words each): one subtle and professional, one playful, one dramatic. Each is a short sequence of 2-4 "
+        "beats that builds the artwork up or shows what it does, ending on the finished logo, e.g. \"the stem draws itself "
+        "upward, the leaf unfolds from it with a small bounce, then the wordmark slides in from the right\". Refer to "
+        "parts and groups by what they are (\"the leaf\", \"the wordmark\"), never by id. Use only what 2D motion can do: move "
+        "in or out, rotate, scale, fade, bounce, wiggle, draw a line on, wipe a shape in, recolor.\n"
         + (f"The file's own layers group them as {json.dumps([g['parts'] for g in groups])}; layers often follow colour, "
            "not objects, so regroup freely.\n" if groups else "")
         + "Reply with JSON only: "
         '{"description": "one sentence about the whole logo", "labels": {"<part id>": "<label>", ...}, '
-        '"groups": [{"label": "<what the group is>", "parts": ["<part id>", ...], "pivot": "<part id, optional>"}, ...]}'
+        '"groups": [{"label": "<what the group is>", "parts": ["<part id>", ...], "pivot": "<part id, optional>"}, ...], '
+        '"suggestions": ["<request>", "<request>", "<request>"]}'
     )
     images = [image, marked] if marked else [image]
     return [{"role": "user", "content": [*({"type": "image_url", "image_url": {"url": u}} for u in images), {"type": "text", "text": text}]}]
@@ -344,7 +351,7 @@ def create_app(llm_factory: Callable[[], LLM] | None = None) -> FastAPI:
             text, call = llm.json("vision", "label", label_messages(req.image, req.assets, req.groups, req.marked, req.name), think=False, max_tokens=2000, temperature=0.2)
             reply = json.loads(extract_json_text(text))
         except Exception as e:  # labels are a nice-to-have: generation works without them
-            return JSONResponse({"labels": {}, "groups": None, "description": "", "error": f"{type(e).__name__}: {e}",
+            return JSONResponse({"labels": {}, "groups": None, "suggestions": [], "description": "", "error": f"{type(e).__name__}: {e}",
                                  "call": call_json(llm.calls[-1]) if llm.calls else None})
         reply = reply if isinstance(reply, dict) else {}
         ids = list(req.assets)[:MAX_LABELLED_PARTS]
@@ -363,7 +370,10 @@ def create_app(llm_factory: Callable[[], LLM] | None = None) -> FastAPI:
             fixed = [{**g, "parts": [part_id(p) for p in g.get("parts") or []], "pivot": part_id(g["pivot"]) if g.get("pivot") is not None else None}
                      for g in reply["groups"] if isinstance(g, dict)]
             groups = normalize_groups(fixed, req.assets)
-        return JSONResponse({"labels": labels, "groups": groups, "description": str(reply.get("description", ""))[:300], "call": call_json(call)})
+        raw_ideas = reply.get("suggestions") if isinstance(reply.get("suggestions"), list) else []
+        suggestions = [" ".join(x.split())[:240] for x in raw_ideas if isinstance(x, str) and x.strip()][:3]
+        return JSONResponse({"labels": labels, "groups": groups, "suggestions": suggestions,
+                             "description": str(reply.get("description", ""))[:300], "call": call_json(call)})
 
     return app
 

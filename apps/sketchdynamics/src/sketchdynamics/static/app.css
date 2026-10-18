@@ -67,6 +67,7 @@ button.icon { width: 36px; padding: 6px 0; }
 .group b[contenteditable="true"] { outline: 1px solid var(--accent); padding: 0 3px; border-radius: 3px; cursor: text; }
 .group b { cursor: pointer; }
 .examples { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.chips-prefix { font-size: 12px; color: var(--muted); align-self: center; }
 .examples button { font-size: 12px; padding: 3px 10px; border-radius: 999px; color: var(--muted); }
 .versions { display: flex; flex-wrap: wrap; gap: 6px; }
 .versions button { font-size: 12px; padding: 3px 10px; }

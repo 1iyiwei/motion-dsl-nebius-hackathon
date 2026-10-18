@@ -40,6 +40,10 @@ class SampleContext(Protocol):
     def path(self, spec: dict) -> Polyline:
         """Resolve a path spec against the document's strokes (cached)."""
 
+    def parent_scale(self) -> tuple[float, float]:
+        """World scale of this actor's parent chain when the block starts (1, 1 at top level), so a
+        verb can turn a canvas distance into the actor's own coordinates."""
+
 
 class Verb:
     """Subclass, set the ClassVars, implement `sample`, and decorate with @register.
@@ -76,6 +80,11 @@ class Verb:
     def jumps_at_start(self, p: Any) -> bool:
         """True if starting away from the current value is the point (e.g. draw_on from 0)."""
         return False
+
+    def offstage(self, p: Any) -> Literal["before", "after"] | None:
+        """"before": the actor is deliberately off-canvas until this block ends (an entrance);
+        "after": from when it starts (an exit). in_bounds skips those frames, no ignore entry needed."""
+        return None
 
     def holds_before(self, p: Any) -> bool:
         """True if, as the first absolute verb on a prop, its starting value also applies before it

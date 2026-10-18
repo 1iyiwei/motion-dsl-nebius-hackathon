@@ -98,6 +98,15 @@ class _Ctx:
     def path(self, spec: dict) -> Polyline:
         return self.ev.path(spec)
 
+    def parent_scale(self) -> tuple[float, float]:
+        sx = sy = 1.0
+        cur = self.ev.parsed.actors.get(self.actor)
+        while cur is not None and cur.parent:
+            sx *= abs(self.ev.value(cur.parent, "sx", self.t0)) or 1.0
+            sy *= abs(self.ev.value(cur.parent, "sy", self.t0)) or 1.0
+            cur = self.ev.parsed.actors.get(cur.parent)
+        return sx, sy
+
 
 class Evaluator:
     def __init__(self, parsed: Parsed, sched: Schedule):

@@ -115,8 +115,9 @@ $("clear").onclick = () => {
 };
 
 // ---------- examples ----------
-function chips(container, items, input) {
-  container.replaceChildren(...items.map((t) => {
+function chips(container, items, input, prefix = "") {
+  const head = prefix ? [Object.assign(document.createElement("span"), { className: "chips-prefix", textContent: prefix })] : [];
+  container.replaceChildren(...head, ...items.map((t) => {
     const b = document.createElement("button");
     b.type = "button"; b.textContent = t;
     b.onclick = () => { $(input).value = t; $(input).focus(); };
@@ -124,7 +125,8 @@ function chips(container, items, input) {
   }));
 }
 function setExamples() {
-  chips($("examples"), state.logo ? [
+  const ideas = state.logo?.suggestions?.length ? state.logo.suggestions : null;
+  chips($("examples"), ideas || (state.logo ? [
     "the logo builds itself piece by piece, then settles with a little bounce",
     "the main shape wipes in, the small parts pop in one after another, then the whole logo breathes",
     "a playful intro: parts drop in from above with squash and stretch",
@@ -132,7 +134,7 @@ function setExamples() {
     "a ball rolls along my line and bounces",
     "my line draws itself, then a star pops in at its end",
     "a red square slides along my curve, spinning, then fades out",
-  ], "intent");
+  ]), "intent", ideas ? "Ideas from Nemotron VL:" : "");
   chips($("tweak-examples"), state.logo
     ? ["slower", "more playful", "reveal the main shape left to right", "end with a gentle pulse"]
     : ["slower", "more bounce", "make it blue", "add a squash when it lands"], "instruction");
@@ -595,6 +597,12 @@ async function labelParts() {
       : `✗ no labels (${r.error || "empty reply"}); the planner will use the file's ids and groups`;
     for (const [id, label] of Object.entries(r.labels)) state.logo.assets[id].label = label;
     state.logo.description = r.description;
+    state.logo.suggestions = r.suggestions || [];
+    if (state.logo.suggestions.length) {
+      setExamples();
+      v.textContent += ` · ${state.logo.suggestions.length} motion ideas`;
+      if (!$("intent").value.trim()) $("intent").value = state.logo.suggestions[0]; // a starting point: edit or replace it
+    }
     setBusy(false);
     await regroup(groups); // also puts the new labels on the actors the planner sees
   } catch (err) {
@@ -609,6 +617,7 @@ async function importLogo(svgText, name) {
   try {
     const r = await postJSON("/import-svg", { svg: svgText, canvas: { width: W, height: H } });
     $("clear").onclick();
+    $("intent").value = ""; // the old prompt described the previous artwork
     state.logo = { name, assets: r.assets, actors: r.actors, groups: r.groups, dropped: r.dropped, notes: r.notes || [], description: "", selected: new Set() };
     if (r.preview.tracks) { player.load(r.preview.tracks); stage.classList.add("has-logo"); }
     renderInk(); renderParts(); setExamples();

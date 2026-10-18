@@ -326,3 +326,42 @@ def test_split_none_keeps_one_part_per_element_and_other_fixtures_are_unchanged(
     assert set(r["assets"]) == {"blades", "hub", "frame", "badge", "wind"} and r["notes"] == []
     for name in ("arcs.svg", "nested.svg", "styled.svg"):
         assert load(name)["notes"] == [] and load(name)["assets"] == load(name, split="none")["assets"]
+
+
+# ---- enter / exit -------------------------------------------------------------------------
+
+
+def test_enter_from_left_on_a_group_needs_no_ignore_and_hides_before():
+    r = load("nested.svg", fit=(1280, 720))
+    doc = as_doc(r, {"id": "wait", "verb": "hold", "duration": 0.5},
+                 {"id": "in", "verb": "enter", "actor": "mark", "from": "left", "duration": 1, "ease": "linear"},
+                 {"id": "out", "verb": "exit", "actor": "Wordmark", "to": "bottom", "duration": 0.5})
+    doc["constraints"] = [{"type": "in_bounds", "margin": 8}]
+    res = check(doc)
+    assert res.ok, res.report.summary()
+    b = res.baked
+    rest = r["assets"]["bar"]["bbox"]
+    x0 = lambda t: b.aabb_world["bar"][b.frame_at(t)][0]  # noqa: E731
+    assert b.aabb_world["bar"][0][2] < 0  # hidden off the left edge before its entrance starts
+    assert x0(1.5) == pytest.approx(rest[0], abs=0.5)  # children of the group land where they were drawn
+    assert x0(1.0) < rest[0]
+    assert b.aabb_world["polygon1"][-1][1] > 720  # the exit leaves through the bottom
+
+
+def test_enter_distance_accounts_for_a_scaled_parent(doc_factory):
+    doc = doc_factory({"id": "in", "verb": "enter", "actor": "a", "from": "left"})
+    doc["actors"].append({"id": "g", "shape": {"kind": "group"}, "init": {"x": 0, "y": 0, "sx": 0.5, "sy": 0.5}})
+    doc["actors"][0]["parent"] = "g"
+    doc["constraints"] = [{"type": "in_bounds"}]
+    res = check(doc)
+    assert res.ok, res.report.summary()
+    assert res.baked.aabb_world["a"][0][2] < 0  # starts fully off-canvas despite the half-scale parent
+
+
+def test_enter_scale_and_fade_start_from_zero(doc_factory):
+    doc = doc_factory({"id": "pop", "verb": "enter", "actor": "a", "from": "scale"},
+                      {"id": "show", "verb": "enter", "actor": "b", "from": "fade"})
+    res = check(doc)
+    assert res.ok, res.report.summary()
+    ev = res.baked.ev
+    assert ev.value("a", "sx", 0.0) == 0 and ev.value("b", "opacity", 0.5) == 0 and ev.value("b", "opacity", 2.0) == 1

@@ -25,15 +25,17 @@ Rules:
   shape {"kind": "asset", "ref": <asset id>}, using the asset ids exactly as given. Don't include
   document.assets in your reply (it is added for you) and never write path data. Each suggested actor's
   init x/y is its resting position: where the part was drawn, measured from its parent group's position
-  (top-level actors use canvas coordinates). Keep those numbers. To bring a part in from elsewhere, change its
-  init to the starting point and `move` it back `to` the resting x/y. Group actors move all their parts at once.
+  (top-level actors use canvas coordinates). Keep those numbers: they are where each part ends up.
+  To bring a part (or a whole group) in, use an `enter` block ("from": left/right/top/bottom, or scale/fade in
+  place); don't edit init for that, and don't `move` a part to its resting position. `exit` takes it out.
+  Group actors move all their parts at once.
   Positions (init x/y, move "to") are in the parent's coordinates, the same frame as the resting x/y shown;
   for a group, "move by" a canvas-sized offset is usually simplest.
   reveal and draw_on already keep a part hidden until they start: don't also set init.opacity 0 on it.
   Anything that starts hidden (opacity 0, scale 0) must be brought into view by a verb.
-- Keep everything on screen: include {"type": "in_bounds", "margin": 8} in constraints. For a deliberate
-  entrance or exit (something slides in from off-screen or leaves the screen), list that block's id in the
-  constraint's "ignore" list, e.g. {"type": "in_bounds", "margin": 8, "ignore": ["enter", "exit"]}.
+- Keep everything on screen: include {"type": "in_bounds", "margin": 8} in constraints. For entrances and
+  exits use the enter/exit verbs: they need no ignore entry. For any other deliberate off-screen motion, list
+  that block's id in the constraint's "ignore" list, e.g. {"type": "in_bounds", "margin": 8, "ignore": ["fly_by"]}.
   in_bounds is checked on the stage, before the camera: camera zooms/pans never violate it, so don't
   ignore blocks just because the camera crops them.
 - Constraints record the user's requirements. Besides in_bounds, add one only when the user asked for it

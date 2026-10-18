@@ -124,7 +124,7 @@ The importer flattens transforms, converts circles, rects, polygons and arcs to 
 
 Verbs are MotionLang's *kinemes*, the smallest meaningful units of movement (a term from kinesics). A timeline composes them into larger motion.
 
-`move`, `move_along`, `rotate`, `scale`, `fade`, `recolor`, `draw_on`, `reveal`, `camera`, `orbit`, `bounce`, `wiggle`, `spring_to`, `follow`, `hold`. Run `motionlang prompt` for parameters and examples.
+`move`, `move_along`, `rotate`, `scale`, `fade`, `recolor`, `draw_on`, `reveal`, `enter`, `exit`, `camera`, `orbit`, `bounce`, `wiggle`, `spring_to`, `follow`, `hold`. Run `motionlang prompt` for parameters and examples.
 
 ## Related work
 

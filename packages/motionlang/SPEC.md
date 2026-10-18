@@ -111,7 +111,7 @@ Every block has `id` (required, unique), plus optional `delay` (s, before it sta
 
 **Sync**: v0.1 uses tree position only. An `after: "<blockId>"` field for cross-branch sync would be more expressive but makes timing a constraint-solving problem. **Deferred to v0.2**, to be revisited once hands-on authoring shows whether it's needed.
 
-## 6. Verbs (v0.1 core set: 15)
+## 6. Verbs (v0.1 core set: 17)
 
 Verbs are MotionLang's **kinemes**. The word comes from Ray Birdwhistell's kinesics, where a kineme is the smallest unit of movement that carries meaning, as a phoneme is for sound. Each verb is one such unit (a bounce, a reveal, a spring into place) and has a fixed, checkable meaning. A timeline composes kinemes into larger motion, by sequencing and by the composition rule below.
 
@@ -134,10 +134,12 @@ Most property verbs take **either** `to` (absolute target) **or** `by` (relative
 | `follow` | `target:actorId`, `lag=0.2`, `offset:[dx,dy]` | abs | Tracks another actor's position with delay |
 | `draw_on` | `from=0`, `to=1` | abs (deliberate jump to `from`) | Reveals a `stroke`/`path`/`polygon`/`asset` outline progressively (animates `trim`), the classic "line draws itself" effect |
 | `reveal` | `direction=left_to_right` (`right_to_left`, `top_to_bottom`, `bottom_to_top`, `from_center`), `from=0`, `to=1` (visible fraction) | abs (deliberate jump to `from`) | Wipes a shape into view behind a moving straight edge (a directional mask over its bounding box), so it works on filled shapes, where `draw_on` only traces outlines. `from_center` opens from the centre on both axes. `from: 1, to: 0` wipes it out. Not for groups: reveal each child |
+| `enter` | `from=left` (`right`, `top`, `bottom`, `scale`, `fade`), `distance?` (px) | abs (deliberate jump to the start pose) | Brings an actor (or a whole group) in from just off-canvas, or from scale 0 / transparent, to where it rests: its pose just before the block, normally its init. Hidden until the block starts. The default distance is 1.1× the canvas width/height, scaled by the parents' scale, so a part resting on the canvas starts fully off it. Default ease `outCubic` |
+| `exit` | `to=right` (same choices), `distance?` | abs | The mirror: from where it is to just off-canvas (or scale 0 / transparent). Default ease `inCubic` |
 | `camera` | `to:{x?,y?,zoom?,rotation?}` \| `by:{...}` | abs / rel | Pans/zooms/rotates the view; targets the built-in `camera` actor, so `actor` is omitted |
 | `hold` | `duration` | — | Explicit wait |
 
-**Hidden until their turn**: when `draw_on` or `reveal` is the first absolute verb on its property, its starting value also applies before it starts. A logo part revealed at t = 1.2 s is therefore hidden from t = 0, not visible and then cut. (Verb hook: `holds_before`.)
+**Hidden until their turn**: when `draw_on`, `reveal` or `enter` is the first absolute verb on its property, its starting value also applies before it starts. A logo part revealed at t = 1.2 s is therefore hidden from t = 0, not visible and then cut. (Verb hook: `holds_before`.)
 
 **Property aliases**: `position` = `x,y`; `scale` = `sx,sy`. They can be used anywhere a `prop` is named.
 
@@ -160,7 +162,7 @@ These are declarative checks run against tracks sampled at `canvas.fps`. They ex
 
 | Constraint | Params | Fails when |
 | --- | --- | --- |
-| `in_bounds` | `actors="*"`, `margin=0`, `ignore=[block ids]` | Any part of a visible actor's bounding box leaves the canvas. Blocks in `ignore` are deliberate entrances/exits: their actor isn't checked while they run |
+| `in_bounds` | `actors="*"`, `margin=0`, `ignore=[block ids]` | Any part of a visible actor's bounding box leaves the canvas. Blocks in `ignore` are deliberate off-screen motion: their actor (and its parts, for a group) isn't checked while they run. `enter`/`exit` from or to an edge are exempt automatically: the actor isn't checked until its entrance ends, or from when its exit starts |
 | `max_speed` | `actor`, `px_per_s` | The speed exceeds the limit at any sample |
 | `smooth` | `actor`, `max_jerk` | The third derivative of position spikes (catches visual "pops" at block seams) |
 | `no_overlap` | `a`, `b`, `during:[t0,t1]?` | The bounding boxes intersect |
@@ -255,7 +257,7 @@ class Bounce(Verb):
     def props(self, p): return ("y", "sx", "sy")
     def default_duration(self, p): ...
     def sample(self, p, u, t, ctx) -> dict: ...
-    # optional: jumps_at_start, holds_before, actor_refs, path_specs, check_target
+    # optional: jumps_at_start, holds_before, offstage, actor_refs, path_specs, check_target
 ```
 
 `sample(p, u, t, ctx)` gets progress `u ∈ [0, 1]` (already eased if `uses_ease`), local time `t` in seconds, and a context: `ctx.start` (the composed values of its props just before it starts), `ctx.t0`, `ctx.duration`, `ctx.value(actor, prop, t)` (read other actors), and `ctx.path(spec)` (resolved, arc-length-parameterized paths). abs verbs return values; rel verbs return deltas.
@@ -344,7 +346,7 @@ Code: <https://github.com/OpenVGLab/OmniLottie>. Project page: <https://omnilott
 A 4B VLM fine-tuned to generate Lottie from text/image/video, using a **parameterized Lottie token** representation because raw Lottie JSON is too verbose and fragile for language models.
 
 **How MotionLang relates**:
-- It independently confirms our premise that raw Lottie is a poor generation target. They solve it by **training a specialized model** on a compact token format; we solve it with an **intent-level DSL + a general LLM (Nemotron) + verification**. Ours needs no training, is human-readable and editable by id, and can be checked. Theirs captures complex shape/style detail that a 15-verb DSL can't. That's a fair contrast for the write-up.
+- It independently confirms our premise that raw Lottie is a poor generation target. They solve it by **training a specialized model** on a compact token format; we solve it with an **intent-level DSL + a general LLM (Nemotron) + verification**. Ours needs no training, is human-readable and editable by id, and can be checked. Theirs captures complex shape/style detail that a 17-verb DSL can't. That's a fair contrast for the write-up.
 - Not usable as our core model: it isn't an NVIDIA model, and it needs a ~15 GB GPU (its README reports about 8 s per 256 Lottie tokens). Possible stretch baseline on Nebius AI Cloud.
 - **Logos**: its image-to-Lottie mode redraws the artwork as part of the generated Lottie, so the output only approximates the user's logo. MotionLang keeps the user's exact paths by reference (`assets`, §3) and generates only the motion.
 - **MMLottie-2M / MMLottieBench**: a source of eval prompts and reference animations (check the dataset license), and possibly seed content for CanvasMind. Our Lottie exporter makes MotionLang outputs comparable on their benchmark.

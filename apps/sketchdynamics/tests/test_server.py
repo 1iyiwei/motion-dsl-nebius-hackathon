@@ -360,3 +360,11 @@ def test_split_part_separates_subpaths_in_place():
     assert out["preview"]["report"]["ok"]
     single = c.post("/split-part", json={"assets": assets, "part": "blade"})
     assert single.status_code == 422 and "single shape" in single.json()["detail"]
+
+
+def test_label_parts_returns_motion_ideas():
+    ideas = ["The rotor spins up slowly.", "  The tower   bounces in, then the rotor whirls. ", 7, "", "Lightning strikes.", "extra"]
+    c, fake = client_for(json.dumps({"labels": {}, "suggestions": ideas}))
+    out = c.post("/label-parts", json={"image": "data:image/jpeg;base64,AA", "assets": {"a": {"bbox": [0, 0, 1, 1]}}}).json()
+    assert out["suggestions"] == ["The rotor spins up slowly.", "The tower bounces in, then the rotor whirls.", "Lightning strikes."]
+    assert "Suggest 3 animations" in fake.requests[0]["messages"][0]["content"][-1]["text"]

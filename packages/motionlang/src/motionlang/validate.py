@@ -145,8 +145,10 @@ def check_noops(baked: Baked) -> list[Issue]:
         now = ", ".join(f"{k} {v:g}" if isinstance(v, (int, float)) else f"{k} {v}" for k, v in start.items())
         out.append(Issue(
             "E_NOOP", f"{b.id} ({b.verb.name}) changes nothing: {b.actor}.{props} is already at its target ({now})",
-            hint=(f"to animate {b.actor} into this state, set where it starts in {where} (e.g. a lower init y for a rise, "
-                  f"init opacity 0 before a fade to 1, init sx/sy 0 before a scale to 1), or remove block {b.id!r}"),
+            hint=(f'to bring {b.actor} in, replace block {b.id!r} with {{"id": "{b.id}", "verb": "enter", "actor": "{b.actor}", '
+                  f'"from": "bottom"}} (or "left", "right", "top", "scale", "fade"); otherwise remove block {b.id!r}'
+                  if b.verb.name in ("move", "fade", "scale", "spring_to") else
+                  f"to animate {b.actor} into this state, set where it starts in {where}, or remove block {b.id!r}"),
             block=b.id, actor=b.actor, t=lf.start, pointer=b.pointer,
         ))
     return out
@@ -251,6 +253,7 @@ def check_constraints(baked: Baked) -> list[Issue]:
             if unknown:
                 out.append(Issue("E_REF", f"in_bounds.ignore names unknown block(s) {unknown}", pointer=f"{ptr}/ignore"))
             exempt = [lf for lf in sched.leaves if lf.block.id in c.ignore]
+            offstage = [lf for lf in sched.leaves if lf.block.actor and lf.block.verb.offstage(lf.block.params)]
             for aid in _sel(c.actors, baked):
                 # Stage (world) space: camera moves are deliberate framing and never count.
                 box, vis = baked.aabb_world[aid], baked.opacity[aid] > VISIBLE
@@ -261,6 +264,10 @@ def check_constraints(baked: Baked) -> list[Issue]:
                 for lf in exempt:
                     if lf.block.actor in lineage:  # its own entrance, or its group's
                         vis = vis & ~((times >= lf.start - 1e-9) & (times <= lf.end + 1e-9))
+                for lf in offstage:  # enter/exit: off-canvas on purpose before an entrance ends / once an exit starts
+                    if lf.block.actor in lineage:
+                        when = lf.block.verb.offstage(lf.block.params)
+                        vis = vis & ~((times <= lf.end + 1e-9) if when == "before" else (times >= lf.start - 1e-9))
                 m = c.margin
                 over = np.stack([m - box[:, 0], m - box[:, 1], box[:, 2] - (W - m), box[:, 3] - (H - m)], axis=1)
                 over[~vis] = -np.inf

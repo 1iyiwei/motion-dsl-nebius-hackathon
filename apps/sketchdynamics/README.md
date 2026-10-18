@@ -27,7 +27,9 @@ Options: `--port 8765`, `--host 127.0.0.1`, `--no-browser`. Outside this workspa
 
 The model's grouping is a starting point, and grouping is partly a matter of taste, so all of it stays editable. With parts selected you can group them, click a group's name to add them to that group, take them out of their group, or split a part into its pieces (for example, a ring the importer kept with its hole). Double-click a group's name to rename it.
 
-Icon SVGs often pack a whole object into one `<path>` per colour (all three blade fills in one path). The importer splits such compound paths into their pieces, keeping holes with their shapes. To tell 20+ pieces apart, VL gets two images: the logo, and the same logo with each part tagged by a number. It also gets the file name, which often says what the artwork is. Try **Wind turbine**: VL rigs a rotor (blades and hub, pivoting on the hub), a tower and the motion lines. **Cloud bolt** is the minimal case: two parts that should animate separately. Gradients become solid colours, and text, filters and masks are skipped for now; the app lists what it simplified.
+Icon SVGs often pack a whole object into one `<path>` per colour (all three blade fills in one path). The importer splits such compound paths into their pieces, keeping holes with their shapes. To tell 20+ pieces apart, VL gets two images: the logo, and the same logo with each part tagged by a number. It also gets the file name, which often says what the artwork is. In the same call, VL also suggests three animations for the artwork (subtle, playful, dramatic), in the spirit of LogoMotion. They show as chips under the prompt, and the first one fills an empty prompt box as a starting point.
+
+Try **Wind turbine**: VL rigs a rotor (blades and hub, pivoting on the hub), a tower and the motion lines. **Cloud bolt** is the minimal case: two parts that should animate separately. Gradients become solid colours, and text, filters and masks are skipped for now; the app lists what it simplified.
 
 ## How Nemotron / Token Factory is used
 
@@ -51,7 +53,7 @@ All model calls go through `motionlang.agent` (OpenAI-compatible client pointed 
 | `POST /split-part` | `{assets, groups, actors, part}` | `{assets, pieces, groups, actors, preview}`: one part split into its subpaths, in place and in its group |
 | `POST /bake` | `{doc}` | `{doc, tracks, report}` with no model call |
 | `POST /import-svg` | `{svg}` | `motionlang.importers.import_svg` output (`assets`, suggested `actors`, `dropped`) plus a still `preview` |
-| `POST /label-parts` | `{image: "data:image/jpeg;base64,…", assets, groups?}` | `{labels: {id: label}, groups: [{id, label, parts}] or null, description, call}`; failures are soft (empty labels plus `error`) |
+| `POST /label-parts` | `{image: "data:image/jpeg;base64,…", marked?, name?, assets, groups?}` | `{labels: {id: label}, groups: [{id, label, parts, pivot?}] or null, suggestions: [3 motion ideas], description, call}`; failures are soft (empty labels plus `error`) |
 | `POST /regroup` | `{assets, groups: [{label, parts}], actors?}` | `{groups, actors, preview}`: the actor tree `logo → groups → parts`, with every part where it was drawn |
 
 Outcome: `{ok, path, note, seconds, tokens, attempts: [{kind, role, model, think, seconds, prompt_tokens, completion_tokens, ok, problems, issues}], doc, tracks, report}`. `tracks` is the baked player format from `motionlang` (see SPEC.md). When no attempt validates, `doc`/`tracks` are the closest attempt that still plays, or null. Add `?stream=1` to get NDJSON events instead: `call_start` when a model call begins, `attempt` once its reply is validated (same fields as above), then `result` or `error`. The UI uses that to fill the panel live.

@@ -181,7 +181,7 @@ def test_bounds_blames_and_exempts_a_parent_groups_move(doc_factory):
 def test_noop_verb_is_an_error_with_a_start_pose_hint(doc_factory):
     doc = doc_factory({"id": "rise", "verb": "move", "actor": "a", "to": [300, 300]})  # already there
     e = check(doc).report.errors[0]
-    assert e.code == "E_NOOP" and e.block == "rise" and "actors[0].init" in e.hint
+    assert e.code == "E_NOOP" and e.block == "rise" and '"verb": "enter", "actor": "a"' in e.hint
     doc["actors"][0]["init"]["y"] = 400  # a real starting pose makes it a rise
     assert check(doc).ok
     orbit = doc_factory({"id": "o", "verb": "orbit", "actor": "a", "center": [400, 300]})  # ends where it began, but moves

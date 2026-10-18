@@ -1,4 +1,4 @@
-"""The 15 core verbs of MotionLang v0.1."""
+"""The 17 core verbs of MotionLang v0.1."""
 
 from __future__ import annotations
 
@@ -242,6 +242,86 @@ class Reveal(Verb):
         if actor is not None and actor.shape.kind == "group":
             return "reveal needs an actor with a shape, not a group; reveal each child (a stagger works well)"
         return None
+
+
+Side = Literal["left", "right", "top", "bottom", "scale", "fade"]
+_SIDE_PROPS: dict[str, tuple[str, ...]] = {
+    "left": ("x",), "right": ("x",), "top": ("y",), "bottom": ("y",), "scale": ("sx", "sy"), "fade": ("opacity",),
+}
+
+
+def _offstage_value(side: str, prop: str, rest: float, distance: float | None, ctx: SampleContext) -> float:
+    """The pose just off the canvas (or at scale 0 / transparent) on `side`, for one prop."""
+    if side in ("scale", "fade"):
+        return 0.0
+    horizontal = side in ("left", "right")
+    sx, sy = ctx.parent_scale()
+    # Shifting by 1.1x the canvas size takes anything that rests on the canvas fully off it.
+    d = distance if distance is not None else 1.1 * (ctx.canvas.width if horizontal else ctx.canvas.height)
+    d /= sx if horizontal else sy
+    return rest - d if side in ("left", "top") else rest + d
+
+
+class EnterParams(VerbParams):
+    from_: Side = Field("left", alias="from", description="where it comes from: a canvas edge, or scale/fade in place")
+    distance: Optional[float] = Field(None, gt=0, le=100000, description="px to travel (default: just off-canvas)")
+
+
+@register
+class Enter(Verb):
+    """Bring an actor in from off-canvas (or from scale 0 / transparent) to where it rests: its init pose.
+    It is hidden until this block starts, and no in_bounds ignore entry is needed. Works on groups."""
+
+    name = "enter"
+    Params = EnterParams
+    default_ease = "outCubic"
+    examples = [{"from": "left", "duration": 0.8}, {"from": "scale", "duration": 0.5, "ease": "outBack"}]
+
+    def mode(self, p: EnterParams) -> Mode:
+        return "abs"
+
+    def props(self, p: EnterParams) -> tuple[str, ...]:
+        return _SIDE_PROPS[p.from_]
+
+    def sample(self, p: EnterParams, u: float, t: float, ctx: SampleContext) -> dict[str, Any]:
+        return {k: _lerp(_offstage_value(p.from_, k, ctx.start[k], p.distance, ctx), ctx.start[k], u) for k in self.props(p)}
+
+    def jumps_at_start(self, p: EnterParams) -> bool:
+        return True
+
+    def holds_before(self, p: EnterParams) -> bool:
+        return True
+
+    def offstage(self, p: EnterParams) -> Literal["before", "after"] | None:
+        return "before" if p.from_ in ("left", "right", "top", "bottom") else None
+
+
+class ExitParams(VerbParams):
+    to: Side = Field("right", description="where it goes: a canvas edge, or scale/fade out in place")
+    distance: Optional[float] = Field(None, gt=0, le=100000, description="px to travel (default: just off-canvas)")
+
+
+@register
+class Exit(Verb):
+    """Take an actor off-canvas (or to scale 0 / transparent) from where it is. No in_bounds ignore entry
+    is needed."""
+
+    name = "exit"
+    Params = ExitParams
+    default_ease = "inCubic"
+    examples = [{"to": "right", "duration": 0.8}, {"to": "fade", "duration": 0.4}]
+
+    def mode(self, p: ExitParams) -> Mode:
+        return "abs"
+
+    def props(self, p: ExitParams) -> tuple[str, ...]:
+        return _SIDE_PROPS[p.to]
+
+    def sample(self, p: ExitParams, u: float, t: float, ctx: SampleContext) -> dict[str, Any]:
+        return {k: _lerp(ctx.start[k], _offstage_value(p.to, k, ctx.start[k], p.distance, ctx), u) for k in self.props(p)}
+
+    def offstage(self, p: ExitParams) -> Literal["before", "after"] | None:
+        return "after" if p.to in ("left", "right", "top", "bottom") else None
 
 
 class CameraParams(_ToOrBy):
