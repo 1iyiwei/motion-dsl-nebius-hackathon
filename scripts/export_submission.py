@@ -164,7 +164,8 @@ def main() -> None:
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
 
-    archive(["packages/motionlang", f"apps/{args.app}", "LICENSE", ".gitignore"], dest)
+    extras = [f for f in ("render.yaml",) if run(["git", "ls-files", f], ROOT, quiet=True).stdout.strip()]
+    archive(["packages/motionlang", f"apps/{args.app}", "LICENSE", ".gitignore", *extras], dest)
     (dest / MARKER).write_text(f"exported from motion-dsl workspace @ {head}\n")
 
     samples = dest / "apps" / args.app / "src" / args.app / "static" / "samples"

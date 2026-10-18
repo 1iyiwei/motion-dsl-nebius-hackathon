@@ -60,6 +60,21 @@ All model calls go through `motionlang.agent` (OpenAI-compatible client pointed 
 
 Outcome: `{ok, path, note, seconds, tokens, attempts: [{kind, role, model, think, seconds, prompt_tokens, completion_tokens, ok, problems, issues}], doc, tracks, report}`. `tracks` is the baked player format from `motionlang` (see SPEC.md). When no attempt validates, `doc`/`tracks` are the closest attempt that still plays, or null. Add `?stream=1` to get NDJSON events instead: `call_start` when a model call begins, `attempt` once its reply is validated (same fields as above), then `result` or `error`. The UI uses that to fill the panel live.
 
+## Host a demo (Render)
+
+A public demo spends the host's Token Factory credits, so it has three optional guardrails, all set through environment variables and off by default:
+
+| Variable | Effect |
+| --- | --- |
+| `SKETCHDYNAMICS_ACCESS_CODE` | Model calls need this code. Visitors enter it in the field next to the title; it's kept in their browser. Import, bake and export work without it. |
+| `SKETCHDYNAMICS_RATE_LIMIT` | Model requests per visitor (client IP) per hour. |
+| `SKETCHDYNAMICS_DAILY_TOKENS` | Tokens all visitors may spend per UTC day. |
+| `SKETCHDYNAMICS_BEHIND_PROXY` | `1` behind a reverse proxy that sets `X-Forwarded-For`. |
+
+The counters live in memory, so a restart resets them; the access code is the real gate.
+
+To deploy on [Render](https://render.com), use **New → Blueprint** and pick this repository: [`render.yaml`](../../render.yaml) at the repo root sets the build (`uv sync --frozen --no-dev`), the start command (`uv run sketchdynamics --host 0.0.0.0 --port $PORT --no-browser`) and the health check (`/healthz`). Render asks for `NEBIUS_API_KEY` and `SKETCHDYNAMICS_ACCESS_CODE`. The free plan sleeps when idle, and the first visit then takes about a minute. Any host that runs a Python web service works the same way with those two commands.
+
 ## Develop
 
 ```bash

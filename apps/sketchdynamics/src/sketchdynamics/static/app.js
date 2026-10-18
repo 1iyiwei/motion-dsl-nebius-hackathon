@@ -244,9 +244,31 @@ function retryWithUltra() {
   };
 }
 
+// A hosted copy may need an access code (GET /config says so); it's kept in this browser only.
+const ACCESS_KEY = "sd.access";
+const jsonHeaders = () => {
+  let code = "";
+  try { code = localStorage.getItem(ACCESS_KEY) || ""; } catch { /* storage blocked */ }
+  return { "Content-Type": "application/json", ...(code ? { "X-Access-Code": code } : {}) };
+};
+async function failure(res) {
+  const text = await res.text();
+  let detail = text;
+  try { detail = JSON.parse(text).detail ?? text; } catch { /* not JSON */ }
+  if (res.status === 401) { $("access-code").hidden = false; $("access-code").focus(); }
+  return Object.assign(new Error(typeof detail === "string" ? detail.slice(0, 300) : `${res.status} ${res.statusText}`), { status: res.status });
+}
+fetch("/config").then((r) => r.json()).then((c) => {
+  if (!c.access_required) return;
+  const input = $("access-code");
+  input.hidden = false;
+  try { input.value = localStorage.getItem(ACCESS_KEY) || ""; } catch { /* storage blocked */ }
+  input.onchange = () => { try { localStorage.setItem(ACCESS_KEY, input.value.trim()); } catch { /* ignore */ } };
+}).catch(() => {});
+
 async function request(url, body, log) {
-  const res = await fetch(`${url}?stream=1`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(`${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const res = await fetch(`${url}?stream=1`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify(body) });
+  if (!res.ok) throw await failure(res);
   const reader = res.body.getReader(), dec = new TextDecoder();
   let buf = "", result = null, open = null;
   for (;;) {
@@ -360,7 +382,7 @@ $("gen-form").onsubmit = async (e) => {
     const r = await request("/generate", { intent, strokes, canvas: { width: W, height: H }, planner, ...logo }, newRun("generate", intent));
     state.current = state.versions.length - 1; // new generation starts after the latest version
     accept(r, intent.length > 28 ? intent.slice(0, 26) + "…" : intent);
-  } catch (err) { setStatus(String(err.message || err), true, retryWithUltra()); }
+  } catch (err) { setStatus(String(err.message || err), true, [401, 429].includes(err.status) ? null : retryWithUltra()); }
   finally { setBusy(false); }
 };
 
@@ -374,7 +396,7 @@ $("tweak-form").onsubmit = async (e) => {
     const r = await request("/tweak", { doc: state.versions[state.current].doc, instruction, planner: $("planner").value }, newRun("tweak", instruction));
     accept(r, instruction.length > 20 ? instruction.slice(0, 18) + "…" : instruction);
     $("instruction").value = "";
-  } catch (err) { setStatus(String(err.message || err), true, retryWithUltra()); }
+  } catch (err) { setStatus(String(err.message || err), true, [401, 429].includes(err.status) ? null : retryWithUltra()); }
   finally { setBusy(false); }
 };
 
@@ -470,9 +492,9 @@ renderInk(); renderTotals();
 
 // ---------- logo import ----------
 async function postJSON(url, body) {
-  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const res = await fetch(url, { method: "POST", headers: jsonHeaders(), body: JSON.stringify(body) });
+  if (!res.ok) throw await failure(res);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : `${res.status} ${res.statusText}`);
   return data;
 }
 

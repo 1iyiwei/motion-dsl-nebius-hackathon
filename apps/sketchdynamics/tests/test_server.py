@@ -378,3 +378,62 @@ def test_export_html_is_a_standalone_player():
     assert "class Player" in r.text and "<script src" not in r.text  # the player is inlined: no server needed
     assert '"frames"' in r.text
     assert c.post("/export.html", json={"doc": {"motion": "0.1"}}).status_code == 422
+
+
+# ---------- hosted-demo guardrails ----------
+
+from sketchdynamics.guard import Guard
+
+
+def guarded(guard: Guard, *replies: str) -> TestClient:
+    fake = Scripted(*replies)
+    return TestClient(create_app(lambda: LLM(fake), guard=guard))
+
+
+def test_everything_is_open_by_default():
+    c, _ = client_for(json.dumps(DOC))
+    assert c.get("/config").json() == {"access_required": False, "rate_limit_per_hour": None, "tokens_left_today": None}
+    assert c.post("/generate", json={"intent": "x", "strokes": STROKES}).status_code == 200
+    assert c.get("/healthz").json() == {"status": "ok"}
+
+
+def test_access_code_gates_model_calls_only():
+    c = guarded(Guard(access_code="sunrise-42"), json.dumps(DOC), json.dumps(DOC))
+    assert c.get("/config").json()["access_required"] is True
+    r = c.post("/generate", json={"intent": "x", "strokes": STROKES})
+    assert r.status_code == 401 and "access code" in r.json()["detail"]
+    assert c.post("/generate", json={"intent": "x"}, headers={"X-Access-Code": "wrong"}).status_code == 401
+    assert c.post("/generate", json={"intent": "x", "strokes": STROKES}, headers={"X-Access-Code": "sunrise-42"}).status_code == 200
+    assert c.post("/label-parts", json={"image": "data:image/png;base64,AA", "assets": {}}).status_code == 401
+    # no model, no gate: the page, import, bake and export stay usable
+    assert c.get("/").status_code == 200 and c.post("/bake", json={"doc": DOC}).status_code == 200
+    with c.stream("POST", "/tweak?stream=1", json={"doc": DOC, "instruction": "x"}) as r:
+        assert r.status_code == 401
+
+
+def test_rate_limit_is_per_visitor_and_trusts_only_the_proxys_hop():
+    t = [0.0]
+    g = Guard(per_hour=2, behind_proxy=True, clock=lambda: t[0])
+    c = guarded(g, *[json.dumps(DOC)] * 6)
+    alice = {"X-Forwarded-For": "1.1.1.1"}
+    body = {"intent": "x", "strokes": STROKES}
+    assert [c.post("/generate", json=body, headers=alice).status_code for _ in range(3)] == [200, 200, 429]
+    assert "2 model requests per hour" in c.post("/generate", json=body, headers=alice).json()["detail"]
+    # a spoofed left-hand entry doesn't make a new visitor; the proxy's hop (last) counts
+    assert c.post("/generate", json=body, headers={"X-Forwarded-For": "9.9.9.9, 1.1.1.1"}).status_code == 429
+    assert c.post("/generate", json=body, headers={"X-Forwarded-For": "2.2.2.2"}).status_code == 200
+    t[0] += 3601  # an hour later
+    assert c.post("/generate", json=body, headers=alice).status_code == 200
+
+
+def test_daily_token_budget_stops_new_model_calls():
+    g = Guard(daily_tokens=200)  # each scripted call reports 100 + 20 tokens
+    c = guarded(g, json.dumps(DOC), json.dumps(DOC), json.dumps(DOC))
+    body = {"intent": "x", "strokes": STROKES}
+    assert c.post("/generate", json=body).status_code == 200
+    assert c.get("/config").json()["tokens_left_today"] == 80
+    with c.stream("POST", "/generate?stream=1", json=body) as r:  # streamed calls count too
+        assert [json.loads(l)["type"] for l in r.iter_lines() if l][-1] == "result"
+    r = c.post("/generate", json=body)
+    assert r.status_code == 429 and "budget" in r.json()["detail"]
+    assert c.get("/config").json()["tokens_left_today"] == 0

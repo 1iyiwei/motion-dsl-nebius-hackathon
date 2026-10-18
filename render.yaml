@@ -1,0 +1,23 @@
+# Render Blueprint for the hosted SketchDynamics demo (render.com → New → Blueprint → this repo).
+# Secrets (sync: false) are entered in Render's dashboard when the Blueprint is created, never committed.
+services:
+  - type: web
+    name: sketchdynamics
+    runtime: python
+    plan: free  # sleeps after ~15 min idle (about a minute to wake); pick a paid plan during judging to avoid that
+    buildCommand: pip install uv && uv sync --frozen --no-dev
+    startCommand: uv run --frozen --no-dev sketchdynamics --host 0.0.0.0 --port $PORT --no-browser
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: NEBIUS_API_KEY
+        sync: false
+      - key: SKETCHDYNAMICS_ACCESS_CODE  # share with judges in the submission's "additional info"
+        sync: false
+      - key: SKETCHDYNAMICS_RATE_LIMIT  # model requests per visitor per hour
+        value: "30"
+      - key: SKETCHDYNAMICS_DAILY_TOKENS  # all visitors together, per UTC day (a typical generate is 5–20k)
+        value: "2000000"
+      - key: SKETCHDYNAMICS_BEHIND_PROXY  # Render's proxy sets X-Forwarded-For
+        value: "1"

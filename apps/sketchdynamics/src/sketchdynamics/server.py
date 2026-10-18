@@ -24,7 +24,7 @@ from collections.abc import Callable, Iterator
 from importlib import resources
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -35,6 +35,7 @@ from motionlang.agent.llm import extract_json_text
 from motionlang.importers import import_svg
 from motionlang.preview import player_js_path, preview_html
 
+from .guard import Guard
 from .grouping import build_actors, groups_from_actors, normalize_groups, part_opacity, split_part
 
 EDITOR_KINDS = {"edit", "edit-repair"}  # every other attempt kind (generate, repair, repair-edit, regenerate) is the planner's
@@ -244,9 +245,15 @@ def label_messages(
     return [{"role": "user", "content": [*({"type": "image_url", "image_url": {"url": u}} for u in images), {"type": "text", "text": text}]}]
 
 
-def create_app(llm_factory: Callable[[], LLM] | None = None) -> FastAPI:
-    """`llm_factory` builds a fresh LLM per request; tests pass one with a scripted backend."""
+def spent(llm: LLM) -> int:
+    return sum(c.prompt_tokens + c.completion_tokens for c in llm.calls)
+
+
+def create_app(llm_factory: Callable[[], LLM] | None = None, guard: Guard | None = None) -> FastAPI:
+    """`llm_factory` builds a fresh LLM per request; tests pass one with a scripted backend.
+    `guard` limits model calls for a hosted copy (default: from SKETCHDYNAMICS_* env vars, all off)."""
     make_llm = llm_factory or LLM
+    guard = guard or Guard.from_env()
     app = FastAPI(title="SketchDynamics")
     static = resources.files("sketchdynamics") / "static"
     app.mount("/static", StaticFiles(directory=str(static)), name="static")
@@ -267,20 +274,27 @@ def create_app(llm_factory: Callable[[], LLM] | None = None) -> FastAPI:
         return llm
 
     def run(job: Job, models: dict[str, str]) -> dict[str, Any]:
+        llm = llm_for(models)
         try:
-            return outcome_json(job(llm_for(models), None))
+            return outcome_json(job(llm, None))
         except Exception as e:  # missing key, network, rate limits: show it in the UI, don't 500 blindly
             raise HTTPException(502, detail=f"{type(e).__name__}: {e}") from e
+        finally:
+            guard.spend(spent(llm))
 
     def streamed(job: Job, models: dict[str, str]) -> StreamingResponse:
         q: queue.Queue[dict[str, Any] | None] = queue.Queue()
 
+        llm = AnnouncingLLM(llm_for(models), q.put)
+
         def worker() -> None:
             try:
                 on_attempt = lambda a: q.put({"type": "attempt", **attempt_json(a)})  # noqa: E731
-                q.put({"type": "result", **outcome_json(job(AnnouncingLLM(llm_for(models), q.put), on_attempt))})
+                q.put({"type": "result", **outcome_json(job(llm, on_attempt))})
             except Exception as e:
                 q.put({"type": "error", "detail": f"{type(e).__name__}: {e}"})
+            finally:
+                guard.spend(spent(llm))
             q.put(None)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -295,12 +309,22 @@ def create_app(llm_factory: Callable[[], LLM] | None = None) -> FastAPI:
     def index() -> str:
         return (static / "index.html").read_text()
 
+    @app.get("/config")
+    def get_config() -> dict[str, Any]:
+        """What the UI needs to know about this deployment's limits."""
+        return guard.status()
+
+    @app.get("/healthz")
+    def healthz() -> dict[str, str]:
+        return {"status": "ok"}
+
     @app.get("/player.js")
     def player_js() -> FileResponse:  # motionlang's own player, so the app and `motionlang preview` never drift
         return FileResponse(player_js_path(), media_type="text/javascript")
 
     @app.post("/generate")
-    def post_generate(req: GenerateRequest, stream: bool = False):
+    def post_generate(req: GenerateRequest, request: Request, stream: bool = False):
+        guard.check(request)
         strokes = {k: {"points": [list(p) for p in s.points]} for k, s in req.strokes.items()}
         job = lambda llm, on_attempt: generate(  # noqa: E731
             req.intent, canvas=req.canvas.model_dump(), strokes=strokes or None, assets=req.assets or None,
@@ -310,7 +334,8 @@ def create_app(llm_factory: Callable[[], LLM] | None = None) -> FastAPI:
         return streamed(job, models) if stream else JSONResponse(run(job, models))
 
     @app.post("/tweak")
-    def post_tweak(req: TweakRequest, stream: bool = False):
+    def post_tweak(req: TweakRequest, request: Request, stream: bool = False):
+        guard.check(request)
         job = lambda llm, on_attempt: tweak(req.doc, req.instruction, llm=llm, on_attempt=on_attempt)  # noqa: E731
         models = planner_models(req.planner)
         return streamed(job, models) if stream else JSONResponse(run(job, models))
@@ -360,10 +385,12 @@ def create_app(llm_factory: Callable[[], LLM] | None = None) -> FastAPI:
         return JSONResponse({"assets": assets, "pieces": pieces, **grouped_logo(assets, groups, req.canvas.model_dump(), opacity)})
 
     @app.post("/label-parts")
-    def post_label_parts(req: LabelRequest):
+    def post_label_parts(req: LabelRequest, request: Request):
+        guard.check(request)
         llm = make_llm()
         try:
             text, call = llm.json("vision", "label", label_messages(req.image, req.assets, req.groups, req.marked, req.name), think=False, max_tokens=2000, temperature=0.2)
+            guard.spend(spent(llm))
             reply = json.loads(extract_json_text(text))
         except Exception as e:  # labels are a nice-to-have: generation works without them
             return JSONResponse({"labels": {}, "groups": None, "suggestions": [], "description": "", "error": f"{type(e).__name__}: {e}",
