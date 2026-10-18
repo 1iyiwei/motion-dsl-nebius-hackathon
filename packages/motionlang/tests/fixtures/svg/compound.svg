@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200">
+  <!-- one path per colour, the way icon sites pack them -->
+  <path id="blades" fill="#178e3b" d="M10 10 L50 10 L30 40 Z M70 10 L110 10 L90 40 Z M130 10 L170 10 L150 40 Z"/>
+  <!-- a ring: outer clockwise, inner counter-clockwise (nonzero hole) -->
+  <path id="hub" fill="#203529" d="M200 20 L260 20 L260 80 L200 80 Z M215 35 L215 65 L245 65 L245 35 Z"/>
+  <!-- evenodd: a same-winding inner square is still a hole -->
+  <path id="frame" fill="#203529" fill-rule="evenodd" d="M20 100 L80 100 L80 160 L20 160 Z M35 115 L65 115 L65 145 L35 145 Z"/>
+  <!-- nonzero, same winding, inside: an island drawn on top, not a hole -->
+  <path id="badge" fill="#e4572e" d="M120 100 L180 100 L180 160 L120 160 Z M135 115 L165 115 L165 145 L135 145 Z"/>
+  <!-- open strokes: one part per subpath -->
+  <path id="wind" fill="none" stroke="#203529" stroke-width="4" d="M200 110 Q230 100 260 110 M200 130 Q230 120 260 130"/>
+</svg>

@@ -122,7 +122,7 @@ class Fade(Verb):
 
     name = "fade"
     Params = FadeParams
-    examples = [{"to": 0.0, "duration": 0.5}, {"to": 1.0}]
+    examples = [{"to": 0.0, "duration": 0.5}, {"to": 0.4}]
 
     def mode(self, p: FadeParams) -> Mode:
         return "abs"
@@ -525,7 +525,7 @@ class SpringTo(Verb):
     name = "spring_to"
     Params = SpringToParams
     uses_ease = False
-    examples = [{"prop": "scale", "to": 1.0}, {"prop": "position", "to": [500, 300], "stiffness": 120, "damping": 12}]
+    examples = [{"prop": "scale", "to": 1.2}, {"prop": "position", "to": [500, 300], "stiffness": 120, "damping": 12}]
 
     def mode(self, p: SpringToParams) -> Mode:
         return "abs"

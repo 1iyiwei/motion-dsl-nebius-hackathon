@@ -5,6 +5,8 @@ Ops (applied in order, atomically; on any error the original document is untouch
   {"op": "set", "pointer": "/canvas/fps", "value": V}                       canvas, constraints, meta (JSON pointer;
                                                                             for blocks and actors use id + field)
   {"op": "unset", "id": ID, "field": F}                                     remove an optional field
+  {"op": "set", "pointer": "/actors/-", "value": ACTOR}                      add an actor ("-" appends to a list)
+  {"op": "unset", "pointer": "/some/key"}                                   remove anything by JSON pointer
   {"op": "insert", "parent": ID, "block": B, "after"|"before": ID | "index": N}
   {"op": "remove", "id": ID}
   {"op": "replace", "id": ID, "block": B}
@@ -84,6 +86,8 @@ def _pointer_parent(doc: Any, pointer: str) -> tuple[Any, str | int]:
     for i, p in enumerate(parts):
         where = "/" + "/".join(parts[:i])
         if isinstance(cur, list):
+            if p == "-" and i == len(parts) - 1:
+                return cur, len(cur)  # JSON-pointer "end of list": set appends
             if not p.isdigit() or int(p) >= len(cur):
                 raise EditError(f"pointer {pointer}: {where} is a list of {len(cur)}; {p!r} is not a valid index")
             if i == len(parts) - 1:
@@ -105,13 +109,25 @@ def _apply_one(doc: dict, op: dict) -> None:
     if kind == "set":
         if "pointer" in op:
             parent, key = _pointer_parent(doc, op["pointer"])
-            parent[key] = op["value"]  # type: ignore[index]
+            if isinstance(parent, list) and key == len(parent):
+                parent.append(op["value"])
+            else:
+                parent[key] = op["value"]  # type: ignore[index]
             return
         if op.get("field") in ("id",):
             raise EditError("ids can't be changed with set; use replace")
         obj, key = _walk_field(_target(doc, op["id"]), op["field"], create=True)
         obj[key] = op["value"]
     elif kind == "unset":
+        if "pointer" in op:
+            parent, key = _pointer_parent(doc, op["pointer"])
+            if isinstance(parent, list):
+                if not isinstance(key, int) or key >= len(parent):
+                    raise EditError(f"pointer {op['pointer']} is past the end of the list")
+                parent.pop(key)
+            else:
+                parent.pop(key, None)  # type: ignore[union-attr]
+            return
         obj, key = _walk_field(_target(doc, op["id"]), op["field"], create=False)
         obj.pop(key, None)
     elif kind == "insert":

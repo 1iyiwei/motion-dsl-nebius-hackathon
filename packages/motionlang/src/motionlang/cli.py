@@ -50,6 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("-o", "--out")
     s.add_argument("--fit", metavar="WxH", help="scale and centre the artwork into a canvas of this size, e.g. 1280x720")
     s.add_argument("--margin", type=float, default=0.1, help="with --fit: empty border as a fraction of the canvas")
+    s.add_argument("--split", choices=("auto", "none"), default="auto", help="one part per separate shape in a compound path (auto) or per element (none)")
     s.add_argument("--doc", action="store_true", help="write a complete, valid document (static scene) instead of the bare import")
 
     g = sub.add_parser("generate", help="write a document from a sentence with Nemotron (needs NEBIUS_API_KEY)")
@@ -60,6 +61,8 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--assets", help="JSON file from `motionlang import-svg` (assets + suggested actors)")
     g.add_argument("--size", help="canvas WxH (default: the --assets canvas, else 1280x720)")
     g.add_argument("--repairs", type=int, default=3)
+    g.add_argument("--structured", action=argparse.BooleanOptionalAction, default=None,
+                   help="constrain the planner to the JSON Schema (default: on for Super planners, off for Ultra)")
 
     t = sub.add_parser("tweak", help="change a document with a short instruction (fast edit model, escalates if needed)")
     t.add_argument("file")
@@ -119,12 +122,14 @@ def _import_svg(args: argparse.Namespace) -> int:
 
     fit = tuple(float(v) for v in args.fit.lower().split("x")) if args.fit else None
     try:
-        result = import_svg(Path(args.file).read_text(), fit=fit, margin=args.margin)  # type: ignore[arg-type]
+        result = import_svg(Path(args.file).read_text(), fit=fit, margin=args.margin, split=args.split)  # type: ignore[arg-type]
     except ValueError as e:
         print(f"import-svg: {e}", file=sys.stderr)
         return 1
     for msg in result["dropped"]:
         print(f"dropped: {msg}", file=sys.stderr)
+    for msg in result.get("notes", []):
+        print(f"note: {msg}", file=sys.stderr)
     print(f"{len(result['assets'])} asset(s), {sum(a['shape']['kind'] == 'group' for a in result['actors'])} group(s)", file=sys.stderr)
     if args.doc:
         result = {
@@ -150,6 +155,7 @@ def _agent(args: argparse.Namespace) -> int:
         out = generate(
             args.intent, canvas={"width": w, "height": h}, strokes=strokes, max_repairs=args.repairs,
             assets=imported.get("assets"), suggested_actors=imported.get("actors"),
+            structured=args.structured,
         )
     else:
         print(f"tweaking: {args.instruction!r}", file=sys.stderr)

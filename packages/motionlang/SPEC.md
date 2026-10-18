@@ -53,16 +53,17 @@ MotionLang sits above these and compiles down to them.
 
 `strokes` holds raw sketch input (vector points from the canvas). Paths reference them by id, so redrawing a stroke changes the motion without regenerating the timeline.
 
-`assets` holds imported vector parts, typically the pieces of a user's logo, in canvas coordinates. Each is `{kind: "path", d, fill?, stroke?, stroke_width?, fill_rule? ("nonzero" | "evenodd"), bbox? [x, y, w, h], label?}`; `d` accepts any SVG path command, `bbox` is informational (geometry always comes from `d`), and `label` names the part for people and models. Actors show an asset by reference (`shape: {kind: "asset", ref}`), so a document can be animated part by part without an LLM ever reading or writing path data: the agent shows the model only each asset's id, label, bbox and colours, tells it to reference assets by id, and merges the user's assets back into every document it returns (§3.1).
+`assets` holds imported vector parts, typically the pieces of a user's logo, in canvas coordinates. Each is `{kind: "path", d, fill?, stroke?, stroke_width?, fill_rule? ("nonzero" | "evenodd"), bbox? [x, y, w, h], label?, meta?}`; `d` accepts any SVG path command, `bbox` is informational (geometry always comes from `d`), and `label` names the part for people and models. Actors show an asset by reference (`shape: {kind: "asset", ref}`), so a document can be animated part by part without an LLM ever reading or writing path data: the agent shows the model only each asset's id, label, bbox and colours, tells it to reference assets by id, and merges the user's assets back into every document it returns (§3.1).
 
 ### 3.1 Importing SVG (`motionlang.importers.svg`)
 
-`import_svg(text, fit=None, margin=0.1) -> {canvas, assets, actors, dropped}` (CLI: `motionlang import-svg logo.svg --fit 1280x720 -o logo.json`, or `--doc` for a complete static document):
+`import_svg(text, fit=None, margin=0.1, split="auto") -> {canvas, assets, actors, dropped, notes}` (CLI: `motionlang import-svg logo.svg --fit 1280x720 -o logo.json`, or `--doc` for a complete static document):
 
 - One asset per drawn element (`path`, `rect` incl. rounded corners, `circle`, `ellipse`, `line`, `polyline`, `polygon`, and `<use>` of those). Every transform on the way down is flattened into the path data, and all shapes and arcs become absolute `M/L/C/Q/Z` data.
+- **Compound paths are split** (`split="auto"`, the default). Icon files often pack a whole colour layer into one `<path>` with many subpaths. Each subpath becomes its own asset (`<id>_1`, `<id>_2`, ...), and holes stay with their shape: a filled subpath whose bbox lies inside another's and winds the other way (or any inside subpath under `evenodd`) is kept in that shape's path data. The original element becomes a suggested group of its pieces, and `notes` reports each split. `split="none"` keeps one asset per element. Every asset records `meta.source`, the element it came from.
 - Ids come from the element's `id`, else `inkscape:label`, else a meaningful class (auto classes like `cls-1`/`st0` are skipped), else `<tag><n>`; they are made unique and never `camera`. `label` comes from `inkscape:label`, a `<title>` child, or the id.
 - Paint: presentation attributes, simple `<style>` rules (tag, `.class`, `#id`) and inline `style`, with inheritance. Gradients and patterns fall back to a solid colour (a gradient's middle colour); `opacity` × `fill-opacity` becomes the actor's `init.opacity`. Filters, clip paths, masks, text and images are not imported; each one is listed in `dropped`, and so is each gradient fallback.
-- `actors` is a suggested hierarchy: one `group` actor per named `<g>` (anonymous single-child wrappers collapse), a root group (`logo`) when there is more than one top-level part, and one asset actor per part. Group actors sit at the centre of their parts, so rotating or scaling a group pivots naturally; asset actors omit `x`/`y` and stay where they were drawn.
+- `actors` is a suggested hierarchy: one `group` actor per named `<g>` (anonymous single-child wrappers collapse), a root group (`logo`) when there is more than one top-level part, and one asset actor per part. Group actors sit at the centre of their parts, so rotating or scaling a group pivots naturally; asset actors carry their resting `init.x/y` explicitly (the drawn spot in the parent's frame, the same value that omitting them gives), so a model can plan moves with real numbers.
 - `fit=(W, H)` scales the artwork uniformly and centres it in a W×H canvas, leaving `margin` (a fraction of the canvas) on each side. Without it, coordinates stay in viewBox units (the viewBox origin moves to 0, 0).
 - Standard-library XML only; documents that declare XML entities are rejected.
 
@@ -83,7 +84,7 @@ MotionLang sits above these and compiles down to them.
 - Children (`parent`) are positioned in the parent's local box and inherit its transform and opacity.
 - **Animatable properties**: `x, y, rotation, sx, sy, opacity, fill, stroke`, plus `trim` (0–1, visible fraction of a path/stroke outline) and `clip_l, clip_t, clip_r, clip_b` (0–1, the hidden fraction of the shape's bounding box from the left, top, right and bottom; the clip is applied in the shape's own frame, so it rotates and scales with it). These are the only things verbs touch.
 - **Built-in `camera` actor**: always present, with props `x, y, zoom, rotation` (initially centered on the canvas, zoom 1). Constraints are checked on the stage (before the camera), so the camera can frame freely.
-- `parent`: hierarchical transforms (a child moves with its group). `pivot`: rotate/scale origin, as a fraction of the bounding box.
+- `parent`: hierarchical transforms (a child moves with its group). `pivot`: rotate/scale origin, as a fraction of the bounding box. A `group` has no geometry, so it rotates and scales about its own `x, y`: to spin a group around a point (a hub), put the group's `x, y` there and give its children offsets from it.
 
 ## 5. Timeline: blocks
 
@@ -166,7 +167,7 @@ These are declarative checks run against tracks sampled at `canvas.fps`. They ex
 | `ends_at` | `actor`, `pos:[x,y]`, `t?`, `tol=2` | The final (or time-`t`) position is off target |
 | `total_duration` | `max` \| `exact`, `tol` | The timeline length is outside the limit |
 
-Built-in checks (always on): schema validity, unique ids, existing references (actors, parents, strokes, assets: an unknown asset `ref` is `E_REF` with the defined asset ids and a "did you mean"), readable asset path data, visibility (`E_INVISIBLE`: an actor with a shape that is never visible at any frame, e.g. `init.opacity: 0` with nothing fading it in), `E_CONFLICT`, and continuity (no jump at a block boundary unless one was asked for). Timelines over 300 s are refused (`E_DURATION`) before baking.
+Built-in checks (always on): schema validity, unique ids, existing references (actors, parents, strokes, assets: an unknown asset `ref` is `E_REF` with the defined asset ids and a "did you mean"), readable asset path data, visibility (`E_INVISIBLE`: an actor with a shape that is never visible at any frame, e.g. `init.opacity: 0` with nothing fading it in), no-ops (`E_NOOP`: a verb whose effect is zero over its whole run, e.g. `move` to where the actor already is, which almost always means a missing starting pose), `E_CONFLICT`, and continuity (no jump at a block boundary unless one was asked for). Timelines over 300 s are refused (`E_DURATION`) before baking.
 
 All constraints use **world space** (canvas coordinates, before the camera), so `in_bounds` means "stays on the stage". Camera moves are deliberate framing: zooming in on one actor may push others out of frame without breaking `in_bounds`. `in_bounds` also ignores frames where the actor is invisible (opacity ≤ 0.01), so things may wait off-stage while hidden. Positions mean the actor's pivot.
 
@@ -191,7 +192,11 @@ Edits are a list of id-addressed operations, applied atomically and then revalid
   { "op": "wrap",   "ids": ["b1"], "with": "par", "id": "b6" } ]
 ```
 
-Also: `set` on an actor id (`"field": "init.x"`), `set` with a JSON `pointer` for anything else (`"/canvas/fps"`), `unset`, and `replace` (`{"op": "replace", "id", "block"}`). On any failing op nothing is applied and a single `E_EDIT` names the op index.
+Also: `set` on an actor id (`"field": "init.x"`), `set` with a JSON `pointer` for anything else (`"/canvas/fps"`; a final `-` appends to a list, e.g. `"/actors/-"` adds an actor), `unset` by id + field or by `pointer`, and `replace` (`{"op": "replace", "id", "block"}`). On any failing op nothing is applied and a single `E_EDIT` names the op index.
+
+**Suggested actors are kept.** When an app passes suggested actors (an imported logo's tree), the agent fills in what the model's document leaves out, by id: missing or `null` `init` keys, `shape`, `parent`. A suggested actor the model dropped entirely is added back on `generate` (not on a tweak's regenerate, where removing it may be the point). Constrained decoding tends to emit `null` for optional fields, and losing a group's offsets breaks the drawn layout. The model only has to state what it changes, such as a part's starting pose.
+
+**Repairs use the same ops.** When the planner's document has the right top-level shape and at most 12 problems, the agent asks for edit ops that fix them instead of a rewritten document, because whole-document rewrites drift away from what was already right. A rewrite is requested when the top level is wrong (missing `timeline`, unknown top-level keys), when there are many problems, or once when patching stalls. A stall is the identical problem set (code, block, actor and pointer) surviving a round.
 
 "Slower" → one `set` op from a small model in about 200 ms, instead of regenerating the whole document with the big one. This is the latency and credit-saving story judges want to see.
 
@@ -208,8 +213,8 @@ Also: `set` on an actor id (`"field": "init.x"`), `set` with a JSON `pointer` fo
   "stats": { "duration": 3.4, "actors": 2, "blocks": 5 } }
 ```
 
-Error codes: `E_SCHEMA, E_DUP_ID, E_REF, E_CONFLICT, E_DISCONTINUITY, E_INVISIBLE, E_BOUNDS, E_SPEED, E_JERK, E_OVERLAP, E_ENDS_AT, E_DURATION`, plus `E_EDIT` from edit ops. Warnings use the same codes with `"severity": "warning"`.
-Each error carries `hint`, a sentence the repair prompt includes word for word.
+Error codes: `E_SCHEMA, E_DUP_ID, E_REF, E_CONFLICT, E_DISCONTINUITY, E_INVISIBLE, E_NOOP, E_BOUNDS, E_SPEED, E_JERK, E_OVERLAP, E_ENDS_AT, E_DURATION`, plus `E_EDIT` from edit ops. Warnings use the same codes with `"severity": "warning"`.
+Each error carries `hint`, a sentence the repair prompt includes word for word. Hints are literal and structural: they name the exact change, with real ids, paths and numbers (`remove "opacity" from actors[3].init`, `add the block {"id": "ray1_fade", "verb": "fade", "actor": "ray1", "to": 1, ...}`, `change b1's "to" to about [212, -40] (sun moves in logo's coordinates)`), and they never use prose that reads like a field or verb name. When an error has no block or actor, its text includes the JSON pointer. A part pushed off-screen by its parent group's motion is blamed on that motion, and an `in_bounds.ignore` entry for a group's block also exempts the group's parts.
 
 ## 10. Execution model
 
@@ -229,6 +234,8 @@ document ──validate(schema/refs)──► resolve timing ──► sample(t)
 - Re-baking a 5 s scene at 60 fps is a few milliseconds, so live preview stays interactive.
 
 The trade-off is that the client can't play un-baked documents offline. That's acceptable for the hackathon.
+
+**Reference player**: `motionlang/static/player.js`, an ES module exporting `Player(layer, {onFrame, onState})` with `load(tracks)`, `play()`, `pause()`, `toggle()`, `seek(i)` and `loop`. It implements every track, including `clip`. Python exposes it as `motionlang.preview.PLAYER_JS` (source) and `player_js_path()` (for apps to serve), and `preview_html` embeds the same file, so apps and previews can't drift apart.
 
 **Baked tracks format** (`motionlang bake`): `{motion, fps, duration, frames, loop, canvas, actors[], tweens[]}`. Each actor is `{id, geom, style, tracks: {m, opacity, fill, stroke, trim, clip}}`, sorted by `z`. `geom` is the drawing primitive in bbox-local coordinates plus its bbox size `bw, bh` (asset paths keep their curves; `fill_rule` is included for paths). `clip` is `[l, t, r, b]`. `m` is the bbox-local → screen matrix `[a, b, c, d, e, f]` (SVG order), and `opacity` already includes parents. A track that never changes is stored once; otherwise it's one value per frame. `tweens` lists every scheduled verb with `{block, verb, actor, start, end, props}`, which is what the MoVer exporter needs.
 
@@ -255,7 +262,7 @@ class Bounce(Verb):
 
 Every verb must pass the generic **contract test suite** (`tests/test_contract.py`, run in Token Factory Sandboxes by MotionHarness):
 
-1. **Valid + deterministic**: each example validates, and baking twice gives identical tracks.
+1. **Valid + deterministic**: each example validates on a default actor (so it must visibly change something, or it fails as `E_NOOP`), and baking twice gives identical tracks.
 2. **Identity at start**: a rel verb returns 0 at u=0; an abs verb returns `ctx.start` at u=0 (unless `jumps_at_start`).
 3. **Continuous**: the largest step between samples must shrink under 8× finer sampling. A real jump doesn't shrink.
 4. **Bounded**: finite output for any numeric params within their declared bounds (property-based, with Hypothesis).

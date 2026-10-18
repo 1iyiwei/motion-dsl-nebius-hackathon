@@ -91,7 +91,7 @@ def test_import_nested_transforms_and_groups():
     by_id = {x["id"]: x for x in r["actors"]}
     assert by_id["mark"]["parent"] == "logo" and by_id["bar"]["parent"] == "mark"
     assert by_id["Wordmark"]["shape"] == {"kind": "group"}  # inkscape:label names the group
-    assert by_id["polygon1"]["parent"] == "Wordmark" and by_id["polygon1"]["init"] == {"opacity": 0.5}
+    assert by_id["polygon1"]["parent"] == "Wordmark" and by_id["polygon1"]["init"]["opacity"] == 0.5
 
 
 def test_import_styles_gradients_and_drops():
@@ -114,6 +114,11 @@ def test_imported_parts_stay_where_drawn(name):
     boxes = world_boxes(as_doc(r))
     for aid, asset in r["assets"].items():
         assert boxes[aid] == pytest.approx(asset["bbox"], abs=0.05), aid
+    implicit = as_doc(r)  # the explicit resting x/y equal the "stay where drawn" default
+    for actor in implicit["actors"]:
+        if actor["shape"]["kind"] == "asset":
+            actor["init"] = {k: v for k, v in actor["init"].items() if k not in ("x", "y")}
+    assert world_boxes(implicit) == pytest.approx(boxes)
 
 
 def test_fit_scales_into_canvas():
@@ -291,6 +296,33 @@ def test_never_visible_actor_is_an_error():
     doc["actors"][2]["init"] = {"opacity": 0}  # the mistake Nemotron made: hidden, and reveal doesn't fade it in
     errs = check(doc).report.errors
     assert [(e.code, e.actor) for e in errs] == [("E_INVISIBLE", "dot")]
-    assert "reveal and draw_on already keep a part hidden" in errs[0].hint
+    assert 'remove "opacity" from actors[2].init' in errs[0].hint
+    assert '{"id": "dot_fade", "verb": "fade", "actor": "dot", "to": 1' in errs[0].hint and "block 'r'" in errs[0].hint
     doc["timeline"]["seq"].append({"id": "f", "verb": "fade", "actor": "dot", "to": 1})
     assert check(doc).ok
+
+
+def test_compound_paths_split_into_parts_keeping_holes():
+    r = load("compound.svg")
+    a = r["assets"]
+    assert [k for k in a if k.startswith("blades_")] == ["blades_1", "blades_2", "blades_3"]
+    assert a["blades_2"]["bbox"] == pytest.approx([70, 10, 40, 30], abs=0.05)
+    assert "hub" in a and a["hub"]["d"].count("M") == 2  # the hole stays with the ring
+    assert "frame" in a and a["frame"]["d"].count("M") == 2 and a["frame"]["fill_rule"] == "evenodd"
+    assert {"badge_1", "badge_2"} <= set(a)  # same winding, nonzero: an island, so its own part
+    assert {"wind_1", "wind_2"} <= set(a)
+    assert a["blades_3"]["meta"] == {"source": "blades"} and a["hub"]["meta"] == {"source": "hub"}
+    groups = {x["id"]: x for x in r["actors"] if x["shape"]["kind"] == "group"}
+    assert {"blades", "badge", "wind"} <= set(groups) and "hub" not in groups
+    assert all(x["parent"] == "blades" for x in r["actors"] if x["id"].startswith("blades_"))
+    assert "split blades into 3 parts" in r["notes"]
+    assert check(as_doc(r)).ok
+    boxes = world_boxes(as_doc(r))
+    assert boxes["blades_1"] == pytest.approx(a["blades_1"]["bbox"], abs=0.05)  # pieces stay where drawn
+
+
+def test_split_none_keeps_one_part_per_element_and_other_fixtures_are_unchanged():
+    r = load("compound.svg", split="none")
+    assert set(r["assets"]) == {"blades", "hub", "frame", "badge", "wind"} and r["notes"] == []
+    for name in ("arcs.svg", "nested.svg", "styled.svg"):
+        assert load(name)["notes"] == [] and load(name)["assets"] == load(name, split="none")["assets"]

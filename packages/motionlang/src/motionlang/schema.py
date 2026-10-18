@@ -158,10 +158,28 @@ def _actors_section() -> list[str]:
     lines.append('Strokes: document.strokes = {"id": {"points": [[x, y], ...], "width"?: num}}.')
     lines.append(
         'Assets: document.assets holds imported vector parts (e.g. pieces of a logo). They are given to you: '
-        'show one with shape {"kind": "asset", "ref": "<asset id>"} and omit init x/y so it sits where it was drawn. '
+        'show one with shape {"kind": "asset", "ref": "<asset id>"} with init x/y at the part\'s resting position (omitting x/y gives the same). '
         "Never write or change asset path data."
     )
     return lines
+
+
+def decoding_schema() -> dict[str, Any]:
+    """document_schema() for constrained decoding: keywords the Token Factory grammar engine rejects
+    (propertyNames) and prose (title/description/default/examples) removed."""
+    drop = {"propertyNames", "title", "description", "default", "examples"}
+
+    def clean(n: Any, names: bool = False) -> Any:
+        """names=True: n maps field names to schemas (properties/$defs), so its keys are kept as they are."""
+        if isinstance(n, dict):
+            return {k: clean(v, k in ("properties", "$defs") and not names) for k, v in n.items() if names or k not in drop}
+        if isinstance(n, list):
+            return [clean(v) for v in n]
+        return n
+
+    out = clean(document_schema())
+    out.pop("$schema", None)
+    return out
 
 
 def prompt_reference() -> str:

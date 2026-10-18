@@ -50,6 +50,7 @@ class Asset(Strict):
     fill_rule: Literal["nonzero", "evenodd"] = "nonzero"
     bbox: tuple[float, float, float, float] | None = Field(None, description="[x, y, w, h]; informational, recomputed from d")
     label: str | None = Field(None, description="human/LLM-readable name of the part")
+    meta: dict[str, Any] = Field(default_factory=dict, description="provenance, e.g. {\"source\": original SVG element id}")
 
 
 class RectShape(Strict):

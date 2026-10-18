@@ -1,4 +1,4 @@
-# motionlang: the MotionLang DSL
+# MotionLang DSL
 
 License: Apache-2.0
 
@@ -55,6 +55,12 @@ motionlang tweak ball.motion.json "higher bounces, slower roll" -o ball2.motion.
 - **generate**: Nemotron 3 Ultra writes a document; validator errors (with hints) go back to it until it's clean.
 - **tweak**: Nemotron 3 Nano emits a few edit ops with reasoning turned off (~1–2 s). If they don't validate, it retries once with reasoning, then Ultra regenerates the document.
 - Every call is logged with model, latency and tokens (`-v` also shows raw replies). Override models with `MOTION_PLANNER_MODEL` / `MOTION_EDITOR_MODEL`.
+- `generate(..., on_attempt=fn)` and `tweak(..., on_attempt=fn)` call `fn(attempt)` right after each attempt is validated, for live progress in a UI.
+- Near-valid documents are repaired with edit ops (`repair-edit` attempts) instead of being rewritten; badly broken ones are rewritten.
+- `LLM(models={"planner": "nvidia/nemotron-3-super-120b-a12b"})` overrides models per instance (per request in a server); `llm.model_for(role)` reports the effective model.
+- `generate(..., structured=...)` (CLI `--structured/--no-structured`) constrains the planner to the JSON Schema with Token Factory structured output. By default it is on exactly when the planner is a Super model (`prefers_structured`). Pair it with `MOTION_PLANNER_MODEL=nvidia/nemotron-3-super-120b-a12b`: on the sample logo this succeeded 6/6 (median ~45 s), while Ultra in plain JSON mode often drifts off the format, and Ultra under constrained decoding degenerates.
+
+Web apps can play baked tracks with the packaged player: serve `motionlang.preview.player_js_path()` and `import { Player } from "./player.js"` (the same player `motionlang preview` embeds).
 
 ```python
 from motionlang.agent import generate, tweak

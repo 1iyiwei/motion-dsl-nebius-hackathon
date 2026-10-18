@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220">
+  <!-- SketchDynamics sample logo (Apache-2.0): a sun rising over two waves -->
+  <g id="sun">
+    <path id="disc" d="M140 130 A60 60 0 0 1 260 130 Z" fill="#f4a259"/>
+  </g>
+  <g id="rays" stroke="#f4a259" stroke-width="8" stroke-linecap="round">
+    <line id="ray1" x1="126.7" y1="103.3" x2="104.2" y2="95.1"/>
+    <line id="ray2" x1="155.3" y1="66.1" x2="141.5" y2="46.4"/>
+    <line id="ray3" x1="200.0" y1="52.0" x2="200.0" y2="28.0"/>
+    <line id="ray4" x1="244.7" y1="66.1" x2="258.5" y2="46.4"/>
+    <line id="ray5" x1="273.3" y1="103.3" x2="295.8" y2="95.1"/>
+  </g>
+  <g id="sea" fill="none" stroke="#2e86ab" stroke-width="8" stroke-linecap="round">
+    <path id="wave1" d="M110 150 Q140 136 170 150 T230 150 T290 150"/>
+    <path id="wave2" d="M130 174 Q160 160 190 174 T250 174 T280 172"/>
+  </g>
+</svg>

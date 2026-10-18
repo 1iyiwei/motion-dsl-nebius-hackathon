@@ -18,6 +18,7 @@ from .timing import Leaf, Schedule, schedule
 MAX_BAKE_SECONDS = 300.0
 JUMP_TOL = {"x": 1.0, "y": 1.0, "rotation": 1.0}  # px / degrees; everything else uses 0.01
 VISIBLE = 0.01
+TO_ONE = ', "to": 1'
 
 
 @dataclass
@@ -35,9 +36,9 @@ def _leaf_desc(lf: Leaf) -> str:
     return f"{lf.block.id} ({lf.block.verb.name})"
 
 
-def _active(sched: Schedule, actor: str, t: float) -> list[Leaf]:
-    """Leaves on the actor active at t, else the most recently finished one."""
-    mine = [lf for lf in sched.leaves if lf.block.actor == actor]
+def _active(sched: Schedule, actors: list[str], t: float) -> list[Leaf]:
+    """Leaves on these actors active at t, else the most recently finished one."""
+    mine = [lf for lf in sched.leaves if lf.block.actor in actors]
     now = [lf for lf in mine if lf.start - 1e-9 <= t <= lf.end + 1e-9]
     if now:
         return now
@@ -45,11 +46,18 @@ def _active(sched: Schedule, actor: str, t: float) -> list[Leaf]:
     return [max(done, key=lambda lf: lf.end)] if done else []
 
 
-def _blame(sched: Schedule, actor: str, t: float) -> tuple[str | None, str]:
-    leaves = _active(sched, actor, t)
+def _blame(sched: Schedule, actor: str, t: float, parents: dict[str, str | None] | None = None) -> tuple[str | None, str]:
+    """The block to blame for where `actor` is at t: its own motion, or a parent group's."""
+    chain, cur = [actor], actor
+    while parents and parents.get(cur) and parents[cur] not in chain:
+        cur = parents[cur]  # type: ignore[assignment]
+        chain.append(cur)
+    leaves = _active(sched, chain, t)
     if not leaves:
-        return None, f"{actor}'s initial position"
-    return leaves[0].block.id, ", ".join(_leaf_desc(lf) for lf in leaves)
+        return None, f"{actor}'s initial position" + (f" (or its parent {chain[1]!r}'s)" if len(chain) > 1 else "")
+    return leaves[0].block.id, ", ".join(
+        _leaf_desc(lf) + (f" on parent {lf.block.actor!r}" if lf.block.actor != actor else "") for lf in leaves
+    )
 
 
 def check_conflicts(sched: Schedule) -> list[Issue]:
@@ -108,6 +116,42 @@ def check_discontinuities(baked: Baked) -> list[Issue]:
     return out
 
 
+def check_noops(baked: Baked) -> list[Issue]:
+    """A verb that changes nothing over its whole run (e.g. `move` to where the actor already is) almost
+    always means a missing starting pose: the actor was meant to come from somewhere else."""
+    ev, out = baked.ev, []
+    index = {a.id: i for i, a in enumerate(baked.parsed.doc.actors)}
+    for lf in baked.sched.leaves:
+        b = lf.block
+        mode = b.verb.mode(b.params)
+        if mode is None or b.actor is None or lf.duration <= 0:
+            continue
+        start = ev.from_state(lf)
+        moved = False
+        for u in (0.0, 0.25, 0.5, 0.75, 1.0):
+            vals = ev.sample_at(lf, b.ease(u) if b.verb.uses_ease else u, u * lf.duration)
+            for prop, v in vals.items():
+                if prop in COLOR_PROPS:
+                    moved |= v != start.get(prop)
+                else:
+                    ref = start[prop] if mode == "abs" else 0.0
+                    moved |= abs(float(v) - float(ref)) > JUMP_TOL.get(prop, 0.01)
+            if moved:
+                break
+        if moved:
+            continue
+        props = "/".join(b.verb.props(b.params))
+        where = f"actors[{index[b.actor]}].init" if b.actor in index else "its init"
+        now = ", ".join(f"{k} {v:g}" if isinstance(v, (int, float)) else f"{k} {v}" for k, v in start.items())
+        out.append(Issue(
+            "E_NOOP", f"{b.id} ({b.verb.name}) changes nothing: {b.actor}.{props} is already at its target ({now})",
+            hint=(f"to animate {b.actor} into this state, set where it starts in {where} (e.g. a lower init y for a rise, "
+                  f"init opacity 0 before a fade to 1, init sx/sy 0 before a scale to 1), or remove block {b.id!r}"),
+            block=b.id, actor=b.actor, t=lf.start, pointer=b.pointer,
+        ))
+    return out
+
+
 def check_visibility(baked: Baked) -> list[Issue]:
     """An actor with a shape that is never visible at any frame is almost always a mistake
     (e.g. init.opacity 0 and nothing fades it in), and the preview looks blank."""
@@ -124,18 +168,62 @@ def check_visibility(baked: Baked) -> list[Issue]:
         traced = filled | (np.asarray(p["trim"]) > 1e-3)
         if (opaque & sized & open_ & traced).any():
             continue
+        mine = [lf.block.id for lf in baked.sched.leaves if lf.block.actor == a.id]
+        near = f" (e.g. in a par together with block {mine[0]!r})" if mine else ""
+
+        def add(verb: str, extra: str = "") -> str:
+            taken = set(baked.parsed.blocks) | set(baked.parsed.actors)
+            new_id = next(c for c in (f"{a.id}_{verb}", *(f"{a.id}_{verb}{n}" for n in range(2, 99))) if c not in taken)
+            return f'add the block {{"id": "{new_id}", "verb": "{verb}", "actor": "{a.id}"{extra}, "duration": 0.4}} where it should appear{near}'
+
         if not opaque.any():
-            why = f"its opacity stays at {float(baked.opacity[a.id].max()):.2f} (init.opacity {a.init.opacity:g}"
-            why += ", or a parent's)" if a.parent else ")"
-            hint = "fade it in (fade to 1), or drop init.opacity: reveal and draw_on already keep a part hidden until they start"
+            parent = baked.parsed.actors[a.parent] if a.parent else None
+            if a.init.opacity <= VISIBLE or parent is None:
+                why = f"its opacity stays at {float(baked.opacity[a.id].max()):.2f} (actors[{i}].init.opacity is {a.init.opacity:g})"
+                hint = f'either remove "opacity" from actors[{i}].init, or {add("fade", TO_ONE)}'
+            else:
+                why = f"its parent {a.parent!r} is never visible"
+                hint = f"make {a.parent!r} visible (see its own error)"
         elif not sized.any():
-            why, hint = "its scale stays at 0", "scale or spring_to it up to 1, or remove the zero init scale"
+            why = f"its scale stays at 0 (actors[{i}].init.sx/sy)"
+            hint = f'either remove "sx" and "sy" from actors[{i}].init, or {add("scale", TO_ONE)}'
         elif not open_.any():
-            why, hint = "it stays fully clipped", "end its reveal at to: 1"
+            reveals = [lf.block.id for lf in baked.sched.leaves if lf.block.actor == a.id and lf.block.verb.name == "reveal"]
+            why = "it stays fully clipped"
+            hint = f'set "to": 1 on block {reveals[-1]!r}' if reveals else "end its reveal with \"to\": 1"
         else:
-            why, hint = "its trim stays at 0", "draw_on it to 1, or remove init.trim"
+            why = f"its trim stays at 0 (actors[{i}].init.trim)"
+            hint = f'either remove "trim" from actors[{i}].init, or {add("draw_on")}'
         out.append(Issue("E_INVISIBLE", f"{a.id} is never visible: {why}", hint=hint, actor=a.id, pointer=f"/actors/{i}"))
     return out
+
+
+def _bounds_fix(baked: Baked, bid: str | None, aid: str, frame: int, push: np.ndarray) -> str:
+    """A concrete number to change, so a repair doesn't have to work out coordinates: shift the blamed
+    `move` (or the actor's init position) by `push` world px, expressed in the moved actor's parent frame."""
+    block = baked.parsed.blocks.get(bid) if bid else None
+    if block is not None:
+        if getattr(block, "verb", None) is None or block.verb.name != "move" or block.actor is None:
+            return ""
+        target, p = block.actor, block.params
+    else:
+        target, p = aid, None
+    parent = baked.parsed.actors[target].parent
+    if parent:
+        a, b, c, d, _, _ = baked.world[parent][frame]
+        det = a * d - b * c
+        if abs(det) < 1e-9:
+            return ""
+        local = np.array([d * push[0] - c * push[1], -b * push[0] + a * push[1]]) / det
+    else:
+        local = push
+    frame_name = f"{parent}'s coordinates" if parent else "canvas coordinates"
+    if p is None:
+        x, y = baked.ev.init[target]["x"] + local[0], baked.ev.init[target]["y"] + local[1]
+        return f"set {target}'s init x/y to about [{x:.0f}, {y:.0f}] ({frame_name})"
+    key = "to" if p.to is not None else "by"
+    x, y = (np.asarray(p.to if key == "to" else p.by, dtype=float) + local).tolist()
+    return f'change {bid}\'s "{key}" to about [{x:.0f}, {y:.0f}] ({target} moves in {frame_name})'
 
 
 def _sel(sel: Any, baked: Baked) -> list[str]:
@@ -147,6 +235,7 @@ def check_constraints(baked: Baked) -> list[Issue]:
     W, H = doc.canvas.width, doc.canvas.height
     times, sched = baked.times, baked.sched
     known = set(baked.parsed.actors)
+    parents = {k: a.parent for k, a in baked.parsed.actors.items()}
     for ci, c in enumerate(doc.constraints):
         ptr = f"/constraints/{ci}"
         refs = [r for r in (getattr(c, "actor", None), getattr(c, "a", None), getattr(c, "b", None)) if r]
@@ -165,8 +254,12 @@ def check_constraints(baked: Baked) -> list[Issue]:
             for aid in _sel(c.actors, baked):
                 # Stage (world) space: camera moves are deliberate framing and never count.
                 box, vis = baked.aabb_world[aid], baked.opacity[aid] > VISIBLE
+                lineage, cur = {aid}, aid
+                while parents.get(cur) and parents[cur] not in lineage:
+                    cur = parents[cur]  # type: ignore[assignment]
+                    lineage.add(cur)
                 for lf in exempt:
-                    if lf.block.actor == aid:
+                    if lf.block.actor in lineage:  # its own entrance, or its group's
                         vis = vis & ~((times >= lf.start - 1e-9) & (times <= lf.end + 1e-9))
                 m = c.margin
                 over = np.stack([m - box[:, 0], m - box[:, 1], box[:, 2] - (W - m), box[:, 3] - (H - m)], axis=1)
@@ -175,11 +268,18 @@ def check_constraints(baked: Baked) -> list[Issue]:
                 if (worst > 0.5).any():
                     i = int(np.argmax(worst))
                     side = ("left", "top", "right", "bottom")[int(np.argmax(over[i]))]
-                    bid, who = _blame(sched, aid, float(times[i]))
+                    bid, who = _blame(sched, aid, float(times[i]), parents)
+                    k = ("left", "top", "right", "bottom").index(side)
+                    push = (worst[i] + 1) * np.array([(1, 0), (0, 1), (-1, 0), (0, -1)][k], dtype=float)  # world px back inside
+                    fix = _bounds_fix(baked, bid, aid, i, push)
+                    if bid:
+                        hint = (f"active: {who}; {fix or 'move that motion inward or make it smaller'}. "
+                                f'If it is a deliberate entrance or exit, add "{bid}" to constraints[{ci}].ignore instead')
+                    else:
+                        hint = f"active: {who}; {fix or f'move {aid} inward'}"
                     out.append(Issue(
                         "E_BOUNDS", f"{aid} goes {worst[i]:.0f}px past the {side} edge (margin {m:g}) at t={times[i]:.2f}s",
-                        hint=f"active: {who}; move that motion inward or make it smaller. If it's a deliberate entrance/exit, add its block id to this constraint's `ignore` list",
-                        block=bid, actor=aid, t=float(times[i]), pointer=ptr,
+                        hint=hint, block=bid, actor=aid, t=float(times[i]), pointer=ptr,
                     ))
         elif isinstance(c, MaxSpeed):
             pos = baked.pos[c.actor]
@@ -187,7 +287,7 @@ def check_constraints(baked: Baked) -> list[Issue]:
                 speed = np.linalg.norm(np.diff(pos, axis=0), axis=1) * baked.fps
                 i = int(np.argmax(speed))
                 if speed[i] > c.px_per_s:
-                    bid, who = _blame(sched, c.actor, float(times[i]))
+                    bid, who = _blame(sched, c.actor, float(times[i]), parents)
                     out.append(Issue(
                         "E_SPEED", f"{c.actor} moves at {speed[i]:.0f}px/s at t={times[i]:.2f}s (max {c.px_per_s:g})",
                         hint=f"active: {who}; lengthen its duration or shorten the distance", block=bid, actor=c.actor, t=float(times[i]), pointer=ptr,
@@ -199,7 +299,7 @@ def check_constraints(baked: Baked) -> list[Issue]:
                 i = int(np.argmax(jerk))
                 if jerk[i] > c.max_jerk:
                     t = float(times[i + 1])
-                    bid, who = _blame(sched, c.actor, t)
+                    bid, who = _blame(sched, c.actor, t, parents)
                     out.append(Issue(
                         "E_JERK", f"{c.actor} has a visible pop (jerk {jerk[i]:.3g}px/s³, max {c.max_jerk:.3g}) near t={t:.2f}s",
                         hint=f"active: {who}; use a gentler ease (inOutSine/inOutCubic) or overlap neighbouring moves", block=bid, actor=c.actor, t=t, pointer=ptr,
@@ -214,7 +314,7 @@ def check_constraints(baked: Baked) -> list[Issue]:
             hit = vis & (A[:, 0] < B[:, 2]) & (B[:, 0] < A[:, 2]) & (A[:, 1] < B[:, 3]) & (B[:, 1] < A[:, 3])
             if hit.any():
                 i = int(np.argmax(hit))
-                bid, who = _blame(sched, c.a, float(times[i]))
+                bid, who = _blame(sched, c.a, float(times[i]), parents)
                 out.append(Issue(
                     "E_OVERLAP", f"{c.a} and {c.b} overlap at t={times[i]:.2f}s",
                     hint=f"active on {c.a}: {who}; separate their paths or offset their timing", block=bid, actor=c.a, t=float(times[i]), pointer=ptr,
@@ -225,7 +325,7 @@ def check_constraints(baked: Baked) -> list[Issue]:
             x, y = baked.pos[c.actor][i]
             d = math.hypot(x - c.pos[0], y - c.pos[1])
             if d > c.tol:
-                bid, who = _blame(sched, c.actor, t)
+                bid, who = _blame(sched, c.actor, t, parents)
                 out.append(Issue(
                     "E_ENDS_AT", f"{c.actor} is at ({x:.0f}, {y:.0f}) at t={t:.2f}s, {d:.0f}px from target ({c.pos[0]:g}, {c.pos[1]:g})",
                     hint=f"last motion: {who}; adjust its target", block=bid, actor=c.actor, t=t, pointer=ptr,
@@ -270,6 +370,7 @@ def check(raw: dict) -> Result:
         report.add(Issue("E_REF", str(e), hint="break the cycle: one of the follow/orbit verbs must target an actor that doesn't depend back on it (or use lag > 0)"))
         return Result(report, parsed)
     report.extend(check_discontinuities(baked))
+    report.extend(check_noops(baked))
     report.extend(check_visibility(baked))
     report.extend(check_constraints(baked))
     return Result(report, parsed, baked)

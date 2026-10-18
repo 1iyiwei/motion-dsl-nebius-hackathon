@@ -129,3 +129,176 @@ def test_live_generate_and_tweak():
     assert out.ok, [a.problems() for a in out.attempts]
     t = tweak(out.doc, "make the spin slower")
     assert t.ok, [a.problems() for a in t.attempts]
+
+
+def test_on_attempt_reports_each_attempt_as_it_is_checked():
+    off_screen = doc_with()
+    off_screen["timeline"]["seq"][1]["height"] = 900
+    seen = []
+    out = generate("ball", llm=LLM(Scripted(json.dumps(off_screen), json.dumps(EXAMPLE))), on_attempt=lambda a: seen.append((a.kind, a.ok)))
+    assert out.ok and seen == [("generate", False), ("repair", True)]
+    seen.clear()
+    tweak(EXAMPLE, "slower", llm=LLM(Scripted('{"ops": [{"op": "set", "id": "hop", "field": "height", "value": 60}]}')),
+          on_attempt=lambda a: seen.append((a.kind, a.ok)))
+    assert seen == [("edit", True)]
+
+
+def test_edit_prompt_guards_constraint_fields():
+    from motionlang.agent import prompts
+
+    text = prompts.edit_system()
+    assert "never invent fields" in text and "in_bounds has no max" in text
+
+
+def _too_high() -> dict:
+    d = doc_with()
+    d["timeline"]["seq"][1]["height"] = 900
+    return d
+
+
+def test_near_valid_doc_is_repaired_with_edit_ops():
+    fix = {"ops": [{"op": "set", "id": "hop", "field": "height", "value": 80}]}
+    fake = Scripted(json.dumps(_too_high()), json.dumps(fix))
+    out = generate("ball", llm=LLM(fake))
+    assert out.ok and [a.kind for a in out.attempts] == ["generate", "repair-edit"]
+    assert out.doc["timeline"]["seq"][1]["height"] == 80
+    ask = fake.requests[1]["messages"][-1]["content"]
+    assert "E_BOUNDS" in ask and "edit operations" in ask and '{"ops"' in ask
+
+
+def test_failed_ops_are_retried_against_the_same_document():
+    bad = {"ops": [{"op": "set", "id": "nope", "field": "height", "value": 80}]}
+    fix = {"ops": [{"op": "set", "id": "hop", "field": "height", "value": 80}]}
+    fake = Scripted(json.dumps(_too_high()), json.dumps(bad), json.dumps(fix))
+    out = generate("ball", llm=LLM(fake))
+    assert out.ok and [a.kind for a in out.attempts] == ["generate", "repair-edit", "repair-edit"]
+    assert "were not applied" in fake.requests[2]["messages"][-1]["content"]
+
+
+def test_patching_that_stalls_falls_back_to_one_rewrite_then_stops():
+    noop = {"ops": [{"op": "set", "id": "hop", "field": "count", "value": 3}]}
+    fake = Scripted(json.dumps(_too_high()), json.dumps(noop), json.dumps(_too_high()), json.dumps(_too_high()))
+    out = generate("ball", llm=LLM(fake), max_repairs=5)
+    assert not out.ok and [a.kind for a in out.attempts] == ["generate", "repair-edit", "repair"]
+    assert "stopped" in out.note and len(fake.replies) == 1
+
+
+def test_stall_signature_includes_the_pointer():
+    from motionlang.agent.loop import Attempt
+    from motionlang.agent.llm import Call
+    from motionlang.validate import check
+
+    a, b = doc_with(), doc_with()
+    a["actors"][0]["init"]["bogus"] = 1
+    b["actors"][1]["init"]["bogus"] = 1
+    call = Call("x", "m", 0.0)
+    sa, sb = (Attempt("repair", call, d, check(d).report).signature() for d in (a, b))
+    assert sa != sb
+
+
+def test_wrong_top_level_is_rewritten_not_patched():
+    wrong = {"type": "animation", "code": "const x = 1;"}
+    fake = Scripted(json.dumps(wrong), json.dumps(EXAMPLE))
+    out = generate("ball", llm=LLM(fake))
+    assert out.ok and [a.kind for a in out.attempts] == ["generate", "repair"]
+    assert "edit operations" not in fake.requests[1]["messages"][-1]["content"]
+
+
+def test_logo_prompt_shows_parts_once_as_a_tree():
+    from motionlang.agent import prompts
+    from motionlang.importers import import_svg
+
+    svg = (Path(__file__).parent / "fixtures" / "svg" / "nested.svg").read_text()
+    r = import_svg(svg)
+    text = prompts.generation_user("x", r["canvas"], None, r["assets"], r["actors"])
+    assert '  - actor "bar": asset "bar"' in text and "relative to mark" in text
+    assert text.count('asset "bar"') == 1 and "M45" not in text
+
+
+def test_timeline_given_as_a_list_or_under_animations_is_wrapped():
+    for key in ("timeline", "animations"):
+        d = doc_with()
+        blocks = d.pop("timeline")["seq"]
+        d[key] = blocks
+        out = generate("ball", llm=LLM(Scripted(json.dumps(d))))
+        assert out.ok and out.doc["timeline"] == {"id": "root", "seq": blocks}
+
+
+def test_escaped_document_in_a_single_key_is_recovered():
+    from motionlang.agent.loop import _parse_reply
+
+    inner = json.dumps(EXAMPLE, separators=(",", ":"))
+    wrapped = json.dumps({inner[2:-1]: None})  # what Super-120B sometimes sends: the doc escaped into one key
+    doc, err = _parse_reply(wrapped)
+    assert err is None and doc == EXAMPLE
+
+
+def test_structured_mode_sends_the_decoding_schema():
+    fake = Scripted(json.dumps(EXAMPLE))
+    generate("ball", llm=LLM(fake), structured=True)
+    fmt = fake.requests[0]["response_format"]
+    assert fmt["type"] == "json_schema" and "propertyNames" not in json.dumps(fmt["json_schema"]["schema"])
+
+
+def test_ops_can_add_an_actor_and_unset_by_pointer():
+    from motionlang import apply_edits
+
+    actor = {"id": "extra", "shape": {"kind": "rect", "w": 10, "h": 10}, "init": {"x": 100, "y": 100}}
+    new, issues = apply_edits(EXAMPLE, [{"op": "set", "pointer": "/actors/-", "value": actor},
+                                        {"op": "unset", "pointer": "/meta/title"}])
+    assert not issues and new["actors"][-1] == actor and "title" not in new["meta"]
+
+
+def test_per_instance_model_overrides_and_structured_default():
+    super_model = "nvidia/nemotron-3-super-120b-a12b"
+    fake = Scripted(json.dumps(EXAMPLE))
+    llm = LLM(fake, models={"planner": super_model})
+    assert llm.model_for("planner") == super_model and llm.model_for("editor") == model_for("editor")
+    generate("ball", llm=llm)
+    assert fake.requests[0]["model"] == super_model and fake.requests[0]["response_format"]["type"] == "json_schema"
+    fake = Scripted(json.dumps(EXAMPLE))
+    generate("ball", llm=LLM(fake))  # default planner (Ultra): plain JSON mode
+    assert fake.requests[0]["response_format"]["type"] == "json_object"
+    fake = Scripted(json.dumps(EXAMPLE))
+    generate("ball", llm=LLM(fake, models={"planner": super_model}), structured=False)
+    assert fake.requests[0]["response_format"]["type"] == "json_object"
+
+
+def test_suggested_actor_layout_survives_a_doc_that_drops_init():
+    suggested = [
+        {"id": "logo", "shape": {"kind": "group"}, "init": {"x": 640, "y": 360}},
+        {"id": "sun", "shape": {"kind": "group"}, "parent": "logo", "init": {"x": 0, "y": -96}},
+        {"id": "dot", "shape": {"kind": "ellipse", "rx": 10, "ry": 10}, "parent": "sun", "init": {"x": 0, "y": 0}},
+        {"id": "extra", "shape": {"kind": "ellipse", "rx": 10, "ry": 10}, "parent": "logo", "init": {"x": 50, "y": 0}},
+    ]
+    # what Super-120B sends under structured output: init null, parent/shape repeated, one part left out
+    reply = {"actors": [{"id": "logo", "shape": {"kind": "group"}, "init": None, "label": None},
+                        {"id": "sun", "shape": {"kind": "group"}, "parent": "logo", "init": {"y": 200, "x": None}},
+                        {"id": "dot", "shape": {"kind": "ellipse", "rx": 10, "ry": 10}, "parent": "sun"}],
+             "timeline": {"id": "root", "seq": [{"id": "rise", "verb": "move", "actor": "sun", "to": [0, -96]}]}}
+    out = generate("sun rises", llm=LLM(Scripted(json.dumps(reply))), suggested_actors=suggested, structured=False)
+    assert out.ok, out.attempts[-1].problems()
+    actors = {a["id"]: a for a in out.doc["actors"]}
+    assert actors["logo"]["init"] == {"x": 640, "y": 360} and "label" not in actors["logo"]
+    assert actors["sun"]["init"] == {"x": 0, "y": 200}  # the model's change wins; the rest is filled in
+    assert actors["dot"]["init"] == {"x": 0, "y": 0} and "extra" in actors
+
+
+def test_regenerate_fills_fields_but_does_not_restore_removed_actors():
+    from motionlang.agent.loop import _with_suggested
+
+    old = [{"id": "a", "shape": {"kind": "group"}, "init": {"x": 1, "y": 2}}, {"id": "b", "shape": {"kind": "group"}}]
+    assert _with_suggested([{"id": "a", "init": None}], old, restore_missing=False) == [
+        {"id": "a", "shape": {"kind": "group"}, "init": {"x": 1, "y": 2}}]
+
+
+@pytest.mark.parametrize("bare", [
+    {"op": "set", "id": "hop", "field": "height", "value": 80},  # one op, unwrapped
+    [{"op": "set", "id": "hop", "field": "height", "value": 80}, {"op": "set", "id": "hop", "field": "count", "value": 3}],
+])
+def test_bare_ops_in_a_patch_round_are_applied(bare):
+    text = json.dumps(bare)
+    out = generate("ball", llm=LLM(Scripted(json.dumps(_too_high()), "```json\n" + text + "\n```")))
+    assert out.ok and [a.kind for a in out.attempts] == ["generate", "repair-edit"]
+    out = tweak(EXAMPLE, "lower bounce", llm=LLM(Scripted(text)))
+    assert out.ok and out.path == "edit" and out.doc["timeline"]["seq"][1]["height"] == 80

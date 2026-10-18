@@ -18,10 +18,12 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import Any
 
+import numpy as np
+
 from ..color import mix, parse_color, to_hex
 from ..geometry import IDENTITY, Mat, mul
 from ..model import CAMERA_ID
-from ..paths import path_bbox, transform_path
+from ..paths import flatten_svg_path, format_path, parse_path, path_bbox, transform_path
 
 INKSCAPE_LABEL = "{http://www.inkscape.org/namespaces/inkscape}label"
 XLINK_HREF = "{http://www.w3.org/1999/xlink}href"
@@ -128,6 +130,8 @@ class _Importer:
         self.assets: dict[str, dict[str, Any]] = {}
         self.opacity: dict[str, float] = {}
         self.dropped: list[str] = []
+        self.notes: list[str] = []
+        self.split = True
         self.used_ids: set[str] = {CAMERA_ID}
         self.counts: dict[str, int] = {}
 
@@ -258,23 +262,41 @@ class _Importer:
             return "M" + " L".join(f"{x},{y}" for x, y in pts) + (" Z" if t == "polygon" else "")
         return None
 
-    def add_shape(self, el: ET.Element, ctm: Mat, st: dict[str, str], opacity: float, id_hint: str | None = None) -> str | None:
+    def add_shape(self, el: ET.Element, ctm: Mat, st: dict[str, str], opacity: float, id_hint: str | None = None) -> list[_Group | str]:
         name = self.name_of(el)
         d = self.shape_d(el)
         if not d:
-            return None
+            return []
         fill = None if _tag(el) == "line" else self.paint(st.get("fill", "#000000"), st, "fill", name)  # a line has no area
         stroke = self.paint(st.get("stroke"), st, "stroke", name)
         if fill is None and stroke is None:
             self.drop(f"{name!r} has neither fill nor stroke (skipped)")
-            return None
+            return []
         try:
             td = transform_path(d, ctm, WORK_PRECISION)
             path_bbox(td)
         except ValueError as e:
             self.drop(f"{name!r}: unreadable path data ({e})")
-            return None
+            return []
+        evenodd = st.get("fill-rule") == "evenodd"
+        pieces = _split_subpaths(td, filled=fill is not None, evenodd=evenodd) if self.split else [td]
         aid = self.unique_id(id_hint or el.get("id") or el.get(INKSCAPE_LABEL) or _class_name(el), _tag(el))
+        if len(pieces) == 1:
+            self._add_asset(aid, pieces[0], el, st, ctm, fill, stroke, opacity, aid)
+            return [aid]
+        # One element drew several separate shapes (icon files pack a whole colour layer into one path):
+        # one asset per shape, grouped under the element's id so the file's layers stay visible.
+        self.used_ids.discard(aid)  # the group takes this id when the actor tree is emitted
+        parts = []
+        for n, piece in enumerate(pieces, 1):
+            pid = self.unique_id(f"{aid}_{n}", _tag(el))
+            self._add_asset(pid, piece, el, st, ctm, fill, stroke, opacity, aid)
+            parts.append(pid)
+        self.notes.append(f"split {aid} into {len(parts)} parts")
+        return [_Group(aid, self.label_of(el), parts)]
+
+    def _add_asset(self, aid: str, td: str, el: ET.Element, st: dict[str, str], ctm: Mat,
+                   fill: str | None, stroke: str | None, opacity: float, source: str) -> None:
         asset: dict[str, Any] = {"kind": "path", "d": td}
         if fill is not None:
             asset["fill"] = fill
@@ -289,8 +311,8 @@ class _Importer:
         alpha = opacity * _num(st.get("fill-opacity" if fill is not None else "stroke-opacity"), 1.0)
         if alpha < 0.999:
             self.opacity[aid] = round(max(alpha, 0.0), 3)
+        asset["meta"] = {"source": el.get("id") or source}
         self.assets[aid] = asset
-        return aid
 
     # ---- tree walk ----
 
@@ -308,8 +330,7 @@ class _Importer:
         opacity *= _num(st.get("opacity"), 1.0)
         ctm = mul(ctm, parse_transform(el.get("transform")))
         if t in SHAPES:
-            aid = self.add_shape(el, ctm, st, opacity)
-            return [aid] if aid else []
+            return self.add_shape(el, ctm, st, opacity)
         if t == "use":
             href = el.get("href") or el.get(XLINK_HREF) or ""
             ref = self.by_id.get(href[1:]) if href.startswith("#") else None
@@ -319,8 +340,7 @@ class _Importer:
             ctm = mul(ctm, (1, 0, 0, 1, _num(el.get("x")), _num(el.get("y"))))
             if _tag(ref) in SHAPES:
                 ref_st = self.style(ref, st)
-                aid = self.add_shape(ref, mul(ctm, parse_transform(ref.get("transform"))), ref_st, opacity * _num(ref_st.get("opacity"), 1.0), el.get("id") or ref.get("id"))
-                return [aid] if aid else []
+                return self.add_shape(ref, mul(ctm, parse_transform(ref.get("transform"))), ref_st, opacity * _num(ref_st.get("opacity"), 1.0), el.get("id") or ref.get("id"))
             if _tag(ref) in ("symbol", "g"):
                 return self._group(el if el.get("id") else ref, list(ref), ctm, st, opacity, depth)
             return []
@@ -344,6 +364,49 @@ class _Importer:
         return [_Group(el.get("id") or el.get(INKSCAPE_LABEL), self.label_of(el), children)]
 
 
+def _split_subpaths(d: str, *, filled: bool, evenodd: bool) -> list[str]:
+    """Split path data at each moveto into separate shapes, keeping holes with the shape they cut.
+
+    For a filled path, subpath B is a hole of A when B's bbox lies inside A's and B winds the other way
+    (or the fill rule is evenodd); holes stay in A's path data. Everything else becomes its own piece."""
+    chunks: list[list] = []
+    for seg in parse_path(d):
+        if seg[0] == "M" or not chunks:
+            chunks.append([])
+        chunks[-1].append(seg)
+    chunks = [c for c in chunks if any(cmd != "M" for cmd, _ in c)]  # a lone moveto draws nothing
+    if len(chunks) <= 1:
+        return [d]
+    info = []
+    for c in chunks:
+        pts = flatten_svg_path(format_path(c, WORK_PRECISION))
+        x, y = pts[:, 0], pts[:, 1]
+        area = 0.5 * float(np.sum(x * np.roll(y, -1) - np.roll(x, -1) * y))  # signed: the winding direction
+        info.append((area, (float(x.min()), float(y.min()), float(x.max()), float(y.max()))))
+    owner = list(range(len(chunks)))  # piece index → the piece it is merged into
+    if filled:
+        order = sorted(range(len(chunks)), key=lambda i: -abs(info[i][0]))
+        roots: list[int] = []
+        eps = 1e-6
+        for i in order:
+            a_i, (x0, y0, x1, y1) = info[i]
+            host = None
+            for r in reversed(roots):  # smallest enclosing candidate first
+                a_r, (rx0, ry0, rx1, ry1) = info[r]
+                inside = rx0 - eps <= x0 and ry0 - eps <= y0 and x1 <= rx1 + eps and y1 <= ry1 + eps
+                if inside and (evenodd or (a_i > 0) != (a_r > 0)):
+                    host = r
+                    break
+            if host is None:
+                roots.append(i)
+            else:
+                owner[i] = host
+    groups: dict[int, list] = {}
+    for i, c in enumerate(chunks):
+        groups.setdefault(owner[i], []).extend(c)
+    return [format_path(groups[k], WORK_PRECISION) for k in sorted(groups)]
+
+
 def _bbox_union(boxes: list[tuple[float, float, float, float]]) -> tuple[float, float, float, float]:
     x0 = min(b[0] for b in boxes)
     y0 = min(b[1] for b in boxes)
@@ -359,8 +422,12 @@ def import_svg(
     margin: float = 0.1,
     precision: int = 2,
     root_id: str = "logo",
+    split: str = "auto",
 ) -> dict[str, Any]:
-    """Import an SVG document. Returns {"canvas", "assets", "actors", "dropped"}.
+    """Import an SVG document. Returns {"canvas", "assets", "actors", "dropped", "notes"}.
+
+    split="auto": an element whose path draws several separate shapes becomes one asset per shape
+    (holes stay with their shape), grouped under the element's id. split="none" keeps one asset per element.
 
     fit: (width, height) of the target canvas; the artwork is scaled uniformly and centred to fill it
     with `margin` (a fraction of the canvas) on each side. Without it, coordinates stay in viewBox units.
@@ -383,7 +450,10 @@ def import_svg(
         w, h = _num(root.get("width")), _num(root.get("height"))
         size = (w, h) if w > 0 and h > 0 else None
 
+    if split not in ("auto", "none"):
+        raise ValueError('split must be "auto" or "none"')
     imp = _Importer(root)
+    imp.split = split == "auto"
     top = imp.walk(root, base, dict(DEFAULT_STYLE), 1.0)
     if not imp.assets:
         raise ValueError("no drawable shapes found in the SVG" + (f" (dropped: {'; '.join(imp.dropped)})" if imp.dropped else ""))
@@ -425,8 +495,12 @@ def import_svg(
             a: dict[str, Any] = {"id": node, "shape": {"kind": "asset", "ref": node}}
             if parent:
                 a["parent"] = parent
+            # Explicit resting position (the drawn spot, in the parent's frame) so a model can plan
+            # moves with real numbers; it equals the default that omitting x/y would give.
+            bx, by, bw, bh = boxes[node]
+            a["init"] = {"x": round(bx + bw / 2 - parent_center[0], precision), "y": round(by + bh / 2 - parent_center[1], precision)}
             if node in imp.opacity:
-                a["init"] = {"opacity": imp.opacity[node]}
+                a["init"]["opacity"] = imp.opacity[node]
             actors.append(a)
             return
         gid = imp.unique_id(node.id, "group")
@@ -444,4 +518,4 @@ def import_svg(
 
     for node in top:
         emit(node, None, (0.0, 0.0))
-    return {"canvas": canvas, "assets": imp.assets, "actors": actors, "dropped": imp.dropped}
+    return {"canvas": canvas, "assets": imp.assets, "actors": actors, "dropped": imp.dropped, "notes": imp.notes}

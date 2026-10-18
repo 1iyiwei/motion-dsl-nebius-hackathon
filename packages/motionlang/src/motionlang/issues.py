@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 CODES = (
     "E_SCHEMA", "E_DUP_ID", "E_REF", "E_CONFLICT", "E_DISCONTINUITY", "E_BOUNDS", "E_SPEED",
-    "E_JERK", "E_OVERLAP", "E_ENDS_AT", "E_DURATION", "E_EDIT",
+    "E_JERK", "E_OVERLAP", "E_ENDS_AT", "E_DURATION", "E_EDIT", "E_NOOP", "E_INVISIBLE",
 )
 
 
@@ -30,6 +30,8 @@ class Issue:
 
     def __str__(self) -> str:
         where = " ".join(f"{k}={v}" for k, v in (("block", self.block), ("actor", self.actor)) if v)
+        if not where and self.pointer:  # say where, so a repair can find it
+            where = f"at {self.pointer}"
         at = f" at t={self.t:.2f}s" if self.t is not None and f"t={self.t:.2f}s" not in self.message else ""
         hint = f" (hint: {self.hint})" if self.hint else ""
         return f"{self.code}{' [' + where + ']' if where else ''}{at}: {self.message}{hint}"

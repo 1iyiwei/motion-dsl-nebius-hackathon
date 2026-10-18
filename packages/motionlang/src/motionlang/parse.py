@@ -88,6 +88,14 @@ def _pyd_issues(err: ValidationError, base: str, block: str | None = None, verb:
         msg = e["msg"].removeprefix("Value error, ")
         field_ = ".".join(str(p) for p in loc) or "(document)"
         hint = _schema_hint(e)
+        if e.get("type") == "extra_forbidden" and verb is None:
+            allowed = _allowed_fields(loc[:-1])
+            if allowed:
+                where = "".join(f"[{p}]" if isinstance(p, int) else f".{p}" for p in loc[:-1]).lstrip(".")
+                hint = f'remove "{loc[-1]}" from {where or "the top level of the document"}; it accepts only: {", ".join(allowed)}'
+                if not where:
+                    hint += '; all animation goes in "timeline" as one root block'
+
         if verb is not None and e.get("type") == "extra_forbidden" and len(loc) == 1:
             msg = f"`{loc[0]}` is not a parameter of {verb.name}"
             hint = _unknown_param_hint(str(loc[0]), verb, load_plugins())
@@ -97,8 +105,39 @@ def _pyd_issues(err: ValidationError, base: str, block: str | None = None, verb:
     return out
 
 
+def _allowed_fields(loc: tuple) -> list[str]:
+    """Field names of the model at `loc` inside a Document (best effort; [] if it can't be resolved)."""
+    from typing import get_args, get_origin
+
+    from pydantic import BaseModel
+
+    def models(tp: Any) -> list[type]:
+        if isinstance(tp, type) and issubclass(tp, BaseModel):
+            return [tp]
+        return [m for a in get_args(tp) for m in models(a)]
+
+    cur: list[type] = [Document]
+    for part in loc:
+        if isinstance(part, int):
+            continue
+        nxt: list[type] = []
+        for m in cur:
+            f = m.model_fields.get(str(part))
+            if f is not None:
+                tp = f.annotation
+                if get_origin(tp) is dict:
+                    tp = get_args(tp)[1]
+                nxt += models(tp)
+        if not nxt:
+            return []
+        cur = nxt
+    return sorted({n for m in cur for n in m.model_fields}) if len(cur) == 1 else []
+
+
 def _schema_hint(e: dict) -> str:
     t = e.get("type", "")
+    if t == "missing" and tuple(e.get("loc", ())) == ("timeline",):
+        return 'add the timeline as one root block: "timeline": {"id": "root", "seq": [ ...verb and container blocks... ]}'
     if t == "extra_forbidden":
         return "remove this field; it is not part of the verb or block (check spelling)"
     if t == "missing":
@@ -127,12 +166,12 @@ def _parse_block(raw: Any, ptr: str, issues: list[Issue], registry: dict[str, Ve
     label = raw.get("label")
     kinds = [k for k in CONTAINERS if k in raw]
     if "verb" in raw and kinds:
-        issues.append(Issue("E_SCHEMA", f"block has both `verb` and `{kinds[0]}`", hint="a block is either a verb or a container", block=bid, pointer=ptr))
+        issues.append(Issue("E_SCHEMA", f"block has both `verb` and `{kinds[0]}`", hint=f'a block is either {{"id", "verb", ...}} or a container like {{"id", "{kinds[0]}": [...]}}: move the verb into its own block inside the {kinds[0]}', block=bid, pointer=ptr))
         return None
 
     if kinds:
         if len(kinds) > 1:
-            issues.append(Issue("E_SCHEMA", f"block has several container keys: {kinds}", block=bid, pointer=ptr))
+            issues.append(Issue("E_SCHEMA", f"block has several container keys: {kinds}", hint=f'keep one ({kinds[0]!r}) and nest the other as a child block: {{"id": "{bid}", "{kinds[0]}": [{{"id": "{bid}_inner", "{kinds[1]}": [...]}}]}}', block=bid, pointer=ptr))
             return None
         kind = kinds[0]
         allowed = CONTAINER_COMMON | {kind} | ({"offset"} if kind == "stagger" else set()) | ({"count"} if kind == "repeat" else set())
@@ -166,7 +205,9 @@ def _parse_block(raw: Any, ptr: str, issues: list[Issue], registry: dict[str, Ve
         return None
     verb = registry.get(name)
     if verb is None:
-        issues.append(Issue("E_REF", f"unknown verb {name!r}", hint=f"use one of: {', '.join(sorted(registry))}", block=bid, pointer=f"{ptr}/verb"))
+        close = difflib.get_close_matches(name, list(registry), n=1, cutoff=0.5)
+        hint = (f"did you mean `{close[0]}`? " if close else "") + f"the verbs are: {', '.join(sorted(registry))}"
+        issues.append(Issue("E_REF", f"unknown verb {name!r}", hint=hint, block=bid, pointer=f"{ptr}/verb"))
         return None
     params_raw = {k: v for k, v in raw.items() if k not in VERB_COMMON}
     try:

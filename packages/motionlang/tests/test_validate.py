@@ -1,5 +1,6 @@
 """Every error code is reachable and carries a pointer/hint the repair loop can use."""
 
+import copy
 import json
 from pathlib import Path
 
@@ -156,3 +157,32 @@ def test_report_serializes(doc_factory):
     d = r.to_dict()
     assert d["ok"] is False and d["errors"][0]["code"] == "E_SCHEMA"
     json.dumps(d)
+
+
+def test_bounds_blames_and_exempts_a_parent_groups_move(doc_factory):
+    doc = doc_factory({"id": "slide", "verb": "move", "actor": "g", "by": [900, 0]})
+    doc["actors"].append({"id": "g", "shape": {"kind": "group"}, "init": {"x": 0, "y": 0}})
+    doc["actors"][0]["parent"] = "g"
+    doc["constraints"] = [{"type": "in_bounds"}]
+    errs = check(doc).report.errors
+    e = next(e for e in errs if e.actor == "a")
+    assert e.block == "slide" and "on parent 'g'" in e.hint and 'add "slide" to constraints[0].ignore' in e.hint
+    import re
+
+    m = re.search(r'change slide\'s "by" to about \[(-?\d+), (-?\d+)\] \(g moves in canvas coordinates\)', e.hint)
+    assert m, e.hint
+    fixed = copy.deepcopy(doc)
+    fixed["timeline"]["seq"][0]["by"] = [int(m.group(1)), int(m.group(2))]
+    assert not [x for x in check(fixed).report.errors if x.code == "E_BOUNDS"]  # the suggested number works
+    doc["constraints"][0]["ignore"] = ["slide"]
+    assert not [e for e in check(doc).report.errors if e.actor == "a" and e.code == "E_BOUNDS"]
+
+
+def test_noop_verb_is_an_error_with_a_start_pose_hint(doc_factory):
+    doc = doc_factory({"id": "rise", "verb": "move", "actor": "a", "to": [300, 300]})  # already there
+    e = check(doc).report.errors[0]
+    assert e.code == "E_NOOP" and e.block == "rise" and "actors[0].init" in e.hint
+    doc["actors"][0]["init"]["y"] = 400  # a real starting pose makes it a rise
+    assert check(doc).ok
+    orbit = doc_factory({"id": "o", "verb": "orbit", "actor": "a", "center": [400, 300]})  # ends where it began, but moves
+    assert check(orbit).ok

@@ -73,3 +73,11 @@ def test_colors():
     assert nearest_name("#4169e2") == "royalblue"
     with pytest.raises(ValueError):
         parse_color("blurple")
+
+
+def test_preview_embeds_the_packaged_player():
+    from motionlang.preview import PLAYER_JS, player_js_path, preview_html
+
+    assert player_js_path().is_file() and "export class Player" in PLAYER_JS and "clip-path" in PLAYER_JS
+    page = preview_html({"canvas": {"width": 10, "height": 10}, "actors": [], "frames": 1, "fps": 60, "duration": 0}, "t")
+    assert "export class Player" in page and '<script type="module">' in page and "__" not in page.split("<script")[1][:20]

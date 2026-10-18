@@ -17,6 +17,12 @@ EDITOR_MODEL = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"  # fast id-addressed edit
 VISION_MODEL = "nvidia/Nemotron-3.5-Super-VL"  # sketches and rendered frames (later)
 
 
+def prefers_structured(model: str) -> bool:
+    """Whether to constrain this model's documents to the JSON Schema by default: on for the Super family
+    (most reliable that way), off for Ultra (degenerates under constrained decoding) and others."""
+    return "super" in model.lower() and "-vl" not in model.lower()
+
+
 def model_for(role: str) -> str:
     default = {"planner": PLANNER_MODEL, "editor": EDITOR_MODEL, "vision": VISION_MODEL}[role]
     return os.environ.get(f"MOTION_{role.upper()}_MODEL", default)
@@ -83,17 +89,28 @@ class TokenFactory:
 class LLM:
     """Records a Call for every request so apps can show latency/cost per step."""
 
-    def __init__(self, backend: ChatBackend | None = None):
+    def __init__(self, backend: ChatBackend | None = None, models: dict[str, str] | None = None):
+        """models: per-instance overrides by role ({"planner": "nvidia/nemotron-3-super-120b-a12b"}), so a
+        server can pick models per request without touching the process-wide MOTION_*_MODEL env vars."""
         self.backend = backend or TokenFactory()
+        self.models = dict(models or {})
         self.calls: list[Call] = []
+
+    def model_for(self, role: str) -> str:
+        """The model this instance uses for a role: its override, else the env/default."""
+        return getattr(self, "models", {}).get(role) or model_for(role)  # subclasses may skip __init__
 
     def json(
         self, role: str, purpose: str, messages: list[dict[str, Any]], *,
-        think: bool = True, max_tokens: int = 16000, temperature: float = 0.3,
+        think: bool = True, max_tokens: int = 16000, temperature: float = 0.3, schema: dict | None = None,
     ) -> tuple[str, Call]:
-        """JSON-mode completion. think=False turns off Nemotron's reasoning phase (≈3x faster for small edits)."""
-        model = model_for(role)
-        kw: dict[str, Any] = {"response_format": {"type": "json_object"}, "max_tokens": max_tokens, "temperature": temperature}
+        """JSON-mode completion. think=False turns off Nemotron's reasoning phase (≈3x faster for small edits).
+
+        schema: constrain decoding to this JSON Schema (Token Factory structured output). Works well with
+        Super-120B; Ultra tends to degenerate under it, so callers opt in per model."""
+        model = self.model_for(role)
+        fmt = {"type": "json_schema", "json_schema": {"name": "motion_document", "schema": schema, "strict": True}} if schema else {"type": "json_object"}
+        kw: dict[str, Any] = {"response_format": fmt, "max_tokens": max_tokens, "temperature": temperature}
         if not think:
             kw["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
         t = time.time()

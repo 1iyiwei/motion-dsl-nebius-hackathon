@@ -1,4 +1,4 @@
-import { Player, el } from "./player.js";
+import { Player, el } from "/player.js"; // served from the motionlang package
 
 const $ = (id) => document.getElementById(id);
 const stage = $("stage"), ink = $("ink");
@@ -9,6 +9,7 @@ const state = {
   versions: [],       // [{label, doc, tracks}]
   current: -1,
   busy: false,
+  logo: null,         // {name, assets, actors, dropped, description} from /import-svg (+ /label-parts)
   totals: { calls: 0, seconds: 0, tokens: 0 },
 };
 
@@ -70,7 +71,7 @@ function renderInk() {
     label.textContent = s.id;
     ink.appendChild(label);
   }
-  $("hint").hidden = state.strokes.length > 0 || state.current >= 0;
+  $("hint").hidden = state.strokes.length > 0 || state.current >= 0 || !!state.logo;
 }
 
 let drawing = null;
@@ -104,8 +105,9 @@ stage.addEventListener("pointerup", endStroke);
 stage.addEventListener("pointercancel", endStroke);
 $("undo-stroke").onclick = () => { state.strokes.pop(); renderInk(); };
 $("clear").onclick = () => {
-  state.strokes = []; state.versions = []; state.current = -1;
-  $("anim").replaceChildren(); stage.classList.remove("has-anim");
+  state.strokes = []; state.versions = []; state.current = -1; state.logo = null;
+  $("anim").replaceChildren(); stage.classList.remove("has-anim", "has-logo");
+  renderParts(); setExamples();
   player.T = null; player.pause();
   $("tweak-form").hidden = $("tweak-examples").hidden = true;
   setControls(false); renderInk(); renderVersions(); setStatus("");
@@ -121,22 +123,33 @@ function chips(container, items, input) {
     return b;
   }));
 }
-chips($("examples"), [
-  "a ball rolls along my line and bounces",
-  "my line draws itself, then a star pops in at its end",
-  "a red square slides along my curve, spinning, then fades out",
-], "intent");
-chips($("tweak-examples"), ["slower", "more bounce", "make it blue", "add a squash when it lands"], "instruction");
+function setExamples() {
+  chips($("examples"), state.logo ? [
+    "the logo builds itself piece by piece, then settles with a little bounce",
+    "the main shape wipes in, the small parts pop in one after another, then the whole logo breathes",
+    "a playful intro: parts drop in from above with squash and stretch",
+  ] : [
+    "a ball rolls along my line and bounces",
+    "my line draws itself, then a star pops in at its end",
+    "a red square slides along my curve, spinning, then fades out",
+  ], "intent");
+  chips($("tweak-examples"), state.logo
+    ? ["slower", "more playful", "reveal the main shape left to right", "end with a gentle pulse"]
+    : ["slower", "more bounce", "make it blue", "add a squash when it lands"], "instruction");
+}
+setExamples();
 
 // ---------- panel ----------
-const SHORT = (model) => (/ultra/i.test(model) ? "Ultra" : /nano/i.test(model) ? "Nano" : /super/i.test(model) ? "Super" : model.split("/").pop());
-const PURPOSE = { generate: "plan", repair: "repair", edit: "edit ops", "edit-repair": "edit retry", regenerate: "regenerate" };
+const SHORT = (model) => (/vl/i.test(model) ? "Super VL" : /ultra/i.test(model) ? "Ultra" : /nano/i.test(model) ? "Nano" : /super/i.test(model) ? "Super" : model.split("/").pop());
+const MODEL_CLASS = { "Super VL": "vl", Ultra: "ultra", Nano: "nano", Super: "super" };
+const PURPOSE = { generate: "plan", repair: "repair", "repair-edit": "repair via edit ops", edit: "edit ops", "edit-repair": "edit retry", regenerate: "regenerate", label: "name the parts" };
+const RUN_TITLE = { generate: "Generate", tweak: "Tweak", logo: "Logo" };
 
 function newRun(kind, text) {
   const li = document.createElement("li");
   const title = document.createElement("div");
   title.className = "run-title";
-  title.innerHTML = `${kind === "generate" ? "Generate" : "Tweak"} <b></b>`;
+  title.innerHTML = `${RUN_TITLE[kind]} <b></b>`;
   title.querySelector("b").textContent = `“${text}”`;
   const calls = document.createElement("ol");
   calls.className = "calls";
@@ -148,7 +161,7 @@ function newRun(kind, text) {
 function callCard(ev) {
   const li = document.createElement("li");
   const short = SHORT(ev.model);
-  li.className = `call ${short.toLowerCase()}`;
+  li.className = `call ${MODEL_CLASS[short] ?? ""}`;
   li.innerHTML = `<div class="call-head"><span class="model"></span><span class="purpose"></span><span class="metrics"></span></div>
     <div class="verdict pending">running…</div>`;
   li.querySelector(".model").textContent = short;
@@ -163,7 +176,8 @@ function callCard(ev) {
 function finishCard(li, a) {
   clearInterval(li._timer);
   li.querySelector(".metrics").textContent = `${a.seconds.toFixed(1)}s · ${a.prompt_tokens}→${a.completion_tokens} tok`;
-  if (!("ok" in a)) { li.querySelector(".verdict").textContent = "validating…"; return; } // verdict arrives with the result
+  if (!("ok" in a)) return;
+  if (a.kind) li.querySelector(".purpose").textContent = `${PURPOSE[a.kind] ?? a.kind}${a.think ? "" : " · no reasoning"}`;
   const v = li.querySelector(".verdict");
   v.className = `verdict ${a.ok ? "ok" : "bad"}`;
   v.textContent = a.ok ? "✓ valid: validator found no errors" : `✗ ${a.problems.length} problem${a.problems.length === 1 ? "" : "s"} → sent back to the model`;
@@ -184,6 +198,11 @@ function finishCard(li, a) {
   }
 }
 
+function addTotals(c) {
+  state.totals.calls += 1; state.totals.seconds += c.seconds; state.totals.tokens += c.prompt_tokens + c.completion_tokens;
+  renderTotals();
+}
+
 function renderTotals() {
   const t = state.totals;
   $("totals").textContent = t.calls ? `${t.calls} call${t.calls === 1 ? "" : "s"} · ${t.seconds.toFixed(1)}s · ${t.tokens.toLocaleString()} tokens` : "No calls yet";
@@ -197,11 +216,30 @@ function setBusy(on, text = "") {
   state.busy = on;
   $("busy").hidden = !on;
   $("busy-text").textContent = text;
-  for (const id of ["gen", "tweak", "intent", "instruction", "clear", "undo-stroke"]) $(id).disabled = on;
+  for (const id of ["gen", "tweak", "intent", "instruction", "clear", "undo-stroke", "logo-pick", "logo-sample", "logo-sample-2", "logo-sample-3", "planner"]) $(id).disabled = on;
 }
-function setStatus(text, bad = false) {
+function setStatus(text, bad = false, retry = null) {
   $("status").textContent = text;
   $("status").classList.toggle("bad", bad);
+  if (retry) $("status").append(" ", button(retry.label, retry.run, "retry"));
+}
+
+// Super-120B plans by default (cheaper, reliable with structured output); Ultra-550B is one click away.
+try { $("planner").value = localStorage.getItem("sd.planner") || "super"; } catch { /* storage blocked */ }
+$("planner").onchange = () => { try { localStorage.setItem("sd.planner", $("planner").value); } catch { /* ignore */ } };
+
+// After a failed run planned by Super, offer the same request again with Ultra.
+function retryWithUltra() {
+  const last = state.lastRun;
+  if (!last || $("planner").value === "ultra") return null;
+  return {
+    label: "Retry with Ultra",
+    run: () => {
+      $("planner").value = "ultra"; $("planner").onchange();
+      if (last.kind === "tweak") { state.current = last.base; $("instruction").value = last.text; $("tweak-form").requestSubmit(); }
+      else { $("intent").value = last.text; $("gen-form").requestSubmit(); }
+    },
+  };
 }
 
 async function request(url, body, log) {
@@ -222,16 +260,18 @@ async function request(url, body, log) {
         log.cards.push(open);
         log.calls.appendChild(open);
         $("busy-text").textContent = `${SHORT(ev.model)} · ${PURPOSE[ev.purpose] ?? ev.purpose}…`;
-      } else if (ev.type === "call_end") {
+      } else if (ev.type === "attempt") { // the reply has been validated: show the verdict now
         if (open) finishCard(open, ev);
-        state.totals.calls += 1; state.totals.seconds += ev.seconds; state.totals.tokens += ev.prompt_tokens + ev.completion_tokens;
-        renderTotals();
+        addTotals(ev);
       } else if (ev.type === "result") result = ev;
       else if (ev.type === "error") throw new Error(ev.detail);
     }
   }
   if (!result) throw new Error("the server closed the stream without a result");
-  result.attempts.forEach((a, i) => log.cards[i] && finishCard(log.cards[i], a));
+  const last = result.attempts.at(-1);
+  if (open && last && !last.ok) {
+    open.querySelector(".verdict").textContent = `✗ ${last.problems.length} problem${last.problems.length === 1 ? "" : "s"}; stopped here`;
+  }
   if (result.note) {
     const n = document.createElement("div");
     n.className = "run-note"; n.textContent = result.note;
@@ -245,6 +285,7 @@ function show(version) {
   state.current = version;
   stage.classList.add("has-anim");
   player.load(v.tracks);
+  player.play();
   $("scrub").max = v.tracks.frames - 1;
   setControls(true);
   $("tweak-form").hidden = $("tweak-examples").hidden = false;
@@ -267,7 +308,7 @@ function renderVersions() {
 function accept(result, label) {
   const secs = `${result.seconds.toFixed(1)}s, ${result.attempts.length} call${result.attempts.length === 1 ? "" : "s"}`;
   if (!result.tracks) {
-    setStatus(`No playable animation (${secs}). ${result.note || "The model's document didn't validate; see the panel."}`, true);
+    setStatus(`No playable animation (${secs}). ${result.note || "The model's document didn't validate; see the panel."}`, true, retryWithUltra());
     return;
   }
   // Keep the version list linear from the one being edited.
@@ -278,7 +319,7 @@ function accept(result, label) {
     const via = result.path === "edit" ? "fast edit" : result.path === "regenerate" ? "regenerated" : "planned";
     setStatus(`${via} in ${secs}${result.doc?.meta?.title ? ` · ${result.doc.meta.title}` : ""}`);
   } else {
-    setStatus(`Showing the closest attempt; it still has problems (${secs}). ${result.note}`, true);
+    setStatus(`Showing the closest attempt; it still has problems (${secs}). ${result.note}`, true, retryWithUltra());
   }
 }
 
@@ -287,12 +328,15 @@ $("gen-form").onsubmit = async (e) => {
   const intent = $("intent").value.trim();
   if (!intent || state.busy) return;
   const strokes = Object.fromEntries(state.strokes.map((s) => [s.id, { points: s.points }]));
-  setBusy(true, "Ultra · plan…"); setStatus("");
+  const logo = state.logo ? { assets: state.logo.assets, actors: state.logo.actors } : {};
+  const planner = $("planner").value;
+  state.lastRun = { kind: "generate", text: intent };
+  setBusy(true, `${planner === "ultra" ? "Ultra" : "Super"} · plan…`); setStatus("");
   try {
-    const r = await request("/generate", { intent, strokes, canvas: { width: W, height: H } }, newRun("generate", intent));
+    const r = await request("/generate", { intent, strokes, canvas: { width: W, height: H }, planner, ...logo }, newRun("generate", intent));
     state.current = state.versions.length - 1; // new generation starts after the latest version
     accept(r, intent.length > 28 ? intent.slice(0, 26) + "…" : intent);
-  } catch (err) { setStatus(String(err.message || err), true); }
+  } catch (err) { setStatus(String(err.message || err), true, retryWithUltra()); }
   finally { setBusy(false); }
 };
 
@@ -300,13 +344,293 @@ $("tweak-form").onsubmit = async (e) => {
   e.preventDefault();
   const instruction = $("instruction").value.trim();
   if (!instruction || state.busy || state.current < 0) return;
+  state.lastRun = { kind: "tweak", text: instruction, base: state.current };
   setBusy(true, "Nano · edit ops…"); setStatus("");
   try {
-    const r = await request("/tweak", { doc: state.versions[state.current].doc, instruction }, newRun("tweak", instruction));
+    const r = await request("/tweak", { doc: state.versions[state.current].doc, instruction, planner: $("planner").value }, newRun("tweak", instruction));
     accept(r, instruction.length > 20 ? instruction.slice(0, 18) + "…" : instruction);
     $("instruction").value = "";
-  } catch (err) { setStatus(String(err.message || err), true); }
+  } catch (err) { setStatus(String(err.message || err), true, retryWithUltra()); }
   finally { setBusy(false); }
 };
 
 renderInk(); renderTotals();
+
+// ---------- logo import ----------
+async function postJSON(url, body) {
+  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : `${res.status} ${res.statusText}`);
+  return data;
+}
+
+// Parts and groups. A group moves as one rigid piece, so the planner animates "sun" instead of
+// keeping six actors in formation. Click parts to select them, then Group; × dissolves a group.
+function partChip(id, group) {
+  const a = state.logo.assets[id];
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "part" + (state.logo.selected.has(id) ? " selected" : "");
+  const dot = document.createElement("i");
+  dot.style.background = a.fill || a.stroke || "#999";
+  if (group?.pivot === id) chip.title = `${group.label} rotates about this part`;
+  chip.append(...(group?.pivot === id ? ["◎ "] : []), dot, a.label && a.label !== id ? `${a.label} ` : "", Object.assign(document.createElement("code"), { textContent: id }));
+  chip.onclick = () => {
+    const sel = state.logo.selected;
+    sel.has(id) ? sel.delete(id) : sel.add(id);
+    renderParts();
+  };
+  chip.onmouseenter = () => highlight([id]);
+  chip.onmouseleave = () => highlight([]);
+  return chip;
+}
+
+function renderParts() {
+  const box = $("parts");
+  box.hidden = !state.logo;
+  highlight([]);
+  if (!state.logo) return box.replaceChildren();
+  const L = state.logo;
+  const head = document.createElement("div");
+  head.className = "parts-head";
+  head.textContent = `${L.name}: ${Object.keys(L.assets).length} parts, ${L.groups.length} group${L.groups.length === 1 ? "" : "s"}`
+    + (L.description ? ` · ${L.description}` : "");
+  const list = document.createElement("div");
+  list.className = "part-list";
+  const grouped = new Set(L.groups.flatMap((g) => g.parts));
+  for (const g of L.groups) {
+    const gbox = document.createElement("span");
+    gbox.className = "group";
+    const name = document.createElement("b");
+    name.textContent = g.label;
+    name.title = `group "${g.id}": moves as one piece. Click to add the selected parts; double-click to rename.`;
+    name.onclick = () => {
+      if (!L.selected.size || name.isContentEditable) return;
+      const add = [...L.selected].filter((p) => !g.parts.includes(p));
+      const groups = L.groups.map((h) => (h === g ? { ...h, parts: [...h.parts, ...add] } : { ...h, parts: h.parts.filter((p) => !L.selected.has(p)) }));
+      regroup(groups, `added ${add.length} part${add.length === 1 ? "" : "s"} to ${g.label}`);
+    };
+    name.ondblclick = () => {
+      name.contentEditable = "true"; name.focus();
+      document.getSelection().selectAllChildren(name);
+    };
+    // Commit on Enter or when focus leaves; blur() alone doesn't fire a blur event if the page lacks focus.
+    const commit = () => {
+      if (!name.isContentEditable) return;
+      name.contentEditable = "false";
+      const label = name.textContent.trim();
+      if (label && label !== g.label) regroup(L.groups.map((h) => (h === g ? { ...h, label } : h)), `renamed to ${label}`);
+      else name.textContent = g.label;
+    };
+    name.onkeydown = (e) => {
+      if (e.key === "Enter") { e.preventDefault(); commit(); }
+      if (e.key === "Escape") { name.textContent = g.label; commit(); }
+    };
+    name.onblur = commit;
+    name.onmouseenter = () => highlight(g.parts, g);
+    name.onmouseleave = () => highlight([]);
+    const x = Object.assign(document.createElement("button"), { type: "button", className: "ungroup", textContent: "×", title: "Dissolve this group" });
+    x.onclick = () => regroup(L.groups.filter((h) => h !== g), `dissolved ${g.label}`);
+    gbox.append(name, ...g.parts.map((id) => partChip(id, g)), x);
+    list.appendChild(gbox);
+  }
+  for (const id of Object.keys(L.assets)) if (!grouped.has(id)) list.appendChild(partChip(id));
+  box.replaceChildren(head, list, groupTools());
+  if (L.notes.length) {
+    const n = document.createElement("div");
+    n.className = "parts-notes";
+    n.textContent = `On import: ${L.notes.join("; ")}`;
+    box.appendChild(n);
+  }
+  if (L.dropped.length) {
+    const d = document.createElement("div");
+    d.className = "parts-dropped";
+    d.textContent = `Simplified on import: ${L.dropped.join("; ")}`;
+    box.appendChild(d);
+  }
+  highlight([]);
+}
+
+const subpaths = (d) => (d?.match(/[Mm]/g) || []).length;
+const button = (text, onclick, cls = "") => Object.assign(document.createElement("button"), { type: "button", className: cls, textContent: text, onclick });
+
+// What you can do with the current selection. Model groupings are a starting point: people read the same
+// artwork differently, so every grouping decision stays editable.
+function groupTools() {
+  const L = state.logo;
+  const tools = document.createElement("div");
+  tools.className = "group-tools";
+  const sel = [...L.selected];
+  const groupOf = (id) => L.groups.find((g) => g.parts.includes(id));
+  if (!sel.length) {
+    tools.className += " hint";
+    tools.textContent = "Grouped parts move as one piece. Click parts to select them; then group them, click a group's name to add them to it, take them out of their group, or split a part into its pieces. Double-click a group's name to rename it.";
+    return tools;
+  }
+  if (sel.length >= 2) {
+    const nameIn = Object.assign(document.createElement("input"), { placeholder: "new group name, e.g. sun" });
+    const go = button(`Group ${sel.length} parts`, () => {
+      const label = nameIn.value.trim() || L.assets[sel[0]].label || sel[0];
+      // a part moves to the new group; groups left with one part dissolve on the server
+      const rest = L.groups.map((g) => ({ ...g, parts: g.parts.filter((p) => !L.selected.has(p)) }));
+      regroup([...rest, { label, parts: sel }], `grouped ${label}`);
+    }, "primary");
+    nameIn.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); go.click(); } };
+    tools.append(nameIn, go);
+  }
+  const owner = sel.length === 1 && groupOf(sel[0]);
+  if (owner) {
+    const spin = button(owner.pivot === sel[0] ? `${owner.label} rotates about this part` : `Rotate ${owner.label} about this part`,
+      () => regroup(L.groups.map((g) => (g === owner ? { ...g, pivot: sel[0] } : g)), `${owner.label} now rotates about ${L.assets[sel[0]].label || sel[0]}`));
+    spin.disabled = owner.pivot === sel[0];
+    tools.append(spin);
+  }
+  const grouped = sel.filter(groupOf);
+  if (grouped.length) {
+    tools.append(button(grouped.length === 1 ? "Take out of its group" : `Take ${grouped.length} out of their groups`,
+      () => regroup(L.groups.map((g) => ({ ...g, parts: g.parts.filter((p) => !L.selected.has(p)) })), `took ${grouped.length} part${grouped.length === 1 ? "" : "s"} out`)));
+  }
+  const n = sel.length === 1 ? subpaths(L.assets[sel[0]].d) : 0;
+  if (n > 1) tools.append(button(`Split into ${n} pieces`, () => splitPart(sel[0])));
+  tools.append(button("Clear selection", () => { L.selected.clear(); renderParts(); }));
+  return tools;
+}
+
+async function splitPart(id) {
+  if (state.busy) return;
+  const L = state.logo;
+  try {
+    const r = await postJSON("/split-part", { assets: L.assets, groups: L.groups, actors: L.actors, part: id, canvas: { width: W, height: H } });
+    Object.assign(L, { assets: r.assets, groups: r.groups, actors: r.actors });
+    L.selected = new Set(r.pieces);
+    if (state.current < 0 && r.preview.tracks) player.load(r.preview.tracks);
+    renderParts();
+    setStatus(`Split ${L.assets[r.pieces[0]].label?.replace(/ 1$/, "") || id} into ${r.pieces.length} pieces (selected). Generate again to use them.`);
+  } catch (err) { setStatus(`Couldn't split: ${err.message}`, true); }
+}
+
+// Dashed boxes over parts on the stage: selected parts stay marked, hovered ones flash.
+function highlight(hovered, group) {
+  const hl = $("hl");
+  hl.replaceChildren();
+  if (!state.logo) return;
+  if (group?.pivot) { // crosshair at the rotation centre
+    const [x, y, w, h] = typeof group.pivot === "string" ? state.logo.assets[group.pivot].bbox : [...group.pivot, 0, 0];
+    const cx = x + w / 2, cy = y + h / 2;
+    hl.appendChild(el("path", { d: `M${cx - 18} ${cy}H${cx + 18}M${cx} ${cy - 18}V${cy + 18}`, class: "pivot" }));
+  }
+  const mark = (id, cls) => {
+    const [x, y, w, h] = state.logo.assets[id].bbox;
+    hl.appendChild(el("rect", { x: x - 6, y: y - 6, width: w + 12, height: h + 12, rx: 6, class: cls }));
+  };
+  for (const id of state.logo.selected) mark(id, "sel");
+  for (const id of hovered) mark(id, "hov");
+}
+
+async function regroup(groups, why) {
+  if (state.busy) return;
+  const L = state.logo;
+  try {
+    const r = await postJSON("/regroup", { assets: L.assets, groups, actors: L.actors, canvas: { width: W, height: H } });
+    L.groups = r.groups; L.actors = r.actors; L.selected.clear();
+    if (state.current < 0 && r.preview.tracks) player.load(r.preview.tracks);
+    renderParts();
+    if (why) setStatus(`${why[0].toUpperCase()}${why.slice(1)}. Generate again to use the new grouping.`);
+  } catch (err) { setStatus(`Couldn't regroup: ${err.message}`, true); }
+}
+
+// What the vision model sees: the logo exactly as the stage shows it, without the sketch layer.
+// With `marked`, each part also gets a numbered tag on its outline (set-of-marks), so the model can tell
+// which id is which shape instead of guessing from bounding boxes.
+async function renderLogoImage(marked = false) {
+  const svg = stage.cloneNode(true);
+  svg.querySelector("#ink")?.remove();
+  svg.setAttribute("width", W); svg.setAttribute("height", H);
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" }));
+  try {
+    const img = new Image();
+    await new Promise((ok, fail) => { img.onload = ok; img.onerror = () => fail(new Error("could not render the logo")); img.src = url; });
+    const c = Object.assign(document.createElement("canvas"), { width: W, height: H });
+    const g = c.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0, 0, W, H); g.drawImage(img, 0, 0, W, H);
+    if (marked) drawMarks(g);
+    return c.toDataURL("image/jpeg", 0.9);
+  } finally { URL.revokeObjectURL(url); }
+}
+
+function drawMarks(g) {
+  const placed = [];
+  Object.values(state.logo.assets).forEach((a, i) => {
+    const m = /M\s*(-?[\d.]+)[ ,]+(-?[\d.]+)/.exec(a.d || "");
+    let [x, y] = m ? [+m[1], +m[2]] : [a.bbox[0] + a.bbox[2] / 2, a.bbox[1] + a.bbox[3] / 2];
+    // nudge tags apart so neighbouring parts stay readable
+    for (let k = 0; k < 12 && placed.some(([px, py]) => Math.hypot(px - x, py - y) < 26); k++) {
+      x += 26 * Math.cos(k * 2.4); y += 26 * Math.sin(k * 2.4);
+    }
+    placed.push([x, y]);
+    g.beginPath(); g.arc(x, y, 12, 0, 7);
+    g.fillStyle = "#ffe066"; g.fill(); g.lineWidth = 2; g.strokeStyle = "#111"; g.stroke();
+    g.fillStyle = "#111"; g.font = "bold 13px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(String(i + 1), x, y + 0.5);
+  });
+}
+
+async function labelParts() {
+  const log = newRun("logo", "name and group the parts");
+  const card = callCard({ model: "nvidia/Nemotron-3.5-Super-VL", purpose: "label", think: false });
+  log.calls.appendChild(card);
+  setBusy(true, "Super VL · reading the logo…");
+  try {
+    const r = await postJSON("/label-parts", {
+      image: await renderLogoImage(), marked: await renderLogoImage(true), name: state.logo.name,
+      assets: state.logo.assets, groups: state.logo.groups,
+    });
+    if (r.call) { finishCard(card, r.call); addTotals(r.call); } else clearInterval(card._timer);
+    const v = card.querySelector(".verdict");
+    const n = Object.keys(r.labels).length;
+    v.className = `verdict ${n ? "ok" : "bad"}`;
+    const groups = r.groups ?? state.logo.groups;
+    v.textContent = n
+      ? `✓ named ${n} of ${Object.keys(state.logo.assets).length} parts` + (r.groups ? `, ${groups.length} rigid group${groups.length === 1 ? "" : "s"}: ${groups.map((g) => g.label).join(", ") || "none"}` : "")
+      : `✗ no labels (${r.error || "empty reply"}); the planner will use the file's ids and groups`;
+    for (const [id, label] of Object.entries(r.labels)) state.logo.assets[id].label = label;
+    state.logo.description = r.description;
+    setBusy(false);
+    await regroup(groups); // also puts the new labels on the actors the planner sees
+  } catch (err) {
+    clearInterval(card._timer);
+    card.querySelector(".verdict").textContent = `✗ ${err.message}`;
+  } finally { setBusy(false); }
+}
+
+async function importLogo(svgText, name) {
+  if (state.busy) return;
+  setBusy(true, "Importing logo…"); setStatus("");
+  try {
+    const r = await postJSON("/import-svg", { svg: svgText, canvas: { width: W, height: H } });
+    $("clear").onclick();
+    state.logo = { name, assets: r.assets, actors: r.actors, groups: r.groups, dropped: r.dropped, notes: r.notes || [], description: "", selected: new Set() };
+    if (r.preview.tracks) { player.load(r.preview.tracks); stage.classList.add("has-logo"); }
+    renderInk(); renderParts(); setExamples();
+    setStatus(`Imported ${name}. Draw paths over it if you like, then say what should happen.`);
+  } catch (err) { setStatus(`Couldn't import ${name}: ${err.message}`, true); setBusy(false); return; }
+  setBusy(false);
+  await labelParts();
+  $("intent").focus();
+}
+
+async function importFile(file) {
+  if (!file) return;
+  if (!/svg/i.test(file.type) && !/\.svg$/i.test(file.name)) return setStatus("Logos must be SVG files for now.", true);
+  importLogo(await file.text(), file.name);
+}
+
+$("logo-file").onchange = (e) => { importFile(e.target.files[0]); e.target.value = ""; };
+$("logo-pick").onclick = () => $("logo-file").click();
+$("logo-sample").onclick = async () => importLogo(await (await fetch("/static/samples/sunrise.svg")).text(), "sunrise.svg");
+$("logo-sample-3").onclick = async () => importLogo(await (await fetch("/static/samples/cloud-bolt-svgrepo-com.svg")).text(), "cloud-bolt-svgrepo-com.svg");
+$("logo-sample-2").onclick = async () => importLogo(await (await fetch("/static/samples/wind-energy-svgrepo-com.svg")).text(), "wind-energy-svgrepo-com.svg");
+const wrap = stage.parentElement;
+wrap.addEventListener("dragover", (e) => { e.preventDefault(); wrap.classList.add("drop"); });
+wrap.addEventListener("dragleave", () => wrap.classList.remove("drop"));
+wrap.addEventListener("drop", (e) => { e.preventDefault(); wrap.classList.remove("drop"); importFile(e.dataTransfer.files[0]); });
