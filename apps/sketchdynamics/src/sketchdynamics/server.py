@@ -259,11 +259,18 @@ def create_app(llm_factory: Callable[[], LLM] | None = None, guard: Guard | None
     app.mount("/static", StaticFiles(directory=str(static)), name="static")
 
     @app.middleware("http")
-    async def no_cache(request, call_next):  # a local tool: always serve the current UI after an upgrade
+    async def headers(request, call_next):
         resp = await call_next(request)
-        if request.method == "GET":
+        if request.method == "GET":  # a local tool: always serve the current UI after an upgrade
             resp.headers["Cache-Control"] = "no-cache"
+        # A hosted copy is meant to be "unlisted": reachable by link, never indexed. Covers what the page's
+        # <meta name="robots"> can't (scripts, samples, exports).
+        resp.headers["X-Robots-Tag"] = "noindex, nofollow"
         return resp
+
+    @app.get("/robots.txt", include_in_schema=False)
+    def robots() -> FileResponse:  # crawlers only look at the site root
+        return FileResponse(str(static / "robots.txt"), media_type="text/plain")
 
     Job = Callable[[LLM, Callable[[Attempt], None] | None], Outcome]
 

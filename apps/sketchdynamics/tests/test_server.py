@@ -437,3 +437,12 @@ def test_daily_token_budget_stops_new_model_calls():
     r = c.post("/generate", json=body)
     assert r.status_code == 429 and "budget" in r.json()["detail"]
     assert c.get("/config").json()["tokens_left_today"] == 0
+
+
+def test_hosted_copy_asks_not_to_be_indexed():
+    c, _ = client_for()
+    r = c.get("/robots.txt")
+    assert r.status_code == 200 and "Disallow: /" in r.text
+    for path in ("/", "/player.js", "/static/app.js", "/healthz"):
+        assert c.get(path).headers["x-robots-tag"] == "noindex, nofollow", path
+    assert '<meta name="robots" content="noindex, nofollow">' in c.get("/").text
