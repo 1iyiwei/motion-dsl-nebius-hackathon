@@ -11,6 +11,8 @@ dependencies = ["pydantic>=2.7", "numpy>=1.26"]
 [project.optional-dependencies]
 # LLM generate/repair/edit loop against an OpenAI-compatible endpoint (Nebius Token Factory).
 agent = ["openai>=1.40"]
+# motionlang.testing: the verb contract suite for plugin authors.
+testing = ["pytest>=8", "hypothesis>=6.100"]
 
 [project.scripts]
 motionlang = "motionlang.cli:main"

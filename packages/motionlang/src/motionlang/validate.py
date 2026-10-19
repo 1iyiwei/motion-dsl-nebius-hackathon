@@ -132,7 +132,10 @@ def check_noops(baked: Baked) -> list[Issue]:
             continue
         start = ev.from_state(lf)
         moved = False
-        for u in (0.0, 0.25, 0.5, 0.75, 1.0):
+        # Every frame (at least 32 samples): a coarse grid can land on an oscillation's zero crossings.
+        n = max(32, math.ceil(lf.duration * baked.fps))
+        for k in range(n + 1):
+            u = k / n
             vals = ev.sample_at(lf, b.ease(u) if b.verb.uses_ease else u, u * lf.duration)
             for prop, v in vals.items():
                 if prop in COLOR_PROPS:

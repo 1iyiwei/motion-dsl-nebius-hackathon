@@ -264,7 +264,7 @@ class Bounce(Verb):
 
 `sample(p, u, t, ctx)` gets progress `u ∈ [0, 1]` (already eased if `uses_ease`), local time `t` in seconds, and a context: `ctx.start` (the composed values of its props just before it starts), `ctx.t0`, `ctx.duration`, `ctx.value(actor, prop, t)` (read other actors), and `ctx.path(spec)` (resolved, arc-length-parameterized paths). abs verbs return values; rel verbs return deltas.
 
-Every verb must pass the generic **contract test suite** (`tests/test_contract.py`, run in Token Factory Sandboxes by MotionHarness):
+Every verb must pass the generic **contract test suite**. It ships in the package as `motionlang.testing.contract` (`pip install motionlang[testing]`): a plugin's test module runs it with `from motionlang.testing.contract import *`, and `MOTIONLANG_CONTRACT_VERB=<name>` limits it to one verb. MotionHarness runs it in Token Factory Sandboxes. It checks:
 
 1. **Valid + deterministic**: each example validates on a default actor (so it must visibly change something, or it fails as `E_NOOP`), and baking twice gives identical tracks.
 2. **Identity at start**: a rel verb returns 0 at u=0; an abs verb returns `ctx.start` at u=0 (unless `jumps_at_start`).

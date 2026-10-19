@@ -118,7 +118,7 @@ The importer flattens transforms, converts circles, rects, polygons and arcs to 
 - **Composition rule**: absolute verbs set a value and relative verbs add on top. Two absolute verbs fighting over the same property at the same time is an error (`E_CONFLICT`), never a silent heuristic.
 - **No surprise jumps**: absolute verbs start from the current value. If one would make an actor teleport, you get `E_DISCONTINUITY` with a fix.
 - **One source of truth**: Python resolves timing, samples, and checks constraints. Players just play the baked tracks.
-- **Extensible**: verbs are plugins (`motionlang.verbs` entry point). Any verb that passes the generic contract suite in `tests/test_contract.py` (deterministic, identity at start, continuous, bounded, schema round-trip) is a valid MotionLang verb.
+- **Extensible**: verbs are plugins (`motionlang.verbs` entry point). Any verb that passes the generic contract suite in `motionlang.testing.contract` (`pip install motionlang[testing]`, then `from motionlang.testing.contract import *` in a test module; `MOTIONLANG_CONTRACT_VERB=name` checks one verb) (deterministic, identity at start, continuous, bounded, schema round-trip) is a valid MotionLang verb.
 
 ## Verbs (v0.1)
 

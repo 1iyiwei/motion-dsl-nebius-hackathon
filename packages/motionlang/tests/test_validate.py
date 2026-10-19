@@ -186,3 +186,41 @@ def test_noop_verb_is_an_error_with_a_start_pose_hint(doc_factory):
     assert check(doc).ok
     orbit = doc_factory({"id": "o", "verb": "orbit", "actor": "a", "center": [400, 300]})  # ends where it began, but moves
     assert check(orbit).ok
+
+
+def test_oscillating_verb_sampled_at_its_zero_crossings_is_not_a_noop(doc_factory):
+    """A damped swing whose zero crossings fall on u = 0, .25, .5, .75, 1 still moves (MotionHarness report)."""
+    import math
+
+    from pydantic import Field
+
+    from motionlang.verbs import base
+    from motionlang.verbs.base import Verb, VerbParams
+
+    class SwingParams(VerbParams):
+        amplitude: float = Field(20.0)
+
+    class Swing(Verb):
+        """Damped pendulum swing (test only)."""
+
+        name = "test.swing"
+        Params = SwingParams
+        uses_ease = False
+        examples = [{"duration": 4}]
+
+        def mode(self, p):
+            return "rel"
+
+        def props(self, p):
+            return ("rotation",)
+
+        def sample(self, p, u, t, ctx):
+            return {"rotation": p.amplitude * math.exp(-0.5 * t) * math.sin(math.pi * t)}  # zero at t = 0, 1, 2, 3, 4
+
+    registry = base.load_plugins()
+    registry["test.swing"] = Swing()
+    try:
+        doc = doc_factory({"id": "s", "verb": "test.swing", "actor": "a", "duration": 4}, requires=["test.swing"])
+        assert "E_NOOP" not in {e.code for e in check(doc).report.errors}
+    finally:
+        registry.pop("test.swing")

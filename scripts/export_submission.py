@@ -37,6 +37,9 @@ PRIVATE_PATTERNS = [
     (r"(?i)feedback log", "points to the private feedback log"),
     (r"(?i)motionharness|canvasmind", "mentions an unreleased project"),
 ]
+# How each app starts, for the export's root README (default: `uv run <app>` on port 8765).
+APP_RUN = {"motionharness": ("uv run motionharness serve", "opens http://127.0.0.1:8766/")}
+APP_EXTRAS = {"motionharness": "[sandboxes]"}  # optional extras the export installs
 
 
 def run(cmd: list[str], cwd: Path, quiet: bool = False) -> subprocess.CompletedProcess:
@@ -78,7 +81,7 @@ def root_pyproject(app: str) -> str:
 name = "{app}-workspace"
 version = "0.0.0"
 requires-python = ">=3.11"
-dependencies = ["motionlang[agent]", "{app}"]
+dependencies = ["motionlang[agent]", "{app}{APP_EXTRAS.get(app, "")}"]
 
 [dependency-groups]
 dev = ["pytest>=8", "hypothesis>=6.100", "jsonschema>=4.22", "httpx>=0.27"]
@@ -101,9 +104,12 @@ markers = ["live: calls the real Token Factory API (run with RUN_LIVE=1)"]
 
 def root_readme(app: str, title: str, blurb: str) -> str:
     steps = [("uv sync", ""), (f"cp apps/{app}/.env.example .env", "then add your NEBIUS_API_KEY"),
-             (f"uv run {app}", "opens http://127.0.0.1:8765/"), ("uv run pytest", "tests use a scripted model: no key needed")]
+             APP_RUN.get(app, (f"uv run {app}", "opens http://127.0.0.1:8765/")), ("uv run pytest", "tests use a scripted model: no key needed")]
     width = max(len(c) for c, _ in steps) + 2
     cmds = "\n".join(f"{c:<{width}}# {n}" if n else c for c, n in steps)
+    samples_readme = ROOT / "apps" / app / "src" / app / "static" / "samples" / "README.md"
+    samples = ("" if not samples_readme.exists() else
+               f" Third-party sample artwork is listed with its license in\n[`apps/{app}/src/{app}/static/samples/README.md`](apps/{app}/src/{app}/static/samples/README.md).")
     return f"""# {title}
 
 {blurb}
@@ -118,12 +124,11 @@ def root_readme(app: str, title: str, blurb: str) -> str:
 {cmds}
 ```
 
-License: Apache-2.0 (see [LICENSE](LICENSE)). Third-party sample artwork is listed with its license in
-[`apps/{app}/src/{app}/static/samples/README.md`](apps/{app}/src/{app}/static/samples/README.md).
+License: Apache-2.0 (see [LICENSE](LICENSE)).{samples}
 """
 
 
-def scan(dest: Path) -> list[str]:
+def scan(dest: Path, app: str = "") -> list[str]:
     found = []
     for p in sorted(dest.rglob("*")):
         if not p.is_file() or ".git" in p.parts or ".venv" in p.parts or p.suffix in {".svg", ".lock"}:
@@ -136,6 +141,8 @@ def scan(dest: Path) -> list[str]:
         for patterns, kind in ((SECRET_PATTERNS, "SECRET?"), (PRIVATE_PATTERNS, "private")):
             for rx, what in patterns:
                 for m in re.finditer(rx, text):
+                    if kind == "private" and app and m.group(0).lower() == app.lower():
+                        continue  # the exported app may name itself
                     line = text.count("\n", 0, m.start()) + 1
                     found.append(f"{kind:8} {rel}:{line}: {what}: {text.splitlines()[line - 1].strip()[:110]}")
     return list(dict.fromkeys(found))  # one report per line and kind
@@ -185,7 +192,7 @@ def main() -> None:
     if MARKER not in gitignore:
         (dest / ".gitignore").write_text(gitignore.rstrip() + f"\n{MARKER}\n")
 
-    findings = scan(dest)
+    findings = scan(dest, args.app)
 
     if not args.no_verify:
         print("verifying: uv lock / sync / pytest in the export …")

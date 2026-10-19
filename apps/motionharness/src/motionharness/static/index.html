@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MotionHarness</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">◆</span> MotionHarness <span class="sub">a coding agent for MotionLang verbs · Nemotron on Nebius Token Factory</span></div>
+  <div class="infobar" id="info"></div>
+</header>
+
+<main class="layout">
+  <aside class="side">
+    <form id="new" class="card">
+      <label for="task" class="lbl">New verb</label>
+      <textarea id="task" rows="4" placeholder="add a `spring_follow` verb: the actor chases a target with spring physics"></textarea>
+      <div class="chips" id="examples"></div>
+      <div class="row">
+        <label>candidates <input id="ncand" type="number" min="1" max="5" value="3"></label>
+        <label>repair rounds <input id="nrounds" type="number" min="0" max="5" value="3"></label>
+      </div>
+      <div class="row">
+        <label>models <select id="models">
+          <option value="">Super ×N</option>
+          <option value="super,super,ultra">Super, Super, Ultra</option>
+          <option value="ultra">Ultra ×N</option>
+        </select></label>
+        <label class="check"><input id="critique" type="checkbox" checked> vision critique</label>
+      </div>
+      <button type="submit" id="go">Write, test &amp; critique</button>
+    </form>
+    <div class="card runs">
+      <div class="lbl">Runs</div>
+      <ul id="runs"></ul>
+    </div>
+  </aside>
+
+  <section class="main" id="main">
+    <div class="empty" id="empty">
+      <h2>Describe a verb. Get a tested plugin.</h2>
+      <p>MotionHarness has Nemotron write several candidate implementations of a new MotionLang verb, runs the generic
+        contract suite and the candidate's own tests in a sandbox branched from one checkpoint, renders the motion for
+        Nemotron VL to critique, repairs what fails, and ships an installable plugin package with a diff, a test report
+        and a preview.</p>
+    </div>
+
+    <div id="run" hidden>
+      <div class="runhead">
+        <div>
+          <div class="verb" id="r-verb"></div>
+          <div class="desc" id="r-desc"></div>
+        </div>
+        <div class="stats" id="r-stats"></div>
+      </div>
+
+      <div class="card tree-card">
+          <div class="lbl">Branch tree <span class="hint">every candidate is a sandbox run branched from a checkpoint; click one</span></div>
+          <svg id="tree" class="tree"></svg>
+          <div class="legend">
+            <span><i class="dot passed"></i>passed</span><span><i class="dot failed"></i>failed</span>
+            <span><i class="dot running"></i>running</span><span><i class="dot winner"></i>shipped</span>
+          </div>
+      </div>
+
+      <div class="grid">
+      <div class="card detail" id="detail">
+        <div class="tabs" id="tabs">
+          <button data-tab="tests" class="on">Tests</button>
+          <button data-tab="motion">Motion</button>
+          <button data-tab="code">Code</button>
+          <button data-tab="diff">Diff</button>
+          <button data-tab="ship">Ship</button>
+        </div>
+        <div class="dhead" id="d-head"></div>
+        <div class="pane" id="p-tests"></div>
+        <div class="pane" id="p-motion" hidden></div>
+        <div class="pane" id="p-code" hidden></div>
+        <div class="pane" id="p-diff" hidden></div>
+        <div class="pane" id="p-ship" hidden></div>
+      </div>
+        <div class="card log-card">
+          <div class="lbl">Agent log</div>
+          <ol id="log" class="log"></ol>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="lbl">Model calls <span class="hint">every Token Factory request: model, latency, tokens</span></div>
+        <svg id="calls" class="calls"></svg>
+        <table class="ctable" id="ctable"></table>
+      </div>
+    </div>
+  </section>
+</main>
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

@@ -38,11 +38,9 @@ Decided Oct 19: host on **Render** from this repo, and point a DreamHost subdoma
 
 ### Custom domain (DreamHost DNS)
 
-Live Oct 19: <https://sketch-dynamics.dragoniac.com> → `sketch-dynamics-nebius-hackathon.onrender.com`.
-
-1. Render service → **Settings → Custom Domains** → add `sketch-dynamics.dragoniac.com`. Verification fails until step 2 is done, which is expected.
-2. DreamHost: **don't** add the subdomain as its own entry in the panel, not even as "DNS only". A subdomain entry becomes its own zone, and its DNS page only adds records *under* it (the host field ends in `.sketch-dynamics.dragoniac.com`), so a CNAME for the name itself is impossible. Instead, open the DNS settings of the parent `dragoniac.com` and add a **CNAME** with host `sketch-dynamics`, pointing to `sketch-dynamics-nebius-hackathon.onrender.com`. Delete the subdomain entry first if you already made one.
-3. Check from a terminal: `dig +short CNAME sketch-dynamics.dragoniac.com` should print the onrender host, and `dig +short AAAA …` nothing. `dragoniac.com` has no CAA records, so certificates aren't restricted.
+1. DreamHost: **don't** add the subdomain as its own entry in the panel, not even as "DNS only". A subdomain entry becomes its own zone, and its DNS page only adds records *under* it (the host field ends in `.project-name.placeholder.com`), so a CNAME for the name itself is impossible. Instead, open the DNS settings of the parent `placeholder.com` and add a **CNAME** with host `project-name`, pointing to the onrender.com server URL. Delete the subdomain entry first if you already made one.
+2. Render service → **Settings → Custom Domains** → add `project-name.placeholder.com`. Verification fails until step 1 is done, which is expected.
+3. Check from a terminal: `dig +short CNAME project-name.placeholder.com` should print the onrender host, and `dig +short AAAA …` nothing. `placeholder.com` has no CAA records, so certificates aren't restricted.
 4. In Render, press **Verify**. The HTTPS certificate followed within minutes. HTTPS matters: browsers allow the mic only on secure pages.
 
 ### Snags we hit

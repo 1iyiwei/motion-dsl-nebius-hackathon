@@ -10,7 +10,7 @@ The single repo for all Nebius x NVIDIA Global AI Hackathon submissions (deadlin
 | --- | --- | --- |
 | `packages/motionlang/` | **MotionLang**, the DSL: spec, schema, validator, baker, exporters | (shared library) |
 | `apps/sketchdynamics/` | Sketch + talk → animation app (`uv run sketchdynamics`) | Best Apps & Agents |
-| `apps/motionharness/` (planned) | Coding agent that writes and tests MotionLang verbs/exporters in Token Factory Sandboxes | Coding & Agentic Engineering |
+| `apps/motionharness/` | Coding agent that writes, tests (Token Factory Sandboxes) and critiques (Nemotron VL) MotionLang verb plugins; CLI, dashboard (`uv run motionharness serve`), MCP | Coding & Agentic Engineering |
 | `apps/canvasmind/` (planned) | Private creative-memory assistant (Hermes Agent + OpenShell/NemoClaw) | Personal AI |
 | `apps/embodiedsketcher/` (maybe) | Sketches → robot/edge-agent motion, only if time allows | Physical AI |
 
@@ -41,6 +41,9 @@ uv run motionlang generate "INTENT" -o out/x.motion.json --preview out/x.html   
 uv run motionlang tweak out/x.motion.json "slower" -o out/y.motion.json        # fast edit path
 RUN_LIVE=1 uv run pytest -m live          # live Token Factory test (costs tokens)
 python3 scripts/export_submission.py sketchdynamics   # public, self-contained copy of one app → ../sketchdynamics-public
+uv run motionharness new-verb "add a \`pendulum\` verb: …"   # write/test/critique a verb plugin → out/motionharness/<run>/plugin
+uv run motionharness serve                # MotionHarness dashboard (port 8766)
+uv run motionharness sandbox-check --run  # Token Factory Sandboxes access (needs NEBIUS_PROJECT_ID)
 ```
 
 ## motionlang architecture
@@ -59,7 +62,7 @@ importers/   svg.py: SVG → assets (transforms flattened, arcs → cubics) + su
 agent/       LLM loop (optional extra `agent`): llm.py client + telemetry, prompts.py, loop.py generate/tweak
 ```
 
-Adding a verb: subclass `Verb` in a module, decorate with `@register`, expose the module via the `motionlang.verbs` entry point, and give it `examples`. The contract tests in `tests/test_contract.py` run automatically over every registered verb.
+Adding a verb: subclass `Verb` in a module, decorate with `@register`, expose the module via the `motionlang.verbs` entry point, and give it `examples`. The contract suite (`motionlang.testing.contract`, run by `packages/motionlang/tests/test_contract.py`) runs automatically over every registered verb; `MOTIONLANG_CONTRACT_VERB=<name>` limits it to one.
 
 ## Conventions
 
