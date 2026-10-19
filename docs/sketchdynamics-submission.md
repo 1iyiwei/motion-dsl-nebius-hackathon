@@ -54,7 +54,9 @@ SketchDynamics is a thin, inspectable app on top of **MotionLang**, a declarativ
 3. **SVG + prompt.** The importer splits the file into parts (it breaks up compound paths and keeps holes with their shapes). **Nemotron 3.5 Super VL** gets two renderings, a clean one and one with each part numbered, and names every part, groups parts that move as one rigid piece (a rotor with its hub as the pivot), and suggests three animation ideas, the first of which pre-fills the prompt. You can regroup, rename, split parts or move the pivot by hand. The path data never goes to any model: models see part ids, labels, boxes and colours, so a detailed logo costs no more tokens than a simple one.
 4. **SVG + sketch.** Draw a motion path over an imported logo ("the bolt zigzags down along my line while the cloud stays still"). Strokes always mean canvas space, so a part inside a group follows the line exactly where it was drawn, whatever its group's position.
 
-**The app** is FastAPI plus vanilla JS with no build step. You sketch on a canvas, dictate with the browser's speech recognition, and import SVGs by drag and drop. A side panel streams every model call live: model, latency, tokens, and the validator verdict with the exact problems sent back for repair. Exports are a standalone HTML player or the MotionLang JSON. 273 tests run against a scripted fake model, so the loop is tested without spending tokens.
+**Objects without a shape.** The planner draws balls, boxes and text from basic shapes, so "a crystal drops from the sky" used to play as a ball. Before planning, **Nano** lists the objects a request shows that nothing on the canvas draws yet. For each one the app looks in its shape library, then searches the web with **Tavily**, restricted to icon sites with reusable files (SVG Repo, Wikimedia Commons). **Super VL** scores all candidates at once from a numbered grid, and if none reads well, **Super** draws a flat SVG icon and redraws it once with VL's critique. The user picks one, and it joins the scene as imported parts, so every mode above works with it. Found and drawn SVGs alike are reduced to plain paths by the importer, so nothing from the web runs in the page, and a pick can be saved to the library with its source and license.
+
+**The app** is FastAPI plus vanilla JS with no build step. You sketch on a canvas, dictate with the browser's speech recognition or write the prompt into the text box, and import SVGs by drag and drop. A side panel streams every model call live: model, latency, tokens, and the validator verdict with the exact problems sent back for repair. Exports are a standalone HTML player or the MotionLang JSON. 288 tests run against a scripted fake model (and a fake Tavily), so the loop is tested without spending tokens.
 
 **Relation to MoVer and LogoMotion.** LogoMotion has an LLM write animation *code* (JavaScript) and debug it by looking at rendered frames. MoVer verifies motion graphics against the prompt with a first-order-logic language. MotionLang sits between them. Like LogoMotion, we visually ground the artwork first (VL names, rigs and proposes motion). But the model writes a *constrained declarative program*, not code, so most failures are caught structurally before anything renders, with exact, machine-readable fixes. MoVer-style intent verification is the next layer: it would catch plans that are valid but miss the request.
 
@@ -83,7 +85,7 @@ Motion DSL really anchors the generation and validation process.
 
 #### What's next
 
-Try to make this a real product!
+Turn this prototype into a real product!
 
 <!--
 - MotionHarness as a coding agent/copilot for anyone who wants to build their own animation authoring tools.
@@ -94,7 +96,7 @@ Try to make this a real product!
 You can add up to 25 tags.
 Languages, frameworks, platforms, cloud services, databases, APIS, etc.
 
-python, javascript, fastapi, uvicorn, pydantic, numpy, svg, web-speech-api, uv, pytest, nvidia-nemotron, nemotron-3-super, nemotron-3-ultra, nemotron-3-nano, nemotron-3.5-super-vl, nebius-token-factory, openai-api, json-schema
+python, javascript, fastapi, uvicorn, pydantic, numpy, svg, web-speech-api, uv, pytest, nvidia-nemotron, nemotron-3-super, nemotron-3-ultra, nemotron-3-nano, nemotron-3.5-super-vl, nebius-token-factory, openai-api, json-schema, tavily
 
 "Try it out" links
 Add links where people can try your project or see your code.
@@ -125,6 +127,8 @@ individual, team, organization
 
 * Organization Name (if applicable)
 "N/A" if you're not representing an organization
+
+Dragoniac
 
 * Submitter Country of Residence
 Appears in project gallery
@@ -158,8 +162,9 @@ e.g., Nemotron-4 340B, Nemotron-Mini, etc.
 Four Nemotron models, one per job, all through Nebius Token Factory:
 - **Nemotron 3 Super 120B-A12B** is the default planner. With structured output constrained to our JSON Schema, it was the most reliable planner we measured on logo scenes (6/6 valid after at most two cheap repairs), at lower cost than Ultra.
 - **Nemotron 3 Ultra 550B-A55B** is the stronger fallback planner, one click away ("Retry with Ultra"). It's best at hard multi-step plans in plain JSON mode.
-- **Nemotron 3 Nano 30B-A3B**, with reasoning turned off, handles fast edits ("slower", "more bounce") as a few edit ops in 1–3 s. It escalates to reasoning, then to the planner, only when needed.
-- **Nemotron 3.5 Super VL** reads imported artwork: it names parts, groups rigid pieces, picks rotation pivots and suggests animations, in 2–4 s.
+- **Nemotron 3 Nano 30B-A3B**, with reasoning turned off, handles fast edits ("slower", "more bounce") as a few edit ops in 1–3 s. It escalates to reasoning, then to the planner, only when needed. It also spots objects a request needs a drawing for (about 1 s).
+- **Nemotron 3.5 Super VL** reads imported artwork: it names parts, groups rigid pieces, picks rotation pivots and suggests animations, in 2–4 s. It also scores candidate shapes found on the web from one numbered grid image.
+- Super also draws a simple SVG icon when no found shape fits, in about 3 s.
 
 * How would you rate Nemotron's output quality for your use case? (1 = Poor, 10 = Excellent)
 Please share what worked well or fell short — e.g., reasoning, instruction-following, domain knowledge, multilingual support.
@@ -213,7 +218,7 @@ Please share why or provide additional feedback.
 
 * Did you use Tavily in your project?
 To qualify: your project must make a functional, runtime call to the Tavily API as part of its solution.
-No
+Yes. When a prompt names an object the planner can't draw from basic shapes ("a crystal drops from the sky"), and the app's shape library has none, the server calls Tavily's search API at runtime, restricted to icon sites (`include_domains`: svgrepo.com, commons.wikimedia.org), to find SVG files of it. The app fetches and sanitizes them, Nemotron VL ranks them, and the user picks one to animate. The side panel shows the Tavily step with its result counts. Code: `apps/sketchdynamics/src/sketchdynamics/shapes.py` (`WebSearch`).
 
 Builders & Brews - IRL Events City
 If you're attending one of the 20 participating IRL hackathon events, select your city to be eligible for the City Winner Award.

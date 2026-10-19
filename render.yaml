@@ -13,6 +13,8 @@ services:
         value: "3.12.7"
       - key: NEBIUS_API_KEY
         sync: false
+      - key: TAVILY_API_KEY  # web search for shapes; without it the picker uses the library and Nemotron's drawings
+        sync: false
       - key: SKETCHDYNAMICS_ACCESS_CODE  # share with judges in the submission's "additional info"
         sync: false
       - key: SKETCHDYNAMICS_RATE_LIMIT  # model requests per visitor per hour
@@ -21,3 +23,5 @@ services:
         value: "2000000"
       - key: SKETCHDYNAMICS_BEHIND_PROXY  # Render's proxy sets X-Forwarded-For
         value: "1"
+      - key: SKETCHDYNAMICS_SAVE_SHAPES  # the disk is shared by all visitors and reset on deploy
+        value: "0"

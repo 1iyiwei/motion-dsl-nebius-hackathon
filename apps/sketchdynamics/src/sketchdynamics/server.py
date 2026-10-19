@@ -6,6 +6,7 @@ POST /bake        {doc}                       validate + bake only, no model (e.
 POST /import-svg  {svg}                       a user's logo → MotionLang assets + suggested actors + a still preview
 POST /label-parts {image, assets, groups?}    Nemotron VL names each logo part and groups parts that move as one
 POST /regroup     {assets, groups, actors?}   a grouping (VL's or the user's) → actor tree + still preview
+POST /shapes/*    objects without a shape → library / web (Tavily) / Nemotron-drawn SVGs; see shapes.py
 
 /generate and /tweak take `?stream=1` and then answer with NDJSON events: `call_start` when a model call
 begins, `attempt` once its reply has been validated, then the final `result`. The side panel fills in live.
@@ -19,10 +20,12 @@ import os
 import re
 import queue
 import threading
+import time
 import webbrowser
 from collections.abc import Callable, Iterator
 from importlib import resources
-from typing import Any, Literal
+from pathlib import Path
+from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
@@ -37,6 +40,7 @@ from motionlang.preview import player_js_path, preview_html
 
 from .guard import Guard
 from .grouping import build_actors, groups_from_actors, normalize_groups, part_opacity, split_part
+from .shapes import Candidate, Library, WebSearch, clean_svg, draw_messages, judge_messages, needed_messages, parse_objects, parse_scores, placed_parts
 
 EDITOR_KINDS = {"edit", "edit-repair"}  # every other attempt kind (generate, repair, repair-edit, regenerate) is the planner's
 
@@ -112,6 +116,48 @@ class RegroupRequest(BaseModel):
     groups: list[dict[str, Any]] = []
     actors: list[dict[str, Any]] = []  # the current actors, to keep imported part opacities
     canvas: Canvas = Canvas()
+
+
+class NeededRequest(BaseModel):
+    intent: str = Field(min_length=1, max_length=2000)
+    have: list[str] = Field([], max_length=200)  # names of what's already on the canvas
+
+
+ShapeName = Annotated[str, Field(min_length=1, max_length=40)]
+
+
+class FindRequest(BaseModel):
+    name: ShapeName
+
+
+class JudgeRequest(BaseModel):
+    name: ShapeName
+    image: str = Field(pattern=r"^data:image/(png|jpeg);base64,")  # the candidates in a numbered grid
+    count: int = Field(ge=1, le=12)
+
+
+class DrawRequest(BaseModel):
+    name: ShapeName
+    feedback: str = Field("", max_length=500)  # the VL reviewer's note on the previous drawing
+    previous: str = Field("", max_length=50_000)
+
+
+class PlaceRequest(BaseModel):
+    name: ShapeName
+    svg: str = Field(min_length=1, max_length=500_000)
+    assets: dict[str, dict[str, Any]] = {}
+    groups: list[dict[str, Any]] = []
+    actors: list[dict[str, Any]] = []
+    canvas: Canvas = Canvas()
+
+
+class SaveRequest(BaseModel):
+    name: ShapeName
+    svg: str = Field(min_length=1, max_length=500_000)
+    source: str = Field("nemotron", max_length=20)
+    page_url: str = Field("", max_length=500)
+    license: str = Field("", max_length=80)
+    credit: str = Field("", max_length=80)
 
 
 MAX_LABELLED_PARTS = 60
@@ -249,13 +295,24 @@ def spent(llm: LLM) -> int:
     return sum(c.prompt_tokens + c.completion_tokens for c in llm.calls)
 
 
-def create_app(llm_factory: Callable[[], LLM] | None = None, guard: Guard | None = None) -> FastAPI:
+_FROM_ENV: Any = object()
+
+
+def create_app(
+    llm_factory: Callable[[], LLM] | None = None, guard: Guard | None = None,
+    web: WebSearch | None = _FROM_ENV, library: Library | None = None,
+) -> FastAPI:
     """`llm_factory` builds a fresh LLM per request; tests pass one with a scripted backend.
-    `guard` limits model calls for a hosted copy (default: from SKETCHDYNAMICS_* env vars, all off)."""
+    `guard` limits model calls for a hosted copy (default: from SKETCHDYNAMICS_* env vars, all off).
+    `web` finds SVGs online (default: Tavily when TAVILY_API_KEY is set); `library` is where shapes are kept
+    (default: static/samples, writable unless SKETCHDYNAMICS_SAVE_SHAPES=0)."""
     make_llm = llm_factory or LLM
     guard = guard or Guard.from_env()
-    app = FastAPI(title="SketchDynamics")
+    web = WebSearch.from_env() if web is _FROM_ENV else web
     static = resources.files("sketchdynamics") / "static"
+    library = library or Library(Path(str(static / "samples")),
+                                 writable=os.environ.get("SKETCHDYNAMICS_SAVE_SHAPES", "1") not in ("0", "false", "no"))
+    app = FastAPI(title="SketchDynamics")
     app.mount("/static", StaticFiles(directory=str(static)), name="static")
 
     @app.middleware("http")
@@ -319,7 +376,7 @@ def create_app(llm_factory: Callable[[], LLM] | None = None, guard: Guard | None
     @app.get("/config")
     def get_config() -> dict[str, Any]:
         """What the UI needs to know about this deployment's limits."""
-        return guard.status()
+        return {**guard.status(), "web_search": web is not None, "save_shapes": library.writable}
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -423,6 +480,102 @@ def create_app(llm_factory: Callable[[], LLM] | None = None, guard: Guard | None
         suggestions = [" ".join(x.split())[:240] for x in raw_ideas if isinstance(x, str) and x.strip()][:3]
         return JSONResponse({"labels": labels, "groups": groups, "suggestions": suggestions,
                              "description": str(reply.get("description", ""))[:300], "call": call_json(call)})
+
+    # ---------- shapes for objects the planner can't draw ----------
+
+    def model_call(role: str, purpose: str, messages: list[dict[str, Any]], **kw: Any) -> tuple[str, Call]:
+        llm = llm_for(planner_models(None)) if role == "planner" else make_llm()
+        try:
+            return llm.json(role, purpose, messages, **kw)
+        except Exception as e:
+            raise HTTPException(502, detail=f"{type(e).__name__}: {e}") from e
+        finally:
+            guard.spend(spent(llm))
+
+    @app.post("/shapes/needed")
+    def post_shapes_needed(req: NeededRequest, request: Request):
+        """Nano lists the objects a request shows that have no shape yet ("a crystal falls" → ["crystal"])."""
+        guard.check(request)
+        text, call = model_call("editor", "objects", needed_messages(req.intent, req.have), think=False, max_tokens=300, temperature=0.1)
+        try:
+            objects = parse_objects(extract_json_text(text))
+        except ValueError:
+            objects = []
+        have = {h.lower() for h in req.have}
+        return {"objects": [o for o in objects if o not in have], "call": call_json(call)}
+
+    @app.post("/shapes/find")
+    def post_shapes_find(req: FindRequest, request: Request):
+        """The library first; the web (Tavily) only when the library has nothing for this name."""
+        found = library.find(req.name)
+        if found:
+            return {"candidates": [c.to_json() for c in found], "searched": "library", "web": None}
+        if web is None:
+            return {"candidates": [], "searched": "library", "web": None,
+                    "note": "web search is off (no TAVILY_API_KEY): Nemotron can draw one"}
+        guard.check(request)
+        t0 = time.monotonic()
+        try:
+            cands, stats = web.search(req.name)
+        except Exception as e:  # the web is optional: drawing still works
+            return {"candidates": [], "searched": "web", "web": None, "note": f"web search failed ({type(e).__name__}): Nemotron can draw one"}
+        return {"candidates": [c.to_json() for c in cands], "searched": "web",
+                "web": {**stats, "seconds": round(time.monotonic() - t0, 2), "domains": ["svgrepo.com", "commons.wikimedia.org"]}}
+
+    @app.post("/shapes/judge")
+    def post_shapes_judge(req: JudgeRequest, request: Request):
+        """Nemotron VL scores the candidates (shown as one numbered grid) for how well they read as the object."""
+        guard.check(request)
+        text, call = model_call("vision", "judge", judge_messages(req.name, req.image, req.count), think=False, max_tokens=800, temperature=0.1)
+        try:
+            scores = parse_scores(extract_json_text(text), req.count)
+        except ValueError:
+            scores = parse_scores("{}", req.count)
+        return {"scores": scores, "call": call_json(call)}
+
+    @app.post("/shapes/draw")
+    def post_shapes_draw(req: DrawRequest, request: Request):
+        """The planner model writes a flat SVG icon; if the importer can't use it, it gets one retry with the reason."""
+        guard.check(request)
+        calls, error, svg = [], "", ""
+        for _ in range(2):
+            text, call = model_call("planner", "draw", draw_messages(req.name, req.feedback, req.previous, error), think=False, max_tokens=6000, temperature=0.4)
+            calls.append(call_json(call))
+            try:
+                raw = json.loads(extract_json_text(text))
+                raw = raw.get("svg", "") if isinstance(raw, dict) else ""
+                svg, parts = clean_svg(raw if isinstance(raw, str) else "")
+                break
+            except ValueError as e:
+                error, svg = str(e)[:300], ""
+        if not svg:
+            return {"candidate": None, "calls": calls, "error": f"the drawing couldn't be used: {error}"}
+        cand = Candidate(f"draw:{len(calls)}", req.name, req.name, "nemotron", svg, parts,
+                         license="Apache-2.0", license_verified=True, credit="Nemotron")
+        return {"candidate": cand.to_json(), "calls": calls}
+
+    @app.post("/shapes/place")
+    def post_shapes_place(req: PlaceRequest):
+        """Add the chosen shape to the scene as parts (one rigid group if it has several), beside what's there."""
+        canvas = req.canvas.model_dump()
+        try:
+            parts, opacity, group = placed_parts(req.svg, req.name, req.assets, (canvas["width"], canvas["height"]))
+        except ValueError as e:
+            raise HTTPException(422, detail=str(e)) from e
+        assets = {**req.assets, **parts}
+        groups = [*req.groups, *([group] if group else [])]
+        logo = grouped_logo(assets, groups, canvas, {**part_opacity(req.actors), **opacity})
+        return JSONResponse({"assets": assets, "added": list(parts), **logo})
+
+    @app.post("/shapes/save")
+    def post_shapes_save(req: SaveRequest):
+        try:
+            file = library.save(req.name, req.svg, license=req.license, source=req.source, page_url=req.page_url, credit=req.credit)
+        except PermissionError as e:
+            raise HTTPException(403, detail=str(e)) from e
+        except ValueError as e:
+            raise HTTPException(422, detail=str(e)) from e
+        return {"file": file}
 
     return app
 

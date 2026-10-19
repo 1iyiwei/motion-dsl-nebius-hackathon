@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sketchdynamics-dev",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "sketchdynamics", "--port", "8766", "--no-browser"],
+      "port": 8766
+    }
+  ]
+}

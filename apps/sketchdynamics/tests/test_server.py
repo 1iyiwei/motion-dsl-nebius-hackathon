@@ -392,7 +392,8 @@ def guarded(guard: Guard, *replies: str) -> TestClient:
 
 def test_everything_is_open_by_default():
     c, _ = client_for(json.dumps(DOC))
-    assert c.get("/config").json() == {"access_required": False, "rate_limit_per_hour": None, "tokens_left_today": None}
+    config = c.get("/config").json()
+    assert {k: config[k] for k in ("access_required", "rate_limit_per_hour", "tokens_left_today")} == {"access_required": False, "rate_limit_per_hour": None, "tokens_left_today": None}
     assert c.post("/generate", json={"intent": "x", "strokes": STROKES}).status_code == 200
     assert c.get("/healthz").json() == {"status": "ok"}
 

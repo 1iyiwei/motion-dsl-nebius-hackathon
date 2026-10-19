@@ -106,6 +106,7 @@ stage.addEventListener("pointercancel", endStroke);
 $("undo-stroke").onclick = () => { state.strokes.pop(); renderInk(); };
 $("clear").onclick = () => {
   state.strokes = []; state.versions = []; state.current = -1; state.logo = null;
+  closePicker("cancel");
   $("anim").replaceChildren(); stage.classList.remove("has-anim", "has-logo");
   renderParts(); setExamples();
   player.T = null; player.pause();
@@ -144,8 +145,9 @@ setExamples();
 // ---------- panel ----------
 const SHORT = (model) => (/vl/i.test(model) ? "Super VL" : /ultra/i.test(model) ? "Ultra" : /nano/i.test(model) ? "Nano" : /super/i.test(model) ? "Super" : model.split("/").pop());
 const MODEL_CLASS = { "Super VL": "vl", Ultra: "ultra", Nano: "nano", Super: "super" };
-const PURPOSE = { generate: "plan", repair: "repair", "repair-edit": "repair via edit ops", edit: "edit ops", "edit-repair": "edit retry", regenerate: "regenerate", label: "name the parts" };
-const RUN_TITLE = { generate: "Generate", tweak: "Tweak", logo: "Logo" };
+const PURPOSE = { generate: "plan", repair: "repair", "repair-edit": "repair via edit ops", edit: "edit ops", "edit-repair": "edit retry", regenerate: "regenerate", label: "name the parts",
+  objects: "objects that need a shape", judge: "compare shapes", draw: "draw an SVG" };
+const RUN_TITLE = { generate: "Generate", tweak: "Tweak", logo: "Logo", shape: "Shapes for" };
 
 function newRun(kind, text) {
   const li = document.createElement("li");
@@ -218,7 +220,7 @@ function setBusy(on, text = "") {
   state.busy = on;
   $("busy").hidden = !on;
   $("busy-text").textContent = text;
-  for (const id of ["gen", "tweak", "intent", "instruction", "mic-intent", "mic-instruction", "clear", "undo-stroke", "logo-pick", "planner"]) $(id).disabled = on;
+  for (const id of ["gen", "tweak", "intent", "instruction", "mic-intent", "mic-instruction", "clear", "undo-stroke", "logo-pick", "shape-add", "planner"]) $(id).disabled = on;
 }
 function setStatus(text, bad = false, retry = null) {
   $("status").textContent = text;
@@ -258,7 +260,9 @@ async function failure(res) {
   if (res.status === 401) { $("access-code").hidden = false; $("access-code").focus(); }
   return Object.assign(new Error(typeof detail === "string" ? detail.slice(0, 300) : `${res.status} ${res.statusText}`), { status: res.status });
 }
+const config = {}; // this server's limits and features (web search, saving shapes)
 fetch("/config").then((r) => r.json()).then((c) => {
+  Object.assign(config, c);
   if (!c.access_required) return;
   const input = $("access-code");
   input.hidden = false;
@@ -373,6 +377,8 @@ $("gen-form").onsubmit = async (e) => {
   e.preventDefault();
   const intent = $("intent").value.trim();
   if (!intent || state.busy) return;
+  if (picker) return setStatus("Pick a shape (or skip) first.", true);
+  if (!(await shapesFor(intent))) return; // the user closed the shape picker
   const strokes = Object.fromEntries(state.strokes.map((s) => [s.id, { points: s.points }]));
   const logo = state.logo ? { assets: state.logo.assets, actors: state.logo.actors } : {};
   const planner = $("planner").value;
@@ -772,3 +778,301 @@ const wrap = stage.parentElement;
 wrap.addEventListener("dragover", (e) => { e.preventDefault(); wrap.classList.add("drop"); });
 wrap.addEventListener("dragleave", () => wrap.classList.remove("drop"));
 wrap.addEventListener("drop", (e) => { e.preventDefault(); wrap.classList.remove("drop"); importFile(e.dataTransfer.files[0]); });
+
+// ---------- shapes for objects without one ----------
+// "a crystal falls from the sky" would otherwise play as a ball. Before planning, Nano lists the objects
+// the request shows that nothing on the canvas draws yet. For each one the app looks in the shape library,
+// then on icon sites via Tavily search; Nemotron VL scores what it found from one numbered grid, and if
+// nothing reads well, Super draws a flat SVG (once more with VL's note if needed). The user picks.
+const GOOD = 6; // VL score out of 10 that counts as "reads as the object"
+const NANO = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B", VL = "nvidia/Nemotron-3.5-Super-VL", SUPER = "nvidia/nemotron-3-super-120b-a12b";
+let picker = null; // {name, cands, resolve, log}
+const decided = new Set(); // object names used or skipped this session: don't ask twice
+const checked = new Set(); // requests already checked for missing shapes (e.g. Generate again, Retry with Ultra)
+
+const canvasNames = () => !state.logo ? [] : [...new Set([
+  ...Object.entries(state.logo.assets).map(([id, a]) => a.label || id),
+  ...state.logo.groups.map((g) => g.label),
+])];
+
+// A model call shown as a card in the side panel, like generate/tweak calls.
+async function modelStep(log, model, purpose, url, body, verdict) {
+  const card = callCard({ model, purpose, think: false });
+  log.calls.appendChild(card);
+  $("busy-text").textContent = `${SHORT(model)} · ${PURPOSE[purpose]}…`;
+  const v = card.querySelector(".verdict");
+  try {
+    const r = await postJSON(url, body);
+    const calls = r.calls || (r.call ? [r.call] : []);
+    calls.forEach(addTotals);
+    if (calls.length) finishCard(card, calls.at(-1)); else clearInterval(card._timer);
+    const [ok, text] = verdict(r);
+    v.className = `verdict ${ok ? "ok" : "bad"}`; v.textContent = text;
+    return r;
+  } catch (err) {
+    clearInterval(card._timer);
+    v.className = "verdict bad"; v.textContent = `✗ ${err.message}`;
+    throw err;
+  }
+}
+
+// Tavily isn't a model call, but it is a step of the run: show it in order, with what it found.
+function searchCard(web) {
+  const li = document.createElement("li");
+  li.className = "call tavily";
+  li.innerHTML = `<div class="call-head"><span class="model">Tavily</span><span class="purpose">web search for SVGs</span><span class="metrics"></span></div><div class="verdict"></div>`;
+  li.querySelector(".metrics").textContent = `${web.seconds.toFixed(1)}s`;
+  const v = li.querySelector(".verdict");
+  v.className = `verdict ${web.usable ? "ok" : "bad"}`;
+  v.textContent = `${web.results} results on ${web.domains.join(", ")} → ${web.usable} usable SVG${web.usable === 1 ? "" : "s"}`;
+  return li;
+}
+
+function runNote(log, text) {
+  const n = Object.assign(document.createElement("div"), { className: "run-note", textContent: text });
+  log.li.appendChild(n);
+}
+
+// Resolves true to go on generating, false if the user closed the picker.
+async function shapesFor(intent) {
+  if (checked.has(intent)) return true;
+  const log = newRun("shape", intent);
+  let objects = [];
+  setBusy(true, "Nano · objects that need a shape…");
+  try {
+    const r = await modelStep(log, NANO, "objects", "/shapes/needed", { intent, have: canvasNames() },
+      (r) => [true, r.objects.length ? `needs a shape: ${r.objects.join(", ")}` : "✓ nothing new to draw"]);
+    objects = r.objects.filter((o) => !decided.has(o));
+  } catch (err) {
+    if ([401, 429].includes(err.status)) { setBusy(false); setStatus(err.message, true); return false; }
+    // otherwise shapes are an extra: plan with what's there
+  } finally { setBusy(false); }
+  if (!objects.length) { checked.add(intent); return true; }
+  for (const name of objects) {
+    const choice = await pickShape(name, log);
+    if (choice === "cancel") return false;
+    decided.add(name);
+  }
+  checked.add(intent);
+  return true;
+}
+
+// Re-read the server's features when a picker opens: the page may predate a server restart or upgrade.
+const refreshConfig = () => fetch("/config").then((r) => r.json()).then((c) => { Object.assign(config, c); if (picker) renderPicker(); }).catch(() => {});
+
+function pickShape(name, log) {
+  refreshConfig();
+  return new Promise((resolve) => {
+    picker = { name, cands: [], resolve, log, status: "" };
+    renderPicker();
+    findShapes();
+  });
+}
+
+function closePicker(choice) {
+  if (!picker) return;
+  const p = picker;
+  picker = null;
+  $("shapes").hidden = true; $("shapes").replaceChildren();
+  p.resolve?.(choice);
+}
+
+function pickerStatus(text) {
+  if (!picker) return;
+  picker.status = text;
+  const s = $("shapes").querySelector(".shapes-status");
+  if (s) s.textContent = text;
+}
+
+async function findShapes() {
+  const p = picker;
+  setBusy(true, `Looking for a ${p.name}…`);
+  try {
+    pickerStatus(config.web_search ? "Looking in the shape library, then on the web (Tavily)…" : "Looking in the shape library…");
+    const f = await postJSON("/shapes/find", { name: p.name });
+    if (picker !== p) return;
+    if (f.web) p.log.calls.appendChild(searchCard(f.web));
+    p.cands = f.candidates;
+    p.searched = f.searched;
+    renderPicker();
+    if (p.cands.length) await judge(p, p.cands);
+    const best = Math.max(-1, ...p.cands.map((c) => c.score ?? -1));
+    if (picker === p && best < GOOD) await drawShape(p, f.note || (p.cands.length ? `Nothing scored ${GOOD}+; asking Nemotron to draw one…` : "Nothing found; asking Nemotron to draw one…"));
+    else if (picker === p) pickerStatus(summary(p));
+  } catch (err) {
+    if (picker === p) pickerStatus(`Couldn't look for shapes: ${err.message}`);
+  } finally { setBusy(false); renderPicker(); }
+}
+
+const summary = (p) => {
+  const best = [...p.cands].sort((a, b) => (b.score ?? -1) - (a.score ?? -1))[0];
+  const n = `${p.cands.length} candidate${p.cands.length === 1 ? "" : "s"}`;
+  if (!best) return "Nothing to show yet: draw one, or skip.";
+  return best.score != null ? `${n}; Nemotron VL likes “${best.title}” best (${best.score}/10). Pick one.` : `${n}. Pick one.`;
+};
+
+// VL sees all candidates at once, numbered, the way set-of-marks labelling works for logo parts.
+async function judge(p, cands) {
+  const image = await shapeGrid(cands);
+  const r = await modelStep(p.log, VL, "judge", "/shapes/judge", { name: p.name, image, count: cands.length }, (r) => {
+    const scored = r.scores.filter((s) => s.score != null);
+    const best = Math.max(...scored.map((s) => s.score), -1);
+    return [best >= GOOD, scored.length ? `scored ${scored.length}: best ${best}/10` : "✗ no scores"];
+  });
+  r.scores.forEach((s, i) => { cands[i].score = s.score; cands[i].note = s.note; });
+  if (picker === p) renderPicker();
+}
+
+async function drawShape(p, why) {
+  pickerStatus(why);
+  setBusy(true, "Super · draw an SVG…");
+  let feedback = "", previous = "";
+  try {
+    for (let round = 0; round < 2 && picker === p; round++) {
+      const r = await modelStep(p.log, SUPER, "draw", "/shapes/draw", { name: p.name, feedback, previous },
+        (r) => [!!r.candidate, r.candidate ? `✓ drew ${r.candidate.parts} part${r.candidate.parts === 1 ? "" : "s"}` : `✗ ${r.error}`]);
+      if (!r.candidate || picker !== p) break;
+      const c = { ...r.candidate, id: `draw:${p.cands.length}` };
+      p.cands.push(c); renderPicker();
+      await judge(p, [c]);
+      if ((c.score ?? 0) >= GOOD || !c.note) break;
+      feedback = c.note; previous = c.svg;
+      pickerStatus(`Nemotron VL: “${c.note}”. Drawing it again…`);
+    }
+    pickerStatus(summary(p));
+  } catch (err) {
+    pickerStatus(`Couldn't draw one: ${err.message}`);
+  } finally { setBusy(false); renderPicker(); }
+}
+
+const svgURL = (svg) => URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+
+async function shapeGrid(cands) {
+  const cell = 220, cols = Math.min(4, cands.length), rows = Math.ceil(cands.length / cols);
+  const c = Object.assign(document.createElement("canvas"), { width: cols * cell, height: rows * cell });
+  const g = c.getContext("2d");
+  g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+  await Promise.all(cands.map(async (cand, i) => {
+    const url = svgURL(cand.svg), img = new Image();
+    try {
+      await new Promise((ok, fail) => { img.onload = ok; img.onerror = fail; img.src = url; });
+      g.drawImage(img, (i % cols) * cell + 26, Math.floor(i / cols) * cell + 26, cell - 52, cell - 52);
+    } catch { /* an image that won't render scores 0 */ } finally { URL.revokeObjectURL(url); }
+  }));
+  cands.forEach((_, i) => {
+    const x = (i % cols) * cell, y = Math.floor(i / cols) * cell;
+    g.strokeStyle = "#bbb"; g.strokeRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
+    g.beginPath(); g.arc(x + 16, y + 16, 12, 0, 7); g.fillStyle = "#ffe066"; g.fill(); g.strokeStyle = "#111"; g.lineWidth = 2; g.stroke(); g.lineWidth = 1;
+    g.fillStyle = "#111"; g.font = "bold 13px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(String(i + 1), x + 16, y + 16.5);
+  });
+  return c.toDataURL("image/jpeg", 0.9);
+}
+
+const SOURCE = { library: "shape library", svgrepo: "SVG Repo", commons: "Wikimedia Commons", nemotron: "drawn by Nemotron" };
+
+function shapeCard(cand, best) {
+  const fig = document.createElement("figure");
+  fig.className = "shape-card" + (best ? " best" : "");
+  const img = document.createElement("img");
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(cand.svg)}`;
+  img.alt = cand.title;
+  const cap = document.createElement("figcaption");
+  const title = Object.assign(document.createElement("b"), { textContent: cand.title });
+  const src = cand.page_url ? Object.assign(document.createElement("a"), { href: cand.page_url, target: "_blank", rel: "noopener noreferrer", textContent: `${SOURCE[cand.source] || cand.source} ↗` })
+    : document.createTextNode(SOURCE[cand.source] || cand.source);
+  cap.append(title, document.createElement("br"), src);
+  if (cand.license) cap.append(` · ${cand.license}`);
+  else if (cand.source !== "library") cap.append(" · ", Object.assign(document.createElement("span"), { className: "unverified", textContent: "license unverified", title: "Check the license on its source page before reusing it" }));
+  if (cand.credit && cand.source !== "nemotron") cap.append(` · ${cand.credit}`);
+  cap.append(` · ${cand.parts} part${cand.parts === 1 ? "" : "s"}`);
+  if (cand.score != null) {
+    cap.append(document.createElement("br"), Object.assign(document.createElement("span"), { className: "score", textContent: `VL ${cand.score}/10` }));
+    if (cand.note) cap.append(` ${cand.note}`);
+  }
+  const use = button("Use this", () => useShape(cand), best ? "primary" : "");
+  use.disabled = state.busy;
+  fig.append(img, cap, use);
+  return fig;
+}
+
+function renderPicker() {
+  const box = $("shapes");
+  if (!picker) { box.hidden = true; return; }
+  const p = picker;
+  box.hidden = false;
+  const head = document.createElement("div");
+  head.className = "shapes-head";
+  if (p.name) {
+    head.append(Object.assign(document.createElement("b"), { textContent: `A shape for “${p.name}”` }));
+  } else { // "Add a shape": ask which object first
+    const input = Object.assign(document.createElement("input"), { placeholder: "an object, e.g. crystal", maxLength: 40 });
+    const go = button("Find", () => {
+      const name = input.value.trim().toLowerCase();
+      if (!name) return input.focus();
+      p.name = name; p.log = newRun("shape", name);
+      renderPicker(); findShapes();
+    }, "primary");
+    input.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); go.click(); } };
+    head.append(Object.assign(document.createElement("b"), { textContent: "Add a shape:" }), input, go);
+    setTimeout(() => input.focus());
+  }
+  head.append(Object.assign(document.createElement("span"), { className: "shapes-status", textContent: p.status }));
+  const ranked = [...p.cands].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+  const top = ranked[0]?.score != null && ranked[0].score >= GOOD ? ranked[0] : null;
+  const grid = document.createElement("div");
+  grid.className = "shape-grid";
+  grid.append(...ranked.map((c) => shapeCard(c, c === top)));
+
+  const actions = document.createElement("div");
+  actions.className = "shape-actions";
+  if (p.name) {
+    const draw = button(p.cands.some((c) => c.source === "nemotron") ? "Draw another" : "Draw one with Nemotron", () => drawShape(p, "Asking Nemotron to draw one…"));
+    draw.disabled = state.busy;
+    actions.append(draw);
+  }
+  if (config.save_shapes && p.name) {
+    const save = Object.assign(document.createElement("input"), { type: "checkbox", checked: !!p.save });
+    save.onchange = () => { p.save = save.checked; renderPicker(); };
+    const label = Object.assign(document.createElement("label"), { className: "check" });
+    label.append(save, " add my pick to the shape library");
+    actions.append(label);
+    if (p.save) {
+      const lic = Object.assign(document.createElement("input"), { type: "text", value: p.license || "", placeholder: "license, if the pick shows none (e.g. CC0)" });
+      lic.oninput = () => { p.license = lic.value; };
+      actions.append(lic);
+    }
+  }
+  const resolve = p.resolve;
+  actions.append(button(resolve ? "Skip: let the planner improvise" : "Close", () => closePicker("skip")));
+  if (resolve) actions.append(button("Cancel", () => { closePicker("cancel"); setStatus("Cancelled."); }));
+  box.replaceChildren(head, ...(p.cands.length ? [grid] : []), actions);
+}
+
+async function useShape(cand) {
+  const p = picker;
+  if (!p || state.busy) return;
+  try {
+    if (p.save) {
+      const license = cand.license || (p.license || "").trim();
+      if (!license) return pickerStatus("To save it, enter its license from the source page (or untick saving).");
+      const r = await postJSON("/shapes/save", { name: p.name, svg: cand.svg, source: cand.source, page_url: cand.page_url, license, credit: cand.credit });
+      runNote(p.log, `Saved to the shape library as ${r.file}`);
+    }
+    const L = state.logo;
+    const r = await postJSON("/shapes/place", { name: p.name, svg: cand.svg, assets: L?.assets || {}, groups: L?.groups || [], actors: L?.actors || [], canvas: { width: W, height: H } });
+    if (L) Object.assign(L, { assets: r.assets, actors: r.actors, groups: r.groups });
+    else state.logo = { name: p.name, assets: r.assets, actors: r.actors, groups: r.groups, dropped: [], notes: [], description: "", selected: new Set() };
+    if (state.current < 0 && r.preview.tracks) { player.load(r.preview.tracks); stage.classList.add("has-logo"); }
+    renderInk(); renderParts();
+    setStatus(`Added the ${p.name} (${SOURCE[cand.source] || cand.source}).` + (p.resolve ? "" : " Say what should happen, then Generate."));
+    closePicker("used");
+  } catch (err) { pickerStatus(`Couldn't use it: ${err.message}`); }
+}
+
+$("shape-add").onclick = () => {
+  if (state.busy || picker) return;
+  refreshConfig();
+  picker = { name: "", cands: [], resolve: null, log: null, status: config.web_search ? "Searches the shape library, then the web (Tavily); Nemotron can also draw one." : "Searches the shape library; Nemotron can also draw one." };
+  renderPicker();
+};

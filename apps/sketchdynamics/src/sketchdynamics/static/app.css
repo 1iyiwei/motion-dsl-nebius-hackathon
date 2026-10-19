@@ -138,3 +138,25 @@ button.icon { width: 36px; padding: 6px 0; }
 .mic { display: inline-flex; align-items: center; justify-content: center; width: 40px; padding: 0; color: var(--muted); }
 .mic:hover:not(:disabled) { color: var(--fg); }
 .mic.listening { color: #fff; background: var(--accent); border-color: var(--accent); transition: box-shadow 60ms linear; }
+
+/* shape picker: candidates for an object the request names (library, web via Tavily, drawn by Nemotron) */
+.shapes { margin: -4px 0 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 12px; }
+.shapes-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin-bottom: 8px; }
+.shapes-head b { font-size: 13px; }
+.shapes-head input { padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; }
+.shapes-status { color: var(--muted); }
+.shape-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
+.shape-card { margin: 0; border: 1px solid var(--line); border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+.shape-card.best { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok); }
+.shape-card img { width: 100%; aspect-ratio: 1; object-fit: contain; background: #fff; border-radius: 4px; }
+.shape-card figcaption { color: var(--muted); line-height: 1.3; overflow-wrap: anywhere; }
+.shape-card figcaption b { color: var(--fg); font-weight: 600; }
+.shape-card .score { font-variant-numeric: tabular-nums; color: var(--vl); }
+.shape-card .unverified { color: var(--warn); }
+.shape-card a { color: inherit; }
+.shape-card button { font-size: 12px; padding: 3px 8px; }
+.shape-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.shape-actions button { font-size: 12px; padding: 3px 10px; }
+.shape-actions input[type=text] { padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; width: 180px; }
+.call.tavily { border-left-color: var(--warn); }
+.call.tavily .model { color: var(--warn); }

@@ -31,12 +31,24 @@ Icon SVGs often pack a whole object into one `<path>` per colour (all three blad
 
 Try the wind turbine sample (`wind-energy-svgrepo-com.svg`): VL rigs a rotor (blades and hub, pivoting on the hub), a tower and the motion lines. The cloud bolt (`cloud-bolt-svgrepo-com.svg`) is the minimal case: two parts that should animate separately. Gradients become solid colours, and text, filters and masks are skipped for now; the app lists what it simplified.
 
+**Objects the planner can't draw**: the planner draws balls, boxes, stars and text from basic shapes, so "a crystal falls from the sky" used to play as a ball. Now, before planning, Nano lists the objects a request shows that nothing on the canvas draws yet ("crystal"), and a shape picker opens for each:
+
+1. It looks in the shape library first: the SVGs in [`static/samples/`](src/sketchdynamics/static/samples/), by the names in its README.
+2. Otherwise it searches the web with [Tavily](https://tavily.com), restricted to icon sites with reusable files (SVG Repo and Wikimedia Commons), and fetches the SVGs it finds. Commons reports each file's license; SVG Repo's pages block scripts, so those show "license unverified" with a link to check.
+3. Nemotron VL scores all candidates at once from a numbered grid: what each looks like, and how well it reads as the object and works as an animated icon.
+4. If nothing scores 6/10 or better, Super draws a flat SVG icon. VL reviews it, and Super redraws once with the reviewer's note if needed. **Draw one with Nemotron** asks for one anytime.
+
+You pick (or skip, and the planner improvises). The shape joins the scene as parts, beside what's already there, and multi-part shapes form one group. Tick **add my pick to the shape library** to save it to `static/samples/` with its source and license in the README; a found shape needs a license for that. **Add a shape** does the same without a prompt. Every SVG, found or drawn, goes through the importer and is written back out as plain paths, so no scripts, links or external images from the web reach the page or the library. Fetches go only to the allowed icon hosts, over HTTPS, at most 400 KB each.
+
 **Voice**: speech recognition runs in the browser through the Web Speech API, not on Token Factory. It only turns speech into the prompt text, which then goes through the same path as typing. Where it's available depends on the browser (Chrome and Edge, Safari; not Firefox), and the mic buttons are hidden where it isn't. Chrome sends the audio to its own speech service, so use typing if that matters to you. While listening, the mic button shows a level ring and the status line names the input device. If the ring stays flat, the browser is using the wrong microphone: pick another one from the site icon in the address bar.
 
 ## How Nemotron / Token Factory is used
 
 | Step | Model (Token Factory) | What it does |
 | --- | --- | --- |
+| Objects that need a shape | Nano, reasoning off | Lists what a request shows that nothing on the canvas draws yet (~1 s) |
+| Compare shapes | Super VL, reasoning off | Scores library/web candidates from one numbered grid image (~2 s) |
+| Draw a shape | `nvidia/nemotron-3-super-120b-a12b`, reasoning off | Writes a flat SVG icon when nothing found reads well, then once more with VL's note if needed (~3 s) |
 | Name and group logo parts | `nvidia/Nemotron-3.5-Super-VL`, reasoning off | Looks at the rendered logo plus the part list, names each part, and groups parts that should move together (~2–3 s) |
 | Plan | `nvidia/nemotron-3-super-120b-a12b` by default, with structured output (the MotionLang JSON Schema); `nvidia/Nemotron-3-Ultra-550b-a55b` on request | Writes the whole MotionLang document from the prompt, the strokes and the logo's parts and groups. Pick the planner next to **Generate**. When a run fails, **Retry with Ultra** re-runs it on the bigger model |
 | Repair | the planner | Gets the validator's errors (code, block, message, literal fix) and patches the document with edit ops, or rewrites it when it's far off. Stops early if the exact same problems survive a repair |
@@ -44,7 +56,7 @@ Try the wind turbine sample (`wind-energy-svgrepo-com.svg`): VL rigs a rotor (bl
 | Edit retry | Nano, reasoning on | If the ops don't apply or don't validate |
 | Regenerate | the chosen planner | Last resort for a tweak the editor can't express |
 
-All model calls go through `motionlang.agent` (OpenAI-compatible client pointed at Token Factory). The panel shows each call's model, latency, tokens, and the validator verdict, including the exact problems sent back for repair.
+All model calls go through `motionlang.agent` (OpenAI-compatible client pointed at Token Factory). The panel shows each call's model, latency, tokens, and the validator verdict, including the exact problems sent back for repair. Web search uses Tavily (not a model; set `TAVILY_API_KEY`), and its step shows in the panel too. Without a Tavily key, the picker uses the library and Nemotron's drawings.
 
 ## API
 
@@ -57,6 +69,12 @@ All model calls go through `motionlang.agent` (OpenAI-compatible client pointed 
 | `POST /import-svg` | `{svg}` | `motionlang.importers.import_svg` output (`assets`, suggested `actors`, `dropped`) plus a still `preview` |
 | `POST /label-parts` | `{image: "data:image/jpeg;base64,…", marked?, name?, assets, groups?}` | `{labels: {id: label}, groups: [{id, label, parts, pivot?}] or null, suggestions: [3 motion ideas], description, call}`; failures are soft (empty labels plus `error`) |
 | `POST /regroup` | `{assets, groups: [{label, parts}], actors?}` | `{groups, actors, preview}`: the actor tree `logo → groups → parts`, with every part where it was drawn |
+| `POST /shapes/needed` | `{intent, have?: [names on the canvas]}` | `{objects, call}`: what needs a shape (Nano) |
+| `POST /shapes/find` | `{name}` | `{candidates: [{id, title, source, svg, parts, page_url, license, license_verified, credit}], searched: "library" \| "web", web?: Tavily stats, note?}` |
+| `POST /shapes/judge` | `{name, image, count}` | `{scores: [{n, score, note}], call}` (VL) |
+| `POST /shapes/draw` | `{name, feedback?, previous?}` | `{candidate, calls}` or `{candidate: null, error}` (Super) |
+| `POST /shapes/place` | `{name, svg, assets?, groups?, actors?}` | `{assets, added, groups, actors, preview}`: the shape added to the scene |
+| `POST /shapes/save` | `{name, svg, source, page_url?, license, credit?}` | `{file}`: saved to the library (403 when saving is off) |
 
 Outcome: `{ok, path, note, seconds, tokens, attempts: [{kind, role, model, think, seconds, prompt_tokens, completion_tokens, ok, problems, issues}], doc, tracks, report}`. `tracks` is the baked player format from `motionlang` (see SPEC.md). When no attempt validates, `doc`/`tracks` are the closest attempt that still plays, or null. Add `?stream=1` to get NDJSON events instead: `call_start` when a model call begins, `attempt` once its reply is validated (same fields as above), then `result` or `error`. The UI uses that to fill the panel live.
 
@@ -70,10 +88,13 @@ A public demo spends the host's Token Factory credits, so it has three optional 
 | `SKETCHDYNAMICS_RATE_LIMIT` | Model requests per visitor (client IP) per hour. |
 | `SKETCHDYNAMICS_DAILY_TOKENS` | Tokens all visitors may spend per UTC day. |
 | `SKETCHDYNAMICS_BEHIND_PROXY` | `1` behind a reverse proxy that sets `X-Forwarded-For`. |
+| `SKETCHDYNAMICS_SAVE_SHAPES` | `0` turns off saving shapes to the library: a hosted disk is shared by all visitors and reset on deploy. |
+
+Web searches (`TAVILY_API_KEY`) count toward the same per-visitor rate limit; library lookups don't.
 
 The counters live in memory, so a restart resets them; the access code is the real gate.
 
-To deploy on [Render](https://render.com), use **New → Blueprint** and pick this repository: [`render.yaml`](../../render.yaml) at the repo root sets the build (`uv sync --frozen --no-dev`), the start command (`uv run sketchdynamics --host 0.0.0.0 --port $PORT --no-browser`) and the health check (`/healthz`). Render asks for `NEBIUS_API_KEY` and `SKETCHDYNAMICS_ACCESS_CODE`. The free plan sleeps when idle, and the first visit then takes about a minute. Any host that runs a Python web service works the same way with those two commands.
+To deploy on [Render](https://render.com), use **New → Blueprint** and pick this repository: [`render.yaml`](../../render.yaml) at the repo root sets the build (`uv sync --frozen --no-dev`), the start command (`uv run sketchdynamics --host 0.0.0.0 --port $PORT --no-browser`) and the health check (`/healthz`). Render asks for `NEBIUS_API_KEY`, `TAVILY_API_KEY` and `SKETCHDYNAMICS_ACCESS_CODE`. The free plan sleeps when idle, and the first visit then takes about a minute. Any host that runs a Python web service works the same way with those two commands.
 
 ## Develop
 
@@ -81,7 +102,7 @@ To deploy on [Render](https://render.com), use **New → Blueprint** and pick th
 uv run pytest apps/sketchdynamics -q     # backend tests with a scripted fake model (no network)
 ```
 
-Layout: `src/sketchdynamics/server.py` (FastAPI app + CLI), `grouping.py` (semantic groups → actor tree), `src/sketchdynamics/static/` (vanilla JS, no build step: `app.js` for sketching, logo import and the panel; `samples/` for the sample logos: `sunrise.svg` is ours; `wind-energy-…` and `cloud-bolt-…` are from SVG Repo, so check their licenses before redistributing). The player is motionlang's own `player.js`, served at `/player.js`, so the app and `motionlang preview` play tracks identically.
+Layout: `src/sketchdynamics/server.py` (FastAPI app + CLI), `grouping.py` (semantic groups → actor tree), `shapes.py` (shape library, Tavily search, cleaning, placing), `src/sketchdynamics/static/` (vanilla JS, no build step: `app.js` for sketching, logo import and the panel; `samples/` for the sample logos: `sunrise.svg` is ours; `wind-energy-…` and `cloud-bolt-…` are from SVG Repo, so check their licenses before redistributing). The player is motionlang's own `player.js`, served at `/player.js`, so the app and `motionlang preview` play tracks identically.
 
 ## Roadmap
 
