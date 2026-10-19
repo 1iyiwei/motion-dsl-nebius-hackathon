@@ -11,7 +11,7 @@ const EXAMPLES = [
   ["spring_follow", "add a `spring_follow` verb: the actor chases a target actor with spring physics, overshooting a little and settling when the target stops"],
   ["pendulum", "add a `pendulum` verb: the actor swings like a pendulum about a pivot point above it, with damping, and comes to rest"],
   ["squash_hop", "add a `squash_hop` verb: a single cartoon hop with anticipation squash before take-off and squash-and-stretch on landing"],
-  ["typewriter_shake", "add a `shake` verb: a camera-shake style decaying jitter of position and rotation with a frequency and a decay rate"],
+  ["shake", "add a `shake` verb: a camera-shake style decaying jitter of position and rotation with a frequency and a decay rate"],
 ];
 
 const state = { run: null, runId: null, sel: null, tab: "tests", file: "verb.py", timer: null, sig: "" };

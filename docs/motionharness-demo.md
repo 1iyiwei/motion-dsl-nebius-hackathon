@@ -2,7 +2,7 @@
 
 Run `uv run motionharness serve` and record the dashboard in Chrome, full window (1440 px or wider, so the tree and log sit side by side). A run takes 2–5 minutes, mostly Super writing code with reasoning on. Start the run, then speed up the waits in editing: the log's timestamps and the model-call timeline show the real latency, so the speed-up is honest. Keep a finished run in the sidebar as a fallback for every shot.
 
-Before recording: `motionharness sandbox-check`. If Sandboxes access is active, the header pill reads **Token Factory Sandboxes** and the checkpoint ids in the tree are real image UUIDs. Record the run on Sandboxes if at all possible: it's the track's headline requirement. Otherwise say "local fallback" out loud once and move on.
+Before recording: `uv run motionharness sandbox-check`. If Sandboxes access is active, the header pill reads **Token Factory Sandboxes** and the checkpoint ids in the tree are real image UUIDs. Record the run on Sandboxes if at all possible: it's the track's headline requirement. Otherwise say "local fallback" out loud once and move on.
 
 Live runs measured Oct 19 (local backend, Super 120B ×3, VL critic):
 
@@ -23,7 +23,7 @@ Live runs measured Oct 19 (local backend, Super 120B ×3, VL critic):
 | --- | --- | --- | --- |
 | 0:00–0:12 | Hook | A finished run: the branch tree with a green "shipped" node, then the live preview of the new verb | "This verb didn't exist ten minutes ago. An agent wrote it, tested it, watched it, and fixed it." |
 | 0:12–0:30 | The problem | SPEC §11 contract list, then a core verb's source | "Technical artists extend motion systems with new behaviours. Each one has to be continuous, deterministic, bounded… MotionLang writes that down as a test suite." |
-| 0:30–0:50 | Ask | Click the `spring_follow` chip (or `shake` for a fast, clean run), Write, test & critique. The log starts; three model bars grow on the timeline | "Nemotron Super writes three candidates in parallel, each with a different approach: closed form, physical, minimal." |
+| 0:30–0:50 | Ask | In the sidebar's **New verb** box, click the `spring_follow` example chip under the text box (or `shake` for a fast, clean run); it fills in the task text. Then press **Write, test & critique**. The log starts; three model bars grow on the timeline | "Nemotron Super writes three candidates in parallel, each with a different approach: closed form, physical, minimal." |
 | 0:50–1:25 | Test in sandboxes | Tree nodes turn red/green with contract and own-test bars. Open a failing node: the failing test with its traceback; the "Sent back for repair" box | "Each candidate is a sandbox run branched from one prepared checkpoint. The contract suite is fixed; the model also writes tests for what *this* verb should do." |
 | 1:25–1:55 | Repair | A repair node appears to the right of its parent; Diff tab shows the fix | "Failures go back verbatim. The repair branches from its parent's own checkpoint, so the tree you see is the tree of sandbox images." |
 | 1:55–2:25 | The critic | Motion tab on c2: every test green, but VL says 4/10, "0.0% overshoot". Click along the polish chain c4 → c5 → c6: overshoot 0.0% → 0.1% → 6.2%, then 8/10 accepted | "Passing tests isn't the same as looking right. Nemotron VL watches the motion, with exact measurements next to the image, and sends it back." |
