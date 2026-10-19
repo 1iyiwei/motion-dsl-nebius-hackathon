@@ -1,6 +1,6 @@
 # Hosting app from GitHub code
 
-https://share.google/aimode/vgEfE3w46MVtSVkLF
+[Google Gemini](https://share.google/aimode/sxevtVtp0Ug3GnceH)
 
 Using **`uv`** (Astral's lightning-fast Python package installer and resolver) makes hosting highly efficient. Platforms like **Render**, **Railway**, and **Fly.io** fully support modern `uv`\-driven workflows. 
 
@@ -38,9 +38,23 @@ Decided Oct 19: host on **Render** from this repo, and point a DreamHost subdoma
 
 ### Custom domain (DreamHost DNS)
 
-1. Render service → **Settings → Custom Domains** → add e.g. `sketchdynamics.<your-domain>`.
-2. DreamHost panel → **Domains → DNS** for that domain → add a **CNAME** record: name `sketchdynamics`, value the `*.onrender.com` host Render shows. Remove any existing A record for that subdomain first.
-3. Back in Render, wait for the domain to verify; Render then issues the HTTPS certificate on its own. HTTPS matters: browsers allow the mic only on secure pages.
+Live Oct 19: <https://sketch-dynamics.dragoniac.com> → `sketch-dynamics-nebius-hackathon.onrender.com`.
+
+1. Render service → **Settings → Custom Domains** → add `sketch-dynamics.dragoniac.com`. Verification fails until step 2 is done, which is expected.
+2. DreamHost: **don't** add the subdomain as its own entry in the panel, not even as "DNS only". A subdomain entry becomes its own zone, and its DNS page only adds records *under* it (the host field ends in `.sketch-dynamics.dragoniac.com`), so a CNAME for the name itself is impossible. Instead, open the DNS settings of the parent `dragoniac.com` and add a **CNAME** with host `sketch-dynamics`, pointing to `sketch-dynamics-nebius-hackathon.onrender.com`. Delete the subdomain entry first if you already made one.
+3. Check from a terminal: `dig +short CNAME sketch-dynamics.dragoniac.com` should print the onrender host, and `dig +short AAAA …` nothing. `dragoniac.com` has no CAA records, so certificates aren't restricted.
+4. In Render, press **Verify**. The HTTPS certificate followed within minutes. HTTPS matters: browsers allow the mic only on secure pages.
+
+### Snags we hit
+
+- **The service was created by hand, not from the Blueprint**, so `render.yaml` wasn't applied and the dashboard settings rule. Set them there:
+  - **Build Command:** `pip install uv && uv sync --frozen --no-dev`
+  - **Start Command:** `uv run --frozen --no-dev sketchdynamics --host 0.0.0.0 --port $PORT --no-browser`
+  - **Health Check Path:** `/healthz`
+  - **Environment:** `NEBIUS_API_KEY`, `SKETCHDYNAMICS_ACCESS_CODE`, `SKETCHDYNAMICS_RATE_LIMIT`, `SKETCHDYNAMICS_DAILY_TOKENS` and `SKETCHDYNAMICS_BEHIND_PROXY=1`. Without the last one, every visitor shares one rate-limit bucket: Render's proxy.
+- **A trailing period** pasted into the Start Command (`--no-browser.`) failed with `unrecognized arguments: --no-browser.`.
+- **`$PORT` comes from Render** (10000 by default). Don't hard-code a port or add `PORT` yourself, and keep `--host 0.0.0.0`: the app's default `127.0.0.1` is unreachable from Render's proxy.
+- **The access code isn't set yet** (`/config` reports `access_required: false`), so anyone with the link can run generations, within the rate limit and the daily budget.
 
 ### Before and during judging (Dec 1–15)
 

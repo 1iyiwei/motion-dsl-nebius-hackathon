@@ -42,13 +42,19 @@ SketchDynamics is a thin, inspectable app on top of **MotionLang**, a declarativ
 
 **The language.** A MotionLang document lists *actors* (shapes, sketched strokes, or parts of an imported SVG, optionally grouped with a pivot), a *timeline* of 17 intent-level verbs (`move_along`, `bounce`, `spring_to`, `draw_on`, `reveal`, `enter`/`exit`, `orbit`, `camera`, …) arranged in `seq`/`par`/`stagger` blocks, and *constraints* (stay on screen, total duration, …). The model writes intent ("bounce three times", "wipe in from the left"), not keyframes. A deterministic Python baker turns that into per-frame tracks, and a small SVG player plays them. The JSON Schema and the verb reference in the system prompt are generated from the verb registry, so a new verb is usable the moment it's registered.
 
-**The agent loop** (all on Nebius Token Factory):
-1. **Read the artwork** (SVG input): the importer splits the file into parts, keeping holes with their shapes. **Nemotron 3.5 Super VL** gets two renderings, a clean one and one with each part numbered, and names every part, groups parts that move as one rigid piece (a rotor with its hub as the pivot), and suggests three animation ideas. The path data never goes to any model: models see part ids, labels, boxes and colours, so a detailed logo costs no more tokens than a simple one.
-2. **Plan**: **Nemotron 3 Super 120B** (default, with structured output constrained to the MotionLang schema) or **Nemotron 3 Ultra 550B** (one click, or "Retry with Ultra") writes the document from the prompt, the strokes and the rig.
-3. **Validate**: a tier-1 validator checks references, conflicting verbs, teleports, off-screen motion, invisible parts and animations that change nothing (14 error codes). Every error carries a concrete fix: a JSON pointer and an exact edit. Small problem sets go back to the planner as *edit ops*, not a full rewrite, so repairs converge instead of drifting.
-4. **Refine**: "slower", "more bounce" go to **Nemotron 3 Nano 30B** with reasoning turned off, which answers in 1–3 s with a few id-addressed edit ops. If those fail it retries with reasoning, then escalates to the planner.
+**The core loop** runs for every input, all on Nebius Token Factory:
+1. **Plan**: **Nemotron 3 Super 120B** (the default, with structured output constrained to the MotionLang schema) or **Nemotron 3 Ultra 550B** (one click, or "Retry with Ultra") writes a MotionLang document from what you said and anything you drew or imported.
+2. **Validate**: a tier-1 validator bakes the document and checks references, conflicting verbs, teleports, off-screen motion, invisible parts, and animations that change nothing (14 error codes). Every error carries a concrete fix: a JSON pointer and an exact edit.
+3. **Repair**: the errors go back to the planner. Small problem sets are fixed with *edit ops* rather than a full rewrite, so repairs converge instead of drifting. The loop stops early if the same problems survive a round, and then shows the closest attempt that still plays.
+4. **Refine**: "slower", "more bounce" go to **Nemotron 3 Nano 30B** with reasoning turned off, which answers in 1–3 s with a few id-addressed edit ops. If those fail it retries with reasoning, then escalates to the planner. Every result is a version you can go back to.
 
-**The app** is FastAPI plus vanilla JS with no build step. You sketch on a canvas, dictate with the browser's speech recognition, and import SVGs by drag and drop. A side panel streams every model call live: model, latency, tokens, and the validator verdict with the exact problems sent back for repair. Exports are a standalone HTML player or the MotionLang JSON. 268 tests run against a scripted fake model, so the loop is tested without spending tokens.
+**Input modes, from simple to rich.** Each mode adds information to the same loop:
+1. **Prompt only.** Type or say what should happen ("a red ball drops in, bounces three times, then rolls off to the right while a blue square spins in the corner"). The planner creates the actors (shapes, text) and the timeline from scratch. Speech goes through the browser's speech recognition, so the model always receives text.
+2. **Sketch + prompt.** Strokes drawn on the canvas are captured as point lists in canvas coordinates, simplified (Ramer–Douglas–Peucker, at most 48 points) and labelled `s1`, `s2`, … on screen, so you can refer to them ("along my line s1"). The planner sees each stroke's points, end points and bounding box. The document keeps the strokes as data, and verbs refer to them by id: `move_along {"stroke": "s1"}` follows the line exactly, and a stroke can also be an actor that draws itself on.
+3. **SVG + prompt.** The importer splits the file into parts (it breaks up compound paths and keeps holes with their shapes). **Nemotron 3.5 Super VL** gets two renderings, a clean one and one with each part numbered, and names every part, groups parts that move as one rigid piece (a rotor with its hub as the pivot), and suggests three animation ideas, the first of which pre-fills the prompt. You can regroup, rename, split parts or move the pivot by hand. The path data never goes to any model: models see part ids, labels, boxes and colours, so a detailed logo costs no more tokens than a simple one.
+4. **SVG + sketch.** Draw a motion path over an imported logo ("the bolt zigzags down along my line while the cloud stays still"). Strokes always mean canvas space, so a part inside a group follows the line exactly where it was drawn, whatever its group's position.
+
+**The app** is FastAPI plus vanilla JS with no build step. You sketch on a canvas, dictate with the browser's speech recognition, and import SVGs by drag and drop. A side panel streams every model call live: model, latency, tokens, and the validator verdict with the exact problems sent back for repair. Exports are a standalone HTML player or the MotionLang JSON. 273 tests run against a scripted fake model, so the loop is tested without spending tokens.
 
 **Relation to MoVer and LogoMotion.** LogoMotion has an LLM write animation *code* (JavaScript) and debug it by looking at rendered frames. MoVer verifies motion graphics against the prompt with a first-order-logic language. MotionLang sits between them. Like LogoMotion, we visually ground the artwork first (VL names, rigs and proposes motion). But the model writes a *constrained declarative program*, not code, so most failures are caught structurally before anything renders, with exact, machine-readable fixes. MoVer-style intent verification is the next layer: it would catch plans that are valid but miss the request.
 
@@ -77,8 +83,12 @@ Motion DSL really anchors the generation and validation process.
 
 #### What's next
 
+Try to make this a real product!
+
+<!--
 - MotionHarness as a coding agent/copilot for anyone who wants to build their own animation authoring tools.
 - CanvasMind as a personal agent to manage the assets and moodboards creators.
+-->
 
 * Built with
 You can add up to 25 tags.
@@ -136,7 +146,11 @@ https://github.com/1iyiwei/motion-dsl-nebius-hackathon/tree/main/apps/sketchdyna
 Provide a URL to a working demo, hosted application, or test build of your Project.
 Not required for Physical AI submissions
 
-**[after deploy]** https://sketchdynamics.onrender.com (or whatever URL Render assigns). Access code: `<code>` (this field is for judges only, not the public page). On the free plan the first visit may take about a minute while the server wakes up.
+https://sketch-dynamics.dragoniac.com/
+
+<!--
+(also https://sketch-dynamics-nebius-hackathon.onrender.com/) Access code: `<code>` (this field is for judges only, not the public page). On the free plan the first visit may take about a minute while the server wakes up.
+-->
 
 * Which model(s) did you use, and why did you choose that size/variant?
 e.g., Nemotron-4 340B, Nemotron-Mini, etc.
@@ -150,7 +164,7 @@ Four Nemotron models, one per job, all through Nebius Token Factory:
 * How would you rate Nemotron's output quality for your use case? (1 = Poor, 10 = Excellent)
 Please share what worked well or fell short — e.g., reasoning, instruction-following, domain knowledge, multilingual support.
 
-**[check] 8.** Worked well: JSON mode and structured output were clean on every model; instruction-following on a novel DSL was strong given only a generated reference and one example; and the VL model's part naming and grouping were accurate once given numbered marks. Fell short: models sometimes copied validator hint wording literally (inventing fields or verbs), occasionally mixed coordinate frames, and could produce plans that are valid but miss the intent. Latency varied a lot when reasoning ran long.
+**8.** Worked well: JSON mode and structured output were clean on every model; instruction-following on a novel DSL was strong given only a generated reference and one example; and the VL model's part naming and grouping were accurate once given numbered marks. Fell short: models sometimes copied validator hint wording literally (inventing fields or verbs), occasionally mixed coordinate frames, and could produce plans that are valid but miss the intent. Latency varied a lot when reasoning ran long.
 
 * Did you fine-tune, prompt-engineer, or use Nemotron out of the box? What was your approach?
 Use Nemotron out of the box.
@@ -159,7 +173,10 @@ No fine-tuning: the models are used as served, with prompt engineering around th
 
 * How did Nemotron's performance compare to other models you've used for similar tasks?
 
+<!--
 **[check: your experience]** _(We didn't run other providers in the app; Nemotron is the only runtime model. A comparison here should come from your own experience with other models.)_
+-->
+Nemotron works much better than some open-weight models that we ran locally, such as qwen2.5vl:32b.
 
 * Which Nebius platform capabilities were most valuable to your project and how?
 Please include detail on how you leveraged Nebius infrastructure to run Nemotron (e.g., GPU instance types, deployment setup, API access, scaling).
@@ -175,12 +192,12 @@ There's no GPU provisioning or deployment on our side: Token Factory is serverle
 * How likely are you to recommend running Nemotron on Nebius to other developers? (1 = Unlikely, 10 = Highly Likely)
 Please share why or provide additional feedback.
 
-**[check] 8.** One OpenAI-compatible endpoint for the full Nemotron range, from Nano to Ultra plus VL, makes it easy to match model size to each task, and JSON and structured output worked across the family. What would make it a 10 is better documentation of model ids and the reasoning toggle, consistent errors for unsupported schema keywords, and a way to cap reasoning length.
+**8.** One OpenAI-compatible endpoint for the full Nemotron range, from Nano to Ultra plus VL, makes it easy to match model size to each task, and JSON and structured output worked across the family. What would make it a 10 is better documentation of model ids and the reasoning toggle, consistent errors for unsupported schema keywords, and a way to cap reasoning length.
 
 * How would you rate your experience running Nemotron inference on Nebius compared to previous cloud or local development environments? (1 = Poor, 10 = Excellent)
 Please share why or provide additional feedback.
 
-**[check] 8.** No infrastructure to manage, an API the standard OpenAI SDK could talk to, and access to models far too large to run locally (Ultra 550B). The rough edges: exact model ids are only discoverable via `/v1/models` (the catalog page needs a login), and Super returned a bare 500 for a schema keyword where Ultra gave a clear 400.
+**8.** No infrastructure to manage, an API the standard OpenAI SDK could talk to, and access to models far too large to run locally (Ultra 550B). The rough edges: exact model ids are only discoverable via `/v1/models` (the catalog page needs a login), and Super returned a bare 500 for a schema keyword where Ultra gave a clear 400.
 
 * What additional features or improvements would have made the Nemotron on Nebius experience more effective for your project?
 
