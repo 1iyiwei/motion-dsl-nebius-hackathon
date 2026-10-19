@@ -118,7 +118,8 @@ def readme(task: Task, src: Source, report: dict | None = None) -> str:
     lines = [f"# {task.dist}", "", f"MotionLang verb plugin adding **`{task.verb}`**.", "", f"> {task.description}", ""]
     if src.notes:
         lines += ["## Design notes", "", src.notes, ""]
-    lines += ["## Install", "", "```bash", "pip install .", "```", "",
+    lines += ["## Install", "", "Into an environment that already has `motionlang` (it isn't on PyPI yet):", "",
+              "```bash", "uv pip install .          # in the MotionLang workspace", "pip install <repo>/packages/motionlang .   # anywhere else", "```", "",
               f"The verb registers through the `motionlang.verbs` entry point, so `motionlang schema` and `motionlang prompt` "
               f"(and every planner built on them) see `{task.verb}` right away. Documents using it should declare "
               f'`"requires": ["{task.verb}>=1"]`.', ""]

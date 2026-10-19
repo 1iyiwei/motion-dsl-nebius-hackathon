@@ -52,7 +52,8 @@ def create_server(root: Path, sandbox_kind: str = "auto", harness: Harness | Non
 
         task: what the verb should do, e.g. "add a `spring_follow` verb: the actor chases a target with spring physics".
         Returns the run summary (per-candidate test results, the vision critique) and the path of the installable
-        plugin package (pip install <plugin_dir>)."""
+        plugin package (install it into an environment that has motionlang: `uv pip install <plugin_dir>` in the
+        MotionHarness workspace)."""
         import anyio
 
         h = get_harness()

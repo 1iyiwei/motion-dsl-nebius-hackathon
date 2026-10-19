@@ -319,8 +319,10 @@ function drawShip(run) {
       <div class="lbl">Plugin package</div>
       <p>${w.status === "passed" ? "✅" : "⚠️"} <b>${esc(run.task.dist)}</b> from candidate <b>${esc(run.winner)}</b>, registering <code>${esc(run.task.verb)}</code> under the <code>motionlang.verbs</code> entry point.</p>
       ${w.critique && !w.critique.accepted ? `<p>⚠️ It passes every test, but the critic wasn't satisfied (${w.critique.score}/10): ${esc((w.critique.issues || [])[0] || w.critique.observations || "")}</p>` : ""}
-      <div class="cmd">pip install out/motionharness/${esc(run.id)}/plugin</div>
-      <div class="cmd">motionlang prompt | grep ${esc(run.task.verb)}</div>
+      <div class="cmd">uv pip install out/motionharness/${esc(run.id)}/plugin</div>
+      <p class="notes">Installs into the workspace's venv, where motionlang is. motionlang isn't on PyPI yet, so with plain pip
+        in another environment, install it first: <code>pip install packages/motionlang out/motionharness/${esc(run.id)}/plugin</code></p>
+      <div class="cmd">uv run motionlang prompt | grep ${esc(run.task.verb)}</div>
       <p><a href="${fileUrl("report.md")}" target="_blank">report.md</a> · <a href="${fileUrl("plugin.diff")}" target="_blank">plugin.diff</a> ·
          <a href="${fileUrl("preview.html")}" target="_blank">preview.html</a> · <a href="${fileUrl("frames.png")}" target="_blank">frames.png</a></p>
     </div><div>${w.has_frames ? `<img style="width:100%;border-radius:8px" src="${fileUrl("frames.png")}">` : ""}</div></div>`;

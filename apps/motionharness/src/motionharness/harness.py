@@ -114,6 +114,9 @@ class Run:
         self.id = f"{stamp}-{task.name}"
         self.dir = Path(root) / self.id
         self.dir.mkdir(parents=True, exist_ok=True)
+        guard = Path(root) / "conftest.py"
+        if not guard.exists():  # generated plugins carry tests; a repo-wide pytest run must not collect them
+            guard.write_text('"""MotionHarness runs: keep pytest out of generated plugins."""\ncollect_ignore_glob = ["*"]\n')
         self.task, self.config, self.sandbox = task, config, sandbox
         self.candidates: list[Candidate] = []
         self.calls: list[dict] = []

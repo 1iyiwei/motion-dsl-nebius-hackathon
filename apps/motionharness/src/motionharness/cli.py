@@ -44,7 +44,9 @@ def cmd_new_verb(args: argparse.Namespace) -> int:
     run = harness.run(task, cfg, on_event=print_event)
     print(f"\nrun: {run.dir}")
     if run.winner:
-        print(f"plugin: {run.dir / 'plugin'}   (pip install {run.dir / 'plugin'})")
+        print(f"plugin: {run.dir / 'plugin'}")
+        print(f"  install into this workspace's venv:  uv pip install {run.dir / 'plugin'}")
+        print("  (motionlang isn't on PyPI yet: elsewhere, install it first, e.g. pip install <repo>/packages/motionlang)")
         print(f"report: {run.dir / 'report.md'}   diff: {run.dir / 'plugin.diff'}   preview: {run.dir / 'preview.html'}")
     return 0 if run.status == "done" else 1
 

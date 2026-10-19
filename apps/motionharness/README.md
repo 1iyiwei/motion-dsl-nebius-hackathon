@@ -45,9 +45,11 @@ claude mcp add motionharness -- uv run --directory /path/to/this/repo motionharn
 Install what it made:
 
 ```bash
-pip install out/motionharness/<run id>/plugin
-motionlang prompt | grep mh.pendulum             # the planner sees the new verb right away
+uv pip install out/motionharness/<run id>/plugin   # into the workspace venv, where motionlang is
+uv run motionlang prompt | grep mh.pendulum              # the planner sees the new verb right away
 ```
+
+motionlang isn't on PyPI yet, so a plain `pip install <plugin>` in another environment fails to resolve `motionlang>=0.1`. Install the library first there: `pip install packages/motionlang out/motionharness/<run id>/plugin`.
 
 ## The dashboard
 

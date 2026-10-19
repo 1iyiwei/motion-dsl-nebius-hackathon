@@ -118,6 +118,7 @@ def test_repairs_a_failing_candidate_then_ships(tmp_path):
     assert vision["messages"][0]["content"][1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
     assert vision["response_format"] == {"type": "json_object"}
     out = run.dir
+    assert "collect_ignore_glob" in (out.parent / "conftest.py").read_text()
     assert (out / "plugin" / "pyproject.toml").exists() and (out / "plugin" / "src" / "mh_pulse" / "verb.py").exists()
     assert (out / "frames.png").exists() and (out / "preview.html").exists()
     assert "mh.pulse" in (out / "report.md").read_text() and (out / "plugin.diff").read_text().startswith("--- /dev/null")
