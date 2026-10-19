@@ -6,10 +6,10 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const short = (m) => String(m || "").split("/").pop().replace("NVIDIA-", "").replace("Nemotron-3-", "N3 ").replace("nemotron-3-", "N3 ");
 const MODEL_COLORS = { super: "#76b900", ultra: "#4c9aff", nano: "#f5a524", vl: "#a78bfa" };
 const modelColor = (m) => { m = String(m).toLowerCase(); return m.includes("-vl") ? MODEL_COLORS.vl : m.includes("ultra") ? MODEL_COLORS.ultra : m.includes("nano") ? MODEL_COLORS.nano : MODEL_COLORS.super; };
-const ICON = { start: "▶", docs: "🔎", sandbox: "📦", round: "⟳", candidate: "•", tests: "🧪", critique: "👁", ship: "✅", error: "✖", end: "■" };
+const ICON = { start: "▶", docs: "🔎", sandbox: "📦", round: "⟳", candidate: "•", tests: "🧪", critique: "👁", naming: "✎", ship: "✅", error: "✖", end: "■" };
 const EXAMPLES = [
   ["spring_follow", "add a `spring_follow` verb: the actor chases a target actor with spring physics, overshooting a little and settling when the target stops"],
-  ["pendulum", "add a `pendulum` verb: the actor swings like a pendulum about a pivot point above it, with damping, and comes to rest"],
+  ["swing", "add a `swing` verb: the actor swings like a pendulum about a pivot point above it, with damping, and comes to rest"],
   ["squash_hop", "add a `squash_hop` verb: a single cartoon hop with anticipation squash before take-off and squash-and-stretch on landing"],
   ["shake", "add a `shake` verb: a camera-shake style decaying jitter of position and rotation with a frequency and a decay rate"],
 ];

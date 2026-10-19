@@ -29,10 +29,10 @@ A coding agent for technical artists and graphics developers who extend **Motion
 uv sync                                         # from the repo root
 cp apps/motionharness/.env.example .env         # then add NEBIUS_API_KEY (and NEBIUS_PROJECT_ID for Sandboxes)
 uv run motionharness serve                      # dashboard on http://127.0.0.1:8766/
-uv run motionharness new-verb "add a \`pendulum\` verb: the actor swings about a pivot above it and comes to rest"
+uv run motionharness new-verb "add a \`swing\` verb: the actor swings like a pendulum about a pivot above it and comes to rest"
 ```
 
-`new-verb` options: `--candidates 3`, `--models super,super,ultra` (per candidate; `super`, `ultra`, `nano` or a full model id), `--rounds 3` (repair rounds), `--namespace acme` (verb `acme.pendulum`), `--sandbox auto|local|contree`, `--no-critique`, `--no-docs`. Runs are written to `out/motionharness/<run id>/`. `motionharness runs` lists them, and `motionharness sandbox-check --run` verifies Token Factory Sandboxes access and caches the environment image.
+`new-verb` options: `--candidates 3`, `--models super,super,ultra` (per candidate; `super`, `ultra`, `nano` or a full model id), `--rounds 3` (repair rounds), `--namespace acme` (verb `acme.swing`), `--sandbox auto|local|contree`, `--no-critique`, `--no-docs`. Runs are written to `out/motionharness/<run id>/`. `motionharness runs` lists them, and `motionharness sandbox-check --run` verifies Token Factory Sandboxes access and caches the environment image.
 
 **From a coding agent (MCP)**: `motionharness mcp` serves the tools `new_verb`, `list_runs`, `get_run` and `read_artifact` over stdio. For Claude Code:
 
@@ -42,11 +42,13 @@ claude mcp add motionharness -- uv run --directory /path/to/this/repo motionharn
 
 **The acceptance gate** is MotionLang's own contract suite, `motionlang.testing.contract` (SPEC §11), run with `MOTIONLANG_CONTRACT_VERB=<verb>` so only the new verb is checked. Every shipped plugin carries a one-line `tests/test_contract.py` that runs it, next to the tests the model wrote.
 
+Name verbs as actions, the way a prompt would use them ("the lamp *swings*"): `swing`, not `pendulum`. A noun-named verb reads as an object, and a planner such as SketchDynamics' may try to draw it. A fast check before writing (Nemotron Super, reasoning off: does "the actor <name>s" read as English?) flags noun-like names and suggests one (`✎` in the log); rerun with `--name` to take it.
+
 Install what it made:
 
 ```bash
 uv pip install out/motionharness/<run id>/plugin   # into the workspace venv, where motionlang is
-uv run motionlang prompt | grep mh.pendulum              # the planner sees the new verb right away
+uv run motionlang prompt | grep mh.swing                 # the planner sees the new verb right away
 ```
 
 motionlang isn't on PyPI yet, so a plain `pip install <plugin>` in another environment fails to resolve `motionlang>=0.1`. Install the library first there: `pip install packages/motionlang out/motionharness/<run id>/plugin`.
@@ -64,6 +66,7 @@ motionlang isn't on PyPI yet, so a plain `pip install <plugin>` in another envir
 
 | Step | Model (Token Factory) | What it does |
 | --- | --- | --- |
+| Name check | `nvidia/nemotron-3-super-120b-a12b`, reasoning off, JSON mode | Does "the actor *swing*s" read as English? Flags noun-like verb names (`pendulum`) and suggests an action name (~1 s). Nano was unreliable at this |
 | Need external docs? | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`, reasoning off, JSON mode | Decides whether the task needs a spec or third-party API, and writes up to two search queries for Tavily (~1 s) |
 | Write | `nvidia/nemotron-3-super-120b-a12b` by default; `nvidia/Nemotron-3-Ultra-550b-a55b` per candidate on request | Writes the plugin module, focused tests and a demo document, given MotionLang's plugin contract, the base class source and four core verbs as reference implementations. Candidates differ in approach (closed form / physical / minimal) and temperature |
 | Repair | the candidate's model | Gets the failing tests' verbatim output (assertion text, tracebacks, validator errors with hints) and returns fixed files; unchanged files may be marked `(unchanged)` |

@@ -212,3 +212,22 @@ Name the external file format, product or third-party API this task depends on, 
 "After Effects", "SVG SMIL"). Math and physics (springs, pendulums, easing, noise) are NOT external.
 Reply in JSON: {{"external": "<name, or none>", "queries": ["<web search query about it>"]}} (queries empty when none).
 """
+
+NAMING = """\
+Animation verbs are named so that a sentence "the actor <word>s" reads naturally: "the ball bounces", "it orbits", "it hops".
+Name to check: `{name}` (what it does: {description}). Take its main word ("{word}").
+Does "the actor {word}s" read as natural English, with "{word}" used as a verb? Words that are nouns too are fine when
+they also work as verbs ("springs", "pulses", "hops", "spirals", "rockets", "wiggles"); words that only work as nouns
+are not ("pendulums", "heartbeats", "paths").
+Reply in JSON: {{"sentence": "the actor {word}s", "natural": true|false, "action_name": "<if not natural: a snake_case name whose last word is a verb, e.g. swing; else empty>"}}
+"""
+
+PREPOSITIONS = {"to", "by", "in", "out", "on", "off", "up", "down", "at", "along", "around", "into", "onto", "from", "away", "back", "over"}
+
+
+def naming_word(name: str) -> str:
+    """The word a sentence would conjugate: the last one that isn't a preposition (spring_to → spring)."""
+    words = [w for w in name.split("_") if w]
+    while len(words) > 1 and words[-1] in PREPOSITIONS:
+        words.pop()
+    return words[-1] if words else name

@@ -29,7 +29,7 @@ from motionlang.agent.llm import extract_json_text, load_env
 from motionlang.preview import preview_html
 
 from . import prompts
-from .plugin import Report, Source, Task, package_files, parse_reply, report_markdown, unified_diff
+from .plugin import NAME as NAME_RX, Report, Source, Task, package_files, parse_reply, report_markdown, unified_diff
 from .render import contact_sheet, jpeg_data_url, motion_metrics, png_bytes
 from .runner import job_for, parse_result
 from .sandbox import Checkpoint, Sandbox
@@ -127,6 +127,7 @@ class Run:
         self.finished: float | None = None
         self.env: dict = {}
         self.docs: dict | None = None
+        self.naming: dict | None = None  # {"name", "suggested"} when the verb name reads as a noun
         self.on_event = on_event
         self._lock = threading.RLock()
 
@@ -151,7 +152,7 @@ class Run:
                 "id": self.id, "task": self.task.to_dict(), "status": self.status, "winner": self.winner,
                 "config": {k: v for k, v in self.config.__dict__.items()}, "sandbox": {**self.sandbox.describe(), **self.env},
                 "started": self.started, "seconds": round((self.finished or time.time()) - self.started, 1),
-                "docs": self.docs, "candidates": [c.to_dict() for c in self.candidates], "calls": self.calls,
+                "docs": self.docs, "naming": self.naming, "candidates": [c.to_dict() for c in self.candidates], "calls": self.calls,
                 "events": self.events, "tokens": sum(c["prompt_tokens"] + c["completion_tokens"] for c in self.calls),
             }
 
@@ -163,8 +164,11 @@ class Run:
 
 
 class Harness:
-    def __init__(self, sandbox: Sandbox, llm: LLM | None = None, root: Path = Path("out/motionharness"), tavily: Any = None):
+    def __init__(self, sandbox: Sandbox, llm: LLM | None = None, root: Path = Path("out/motionharness"), tavily: Any = None,
+                 triage: bool = True):
+        """triage: a fast check (Super, reasoning off) that the verb name reads as an action, before writing."""
         load_env()
+        self.triage = triage
         self.sandbox = sandbox
         self.llm = llm or LLM()
         self.root = Path(root)
@@ -192,6 +196,23 @@ class Harness:
         return text
 
     # ---- steps --------------------------------------------------------------------------------------
+
+    def check_name(self, run: Run) -> None:
+        """Verbs read as actions ("the lamp swings"); a noun name (pendulum) reads as an object to draw. Advice only."""
+        task = run.task
+        word = prompts.naming_word(task.name)
+        try:
+            text = self._complete(run, MODELS["super"], "name check", [{"role": "user", "content": prompts.NAMING.format(
+                name=task.name, description=task.description, word=word)}], think=False, json_mode=True, max_tokens=200, temperature=0)
+            reply = json.loads(extract_json_text(text))
+        except Exception as e:  # advice; never fail the run on it
+            run.event("naming", f"name check skipped: {e}")
+            return
+        better = str(reply.get("action_name") or "").strip().strip("`").lower()
+        if reply.get("natural") is False and better and better != task.name and NAME_RX.match(better):
+            run.naming = {"name": task.verb, "suggested": f"{task.namespace}.{better}"}
+            run.event("naming", f"\"the actor {word}s\" doesn't read as a verb, so a planner may take `{task.name}` for an object "
+                                f"to draw; consider `{better}` (rerun with --name {better})", suggested=better)
 
     def lookup_docs(self, run: Run) -> str:
         if not (run.config.docs and self.tavily):
@@ -314,6 +335,8 @@ class Harness:
 
     def _loop(self, run: Run) -> None:
         cfg = run.config
+        if self.triage:
+            self.check_name(run)
         docs = self.lookup_docs(run)
         t = time.time()
         run.event("sandbox", f"preparing the {self.sandbox.name} environment (motionlang + test tools)…")

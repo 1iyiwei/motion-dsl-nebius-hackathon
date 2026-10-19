@@ -15,7 +15,7 @@ Live runs measured Oct 19 (local backend, Super 120B ×3, VL critic):
 | **`spring_follow` (final, hero take)** | c2 passes 6/6 + 4/4 on the first try; VL rejects it 3× ("0.0% overshoot"); three polishes along one branch take the measured overshoot from 0.0% → 0.0% → 0.1% → **6.2%**; c6 accepted 8/10. **104 s, 11 calls.** Run `20261019-185659-spring_follow` |
 | `shake` | 0/3 in round 0 (import errors) → two branches converge, c8 and c9 both pass 6/6 + 3/3, critic 9/10 each. **101 s, 12 calls**. Good live demo |
 | `pendulum` (3 runs before the core fix) | own tests kept failing on a false `E_NOOP` from the core validator (5-point sampling hit the swing's zero crossings); reported, fixed in core Oct 19 |
-| `pendulum` (after the fix) | c6 and c7 pass 6/6 + 3/3 by round 2 (122 s), but VL scores 2–4/10 and the polish doesn't convince it; ships with the critic unsatisfied. Not a video task yet |
+| `pendulum` (after the fix; now offered as `swing`, since verbs should read as actions) | c6 and c7 pass 6/6 + 3/3 by round 2 (122 s), but VL scores 2–4/10 and the polish doesn't convince it; ships with the critic unsatisfied. Not a video task yet |
 
 ## Shot list
 
@@ -36,4 +36,5 @@ Live runs measured Oct 19 (local backend, Super 120B ×3, VL critic):
 2. **Latency**: Super with reasoning takes 20–130 s per candidate. Cut in editing. Ultra was faster on the one run we tried (23 s).
 3. **The critic can be fooled by the picture**: before we passed it measurements it accepted a spring that ended offset from the target as "overshoot". The measurements now win, but keep an eye on its verdicts in recorded takes.
 4. **Repairs are per candidate**; there's no merge of two half-good candidates.
-5. **Exporters** (Lottie, Blender) aren't a task kind yet; Tavily doc lookup is wired in for them (Nano decides when a task depends on an external spec).
+5. **Name verbs as actions** (`swing`, not `pendulum`): a noun reads as an object to SketchDynamics' planner and shape finder. The run's first step (Super, ~1 s) flags such names (✎ in the log) and suggests one.
+6. **Exporters** (Lottie, Blender) aren't a task kind yet; Tavily doc lookup is wired in for them (Nano decides when a task depends on an external spec).

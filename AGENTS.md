@@ -41,7 +41,7 @@ uv run motionlang generate "INTENT" -o out/x.motion.json --preview out/x.html   
 uv run motionlang tweak out/x.motion.json "slower" -o out/y.motion.json        # fast edit path
 RUN_LIVE=1 uv run pytest -m live          # live Token Factory test (costs tokens)
 python3 scripts/export_submission.py sketchdynamics   # public, self-contained copy of one app → ../sketchdynamics-public
-uv run motionharness new-verb "add a \`pendulum\` verb: …"   # write/test/critique a verb plugin → out/motionharness/<run>/plugin
+uv run motionharness new-verb "add a \`swing\` verb: …"   # write/test/critique a verb plugin → out/motionharness/<run>/plugin
 uv run motionharness serve                # MotionHarness dashboard (port 8766)
 uv run motionharness sandbox-check --run  # Token Factory Sandboxes access (needs NEBIUS_PROJECT_ID)
 ```

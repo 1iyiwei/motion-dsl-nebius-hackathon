@@ -25,7 +25,7 @@ from .sandbox import ContreeSandbox, make_sandbox
 
 DEFAULT_ROOT = Path(os.environ.get("MOTIONHARNESS_RUNS", "out/motionharness"))
 ICON = {"start": "▶", "docs": "🔎", "sandbox": "📦", "round": "⟳", "call_start": "…", "candidate": "•", "tests": "🧪",
-        "critique": "👁", "ship": "✅", "error": "✖", "end": "■"}
+        "critique": "👁", "naming": "✎", "ship": "✅", "error": "✖", "end": "■"}
 
 
 def print_event(e: dict) -> None:

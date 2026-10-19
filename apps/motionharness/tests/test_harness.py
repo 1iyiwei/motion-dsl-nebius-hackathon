@@ -41,7 +41,7 @@ class Scripted:
 
 def harness(tmp_path: Path, *replies: str) -> tuple[Harness, Scripted]:
     fake = Scripted(*replies)
-    return Harness(LocalSandbox(tmp_path / "sb"), llm=LLM(fake), root=tmp_path / "runs"), fake
+    return Harness(LocalSandbox(tmp_path / "sb"), llm=LLM(fake), root=tmp_path / "runs", triage=False), fake
 
 
 TASK = Task("add a `pulse` verb: a heartbeat-style scale pulse")
@@ -148,6 +148,19 @@ def test_a_polish_that_breaks_tests_is_repaired(tmp_path):
     assert run.winner == "c3"
     prompt = fake.requests[3]["messages"][-1]["content"]
     assert "identity_at_start" in prompt and "too subtle" in prompt and "tests above broke" in prompt
+
+
+def test_triage_flags_a_noun_verb_name(tmp_path):
+    triage = json.dumps({"sentence": "the actor pulses", "natural": False, "action_name": "swing"})
+    fake = Scripted(triage, GOOD, crit(9))
+    h = Harness(LocalSandbox(tmp_path / "sb"), llm=LLM(fake), root=tmp_path / "runs")
+    run = h.run(Task("add a `pendulum` verb: swings about a pivot", name="pulse"), Config(candidates=1))
+    assert run.naming == {"name": "mh.pulse", "suggested": "mh.swing"} and run.status == "done"
+    assert any(e["type"] == "naming" and "--name swing" in e["msg"] for e in run.events)
+    assert '"the actor pulses"' in fake.requests[0]["messages"][0]["content"]
+    from motionharness.prompts import naming_word
+
+    assert [naming_word(n) for n in ("spring_to", "spring_follow", "pendulum", "move_along")] == ["spring", "follow", "pendulum", "move"]
 
 
 def test_parallel_candidates_and_gives_up_cleanly(tmp_path):
