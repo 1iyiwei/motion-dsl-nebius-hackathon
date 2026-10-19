@@ -101,10 +101,16 @@ def test_library_save_records_source_and_license(tmp_path):
 
 def test_needed_asks_nano_and_drops_what_is_on_the_canvas(tmp_path):
     c, fake = client(json.dumps({"objects": ["Crystal", "sun", "crystal", "the  paper plane.", "red ball", "Stars", "bounce"]}), tmp_path=tmp_path)
-    out = c.post("/shapes/needed", json={"intent": "a crystal falls past the sun", "have": ["Sun"]}).json()
+    out = c.post("/shapes/needed", json={"intent": "a crystal falls past the sun and a paper plane", "have": ["Sun"]}).json()
     assert out["objects"] == ["crystal", "paper plane"]
     assert fake.requests[0]["model"] == model_for("editor") and "Already on the canvas: Sun" in fake.requests[0]["messages"][0]["content"]
     assert out["call"]["purpose"] == "objects"
+
+
+def test_needed_keeps_only_objects_the_request_names(tmp_path):
+    c, _ = client(json.dumps({"objects": ["ball", "string", "hand"]}), json.dumps({"objects": ["frogs", "leaf", "water lily", "pond"]}), tmp_path=tmp_path)
+    assert c.post("/shapes/needed", json={"intent": "a ball swings from left to right"}).json()["objects"] == []
+    assert c.post("/shapes/needed", json={"intent": "two green frogs jump onto a lily pad"}).json()["objects"] == ["frogs"]
 
 
 def test_find_prefers_the_library(tmp_path):

@@ -498,7 +498,7 @@ def create_app(
         guard.check(request)
         text, call = model_call("editor", "objects", needed_messages(req.intent, req.have), think=False, max_tokens=300, temperature=0.1)
         try:
-            objects = parse_objects(extract_json_text(text))
+            objects = parse_objects(extract_json_text(text), req.intent)
         except ValueError:
             objects = []
         have = {h.lower() for h in req.have}

@@ -295,10 +295,10 @@ def needed_messages(intent: str, have: list[str]) -> list[dict[str, Any]]:
     return [{"role": "user", "content": (
         f'An animation request: "{intent}"\n'
         + (f"Already on the canvas: {', '.join(have)}.\n" if have else "")
-        + "List the concrete objects (things, as nouns) this request wants to SHOW that need a recognizable drawing and are "
+        + "List the concrete objects (things, as nouns) the request names and wants to SHOW that need a recognizable drawing and are "
         "not already on the canvas. Never list actions or motions (bounce, fall, spin, fade), colours or sizes. Leave out what simple geometry draws well (ball, dot, circle, square, box, rectangle, triangle, star, "
         "line, arrow, text, letters, words, numbers), parts of something already listed or on the canvas, places and "
-        "backgrounds (the sky, the ground, a room), and anything only mentioned, not shown. Use the singular noun, 1-3 words "
+        "backgrounds (the sky, the ground, a room), anything only mentioned, not shown, and anything the request doesn't name: \"a ball swings\" names no string, \"a frog jumps\" names no pond. Use the singular noun, 1-3 words "
         "(\"crystal\", \"paper plane\"). At most 3.\n"
         'Reply with JSON only: {"objects": ["<object>", ...]}'
     )}]
@@ -342,14 +342,19 @@ def draw_messages(name: str, feedback: str = "", previous: str = "", error: str 
 BUILT_IN = {"ball", "dot", "circle", "disc", "square", "box", "rectangle", "triangle", "star", "line", "arrow", "text",
             "letter", "word", "number", "shape", "sky", "ground", "background", "canvas", "screen", "curve", "path",
             "bounce", "fall", "drop", "spin", "rotate", "fade", "slide", "jump", "roll", "move", "grow", "shrink", "pop",
-            "wiggle", "orbit", "float", "appear", "disappear", "enter", "exit", "reveal", "shake", "pulse", "squash", "motion"}
+            "wiggle", "orbit", "float", "appear", "disappear", "enter", "exit", "reveal", "shake", "pulse", "squash", "motion",
+            "wall", "floor", "platform", "horizon"}
 
 
-def parse_objects(text: str) -> list[str]:
+def parse_objects(text: str, intent: str = "") -> list[str]:
+    """Objects from the model's reply, minus built-in shapes, motions, and (given the request) anything it doesn't
+    name: small models add props a scene implies ("a ball swings" → "string"), and a picker for those is noise."""
     reply = json.loads(text)
     items = reply.get("objects", []) if isinstance(reply, dict) else []
     names = [re.sub(r"^(an?|the|some)\s+", "", " ".join(x.split()).strip(" .").lower())[:40] for x in items if isinstance(x, str)]
-    return list(dict.fromkeys(n for n in names if n and _words(n.split()[-1]) - BUILT_IN))[:3]
+    said = _words(intent) if intent else None
+    return list(dict.fromkeys(n for n in names if n and _words(n.split()[-1]) - BUILT_IN
+                              and (said is None or _words(n) <= said)))[:3]
 
 
 def parse_scores(text: str, count: int) -> list[dict[str, Any]]:
