@@ -202,7 +202,7 @@ class ContreeSandbox(Sandbox):
         try:
             import contree_sdk  # noqa: F401
         except ImportError:
-            return "contree-sdk is not installed (pip install 'motionharness[sandboxes]')"
+            return "contree-sdk is not installed (reinstall motionharness: uv sync)"
         missing = [k for k in ("NEBIUS_API_KEY", "NEBIUS_PROJECT_ID") if not os.environ.get(k)]
         return f"{' and '.join(missing)} not set" if missing else None
 

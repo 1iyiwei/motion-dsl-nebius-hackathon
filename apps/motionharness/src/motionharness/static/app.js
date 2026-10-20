@@ -48,6 +48,8 @@ async function loadInfo() {
   $("#code").onchange = () => storage.set("mh-access-code", $("#code").value.trim());
   const paused = info.sandbox.backend === "unavailable";
   $("#go").disabled = paused;
+  $("#go").classList.toggle("paused", paused);
+  $("#go").title = paused ? "Runs are paused on this server: see the note below" : "";
   $("#form-note").hidden = !(paused || info.hosted);
   $("#form-note").textContent = paused ? info.sandbox.reason : info.hosted
     ? `Hosted demo: every candidate runs in Token Factory Sandboxes; up to ${info.caps.candidates} candidates and ${info.caps.rounds} repair rounds per run.`

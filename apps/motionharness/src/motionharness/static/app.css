@@ -31,6 +31,7 @@ textarea:focus, input:focus, select:focus { outline: 2px solid color-mix(in srgb
 .chip:hover { color: var(--ink); border-color: var(--green); }
 #go { margin-top: 12px; width: 100%; background: var(--green); color: #0b0d10; border: 0; border-radius: 8px; padding: 9px; font-weight: 700; cursor: pointer; }
 #go:disabled { opacity: .5; cursor: wait; }
+#go.paused:disabled { cursor: not-allowed; }
 .runs ul { list-style: none; margin: 0; padding: 0; max-height: 46vh; overflow: auto; }
 .runs li { padding: 7px 8px; border-radius: 7px; cursor: pointer; display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: center; }
 .runs li:hover, .runs li.on { background: var(--panel2); }

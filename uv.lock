@@ -698,6 +698,7 @@ name = "motionharness"
 version = "0.1.0"
 source = { editable = "apps/motionharness" }
 dependencies = [
+    { name = "contree-sdk" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "motionlang", extra = ["agent", "testing"] },
@@ -715,6 +716,7 @@ sandboxes = [
 
 [package.metadata]
 requires-dist = [
+    { name = "contree-sdk", specifier = "==0.3.6" },
     { name = "contree-sdk", marker = "extra == 'sandboxes'", specifier = "==0.3.6" },
     { name = "fastapi", specifier = ">=0.110" },
     { name = "httpx", specifier = ">=0.27" },

@@ -85,7 +85,7 @@ All chat calls use the OpenAI-compatible Token Factory endpoint through `motionl
 
 Generated code never runs in the harness process. The harness sends files into a sandbox and reads back one JSON bundle (JUnit reports, logs, baked tracks). Rendering and critique work on that data, so the host never imports model-written code.
 
-- **`contree` (Token Factory Sandboxes)**, used when `contree-sdk` is installed, `NEBIUS_API_KEY` and `NEBIUS_PROJECT_ID` are set, and the project is activated for Sandboxes (see below). The first run builds an environment image (python 3.12 + motionlang + pytest/hypothesis) and caches its UUID in `~/.cache/motionharness/contree.json`. Every candidate is a `run(..., disposable=False)` from an image, so its result is a new image: a repair branches from the candidate it fixes, and the tree in the dashboard is the tree of images.
+- **`contree` (Token Factory Sandboxes)**, used when `NEBIUS_API_KEY` and `NEBIUS_PROJECT_ID` are set and the project is activated for Sandboxes (see below). The first run builds an environment image (python 3.12 + motionlang + pytest/hypothesis) and caches its UUID in `~/.cache/motionharness/contree.json`. Every candidate is a `run(..., disposable=False)` from an image, so its result is a new image: a repair branches from the candidate it fixes, and the tree in the dashboard is the tree of images.
 - **`local`**, the fallback: the same checkpoint and branch semantics with directories and subprocesses. It strips secrets from the environment, but it does **not** isolate untrusted code. Use it on your own machine only.
 
 `--sandbox auto` (the default) uses Sandboxes when the project may, and otherwise falls back to `local`, printing why. `--sandbox contree` refuses to run without Sandboxes.

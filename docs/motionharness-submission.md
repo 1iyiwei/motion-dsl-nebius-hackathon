@@ -1,6 +1,6 @@
 # MotionHarness: submission draft (Coding & Agentic Engineering)
 
-Draft for the Devpost form (fields as in `docs/submission-form.md`). Numbers marked TODO get filled from the final recorded run.
+Draft for the Devpost form (fields as in `docs/submission-form.md`). Submitted Oct 20 as https://devpost.com/software/motionharness (editable until the deadline).
 
 ## General info
 
@@ -24,6 +24,8 @@ For one task, MotionHarness:
 4. **Critiques** passing candidates: the demo is rendered to a contact sheet (onion skin, keyframes, position/scale/rotation curves) and sent to Nemotron 3.5 Super VL with exact measurements (travel, overshoot %, settle time). If the motion doesn't match the task, for example a "spring" that never overshoots, the candidate is polished and tested again.
 5. **Ships** the winner: a `pip install`-able package registering the verb under the `motionlang.verbs` entry point, a diff, `report.md`, a playable `preview.html` and the contact sheet. The new verb is immediately part of the schema and prompt that SketchDynamics' planner uses.
 
+Then you can **try the verb in a scene**: type a prompt ("a ball falls from the sky and wobbles on its way") and the planner that SketchDynamics uses plans it twice with the same cast, once with the new verb in its vocabulary and once with core verbs only, side by side. Both plans are validated in sandboxes, so nothing gets installed. You can then download the plugin, or install and uninstall it in one click to compare apps with and without it.
+
 It runs as a CLI (`motionharness new-verb "…"`), a web dashboard (`motionharness serve`) and an MCP server (`motionharness mcp`), so Claude Code or Cursor can ask it for a tested verb.
 
 ### Inspiration
@@ -32,19 +34,21 @@ Building SketchDynamics, we added verbs by hand: write the math, write tests, lo
 
 ### How we built it
 
-- **Models (all on Nebius Token Factory)**: Nemotron 3 Super 120B writes and repairs code (reasoning on); Nemotron 3 Ultra 550B is available per candidate; Nemotron 3.5 Super VL critiques rendered motion (reasoning off, JSON mode, ~2 s); Nemotron 3 Nano decides whether a task needs external docs (reasoning off, ~1 s), and Tavily fetches them (for exporters and third-party specs).
+- **Models (all on Nebius Token Factory)**: Nemotron 3 Super 120B writes and repairs code (reasoning on), plans the "try in a scene" documents, and checks that a verb's name reads as an action ("the actor *swings*", not "*pendulums*"; reasoning off, ~1 s); Nemotron 3 Ultra 550B is available per candidate; Nemotron 3.5 Super VL critiques rendered motion (reasoning off, JSON mode, ~2 s); Nemotron 3 Nano decides whether a task depends on an external spec (reasoning off, ~1 s), and Tavily fetches it.
 - **Sandboxes**: a `Sandbox` interface with a Token Factory Sandboxes backend (contree-sdk): an environment image with Python, motionlang and the test tools is built once and cached by content hash. Every candidate is `run(disposable=False)` from an image and returns a new image, which is the next repair's branch point. Candidates run concurrently. A local subprocess backend with the same semantics (directories as images, secrets stripped) runs when Sandboxes isn't configured.
 - **The prompt**: the plugin contract, the base class source and four core verbs as reference implementations, plus the document format, all generated from the installed library, so the agent always sees the current API.
 - **Rendering**: Pillow draws the contact sheet from baked tracks (plain data from the sandbox), including SVG path flattening, so no browser is needed.
 - **Dashboard**: FastAPI + vanilla JS, no build step. It polls the run record (`run.json`), which is also the CLI's and MCP's source of truth.
-- **Tests**: 14 tests with a scripted fake model cover a repair, a critique-driven polish, a polish that breaks the tests and gets repaired, candidates that never pass, the contract gate on a good and a broken plugin, a fake Sandboxes client (checkpoint branching, platform errors), the dashboard API (including path traversal) and the MCP tools.
+- **Hosting**: a hosted mode for public demos runs generated code only in Token Factory Sandboxes (and refuses runs while they're unavailable), disables installing into the server, caps runs, and adds an access code, a per-visitor rate limit and a daily token budget.
+- **Tests**: 22 tests with a scripted fake model cover a repair, a critique-driven polish, a polish that breaks the tests and gets repaired, candidates that never pass, the contract gate on a good and a broken plugin, a fake Sandboxes client (checkpoint branching, platform errors, an inactive project), try-in-a-scene, hosted mode, the dashboard API (including path traversal) and the MCP tools.
 
 ### Challenges we ran into
 
-- **Sandboxes access**: Sandboxes is in Beta behind project activation. We built behind an interface with a local fallback so the agent worked from day one. TODO: update when the real backend has run.
+- **Sandboxes access**: Sandboxes is in Beta behind project activation. At submission time our project was still waiting: the API accepts the key, but every permission comes back `false`. We built behind a `Sandbox` interface whose local backend has the same checkpoint-and-branch semantics, so the agent worked from day one, and the Sandboxes backend is implemented and tested against a fake client. MotionHarness probes access at startup and says exactly why it isn't using Sandboxes; the hosted demo refuses to run generated code until they're active.
 - **Hidden failures**: our first live run reported "verb not registered" because a relative path made the plugin invisible to the test process, which hid the real error (`from motionlang.model import Vec2`, a type that doesn't exist). Surfacing the import traceback to the model fixed most first-round failures.
 - **Tests pass, motion is wrong**: the first spring candidate passed every test but was critically damped, so it never overshot. The vision critic caught it. Then it went the other way: VL accepted a follower that ended 20 px off the target as "overshoot". Passing exact measurements with the image, and telling the critic they win, fixed that.
 - **Finding a library bug**: pendulum candidates kept failing their own tests with "changes nothing" (`E_NOOP`) although they swing 16°. The agent's failures led us to a real validator bug: the no-op check sampled five points, which landed on the swing's zero crossings.
+- **Measurements that lie**: for a property that wobbles and returns to its start, "overshoot past the final value" divided by a near-zero travel and told the critic "8333% overshoot". Claude Code, calling MotionHarness over MCP, spotted it in the critique. Oscillating properties are now described by their peak deviation instead.
 - **Format slips**: models put `(unchanged)` inside a code fence, or ignored few-shot examples in JSON mode. Each became a parser rule or a schema-shaped question.
 
 ### Accomplishments that we're proud of
@@ -74,7 +78,8 @@ Python, FastAPI, Pydantic, NumPy, Pillow, pytest, Hypothesis, NVIDIA Nemotron 3 
 
 https://github.com/1iyiwei/motion-dsl-nebius-hackathon/tree/main/apps/motionharness
 
-- Code: TODO public repo (export with `python3 scripts/export_submission.py motionharness`)
+- Demo video: https://youtu.be/Yiqjqel_Z0Q
+- Hosted dashboard: https://motion-harness.dragoniac.com/ (runs are paused until our Token Factory project is activated for Sandboxes; past runs are viewable)
 
 
 ### Project Media
@@ -120,7 +125,7 @@ https://github.com/1iyiwei/motion-dsl-nebius-hackathon/tree/main/apps/motionharn
 Provide a URL to a working demo, hosted application, or test build of your Project.
 Not required for Physical AI submissions
 
-https://sketch-dynamics.dragoniac.com/
+https://motion-harness.dragoniac.com/
 
 <!--
 (also https://sketch-dynamics-nebius-hackathon.onrender.com/) Access code: `<code>` (this field is for judges only, not the public page). On the free plan the first visit may take about a minute while the server wakes up.
@@ -129,22 +134,17 @@ https://sketch-dynamics.dragoniac.com/
 * Which model(s) did you use, and why did you choose that size/variant?
 e.g., Nemotron-4 340B, Nemotron-Mini, etc.
 
-Four Nemotron models, one per job, all through Nebius Token Factory:
-- **Nemotron 3 Super 120B-A12B** is the default planner. With structured output constrained to our JSON Schema, it was the most reliable planner we measured on logo scenes (6/6 valid after at most two cheap repairs), at lower cost than Ultra.
-- **Nemotron 3 Ultra 550B-A55B** is the stronger fallback planner, one click away ("Retry with Ultra"). It's best at hard multi-step plans in plain JSON mode.
-- **Nemotron 3 Nano 30B-A3B**, with reasoning turned off, handles fast edits ("slower", "more bounce") as a few edit ops in 1–3 s. It escalates to reasoning, then to the planner, only when needed. It also spots objects a request needs a drawing for (about 1 s).
-- **Nemotron 3.5 Super VL** reads imported artwork: it names parts, groups rigid pieces, picks rotation pivots and suggests animations, in 2–4 s. It also scores candidate shapes found on the web from one numbered grid image.
-- Super also draws a simple SVG icon when no found shape fits, in about 3 s.
+Nemotron 3 Super 120B-A12B, Nemotron 3 Ultra 550B-A55B, Nemotron 3 Nano 30B-A3B, Nemotron 3.5 Super VL
 
 * How would you rate Nemotron's output quality for your use case? (1 = Poor, 10 = Excellent)
 Please share what worked well or fell short — e.g., reasoning, instruction-following, domain knowledge, multilingual support.
 
-**8.** Worked well: JSON mode and structured output were clean on every model; instruction-following on a novel DSL was strong given only a generated reference and one example; and the VL model's part naming and grouping were accurate once given numbered marks. Fell short: models sometimes copied validator hint wording literally (inventing fields or verbs), occasionally mixed coordinate frames, and could produce plans that are valid but miss the intent. Latency varied a lot when reasoning ran long.
+**7.** Writing code: Nemotron 3 Super wrote complete plugins (module + tests + demo) that passed MotionLang's fixed contract suite, sometimes on the first try and usually within 1–3 repair rounds, and it used verbatim test failures well to fix its own code. What fell short: it imported names that don't exist, wrote tests with guessed thresholds, and sometimes picked parameters that make a verb do nothing; we added prompt rules and better error excerpts for each. Nemotron 3.5 Super VL was a good motion critic in ~2 s from a contact sheet (it caught a spring that never overshot although every test passed), but it needed exact measurements next to the image to stop it from "seeing" effects that aren't there. Nano was fast and reliable for JSON decisions once we asked for a named field rather than a yes/no.
+
 
 * Did you fine-tune, prompt-engineer, or use Nemotron out of the box? What was your approach?
-Use Nemotron out of the box.
+Use Nemotron out of the box, with prompt engineering and tool feedback instead of fine-tuning. The coding prompt is generated from the installed library (the plugin contract, the verb base class, four core verbs as reference implementations, the document format), so it always matches the current API. Each model gets the job that fits its size and is checked by a program: tests in a sandbox for the code, measured motion for the critic, a validator for the scene documents. Failures go back verbatim, with the offending code or document quoted.
 
-No fine-tuning: the models are used as served, with prompt engineering around them. The system prompt is generated from the verb registry (the reference for each verb, plus rules and one example document). Planning uses structured output constrained to the MotionLang JSON Schema on Super. The core of the approach is a **validator-in-the-loop**: deterministic checks whose error messages are written as repair instructions (an exact edit at a JSON pointer), fed back to the model as edit ops. For artwork we use **set-of-marks** prompting: a second image with each part numbered.
 
 * How did Nemotron's performance compare to other models you've used for similar tasks?
 
@@ -153,13 +153,8 @@ Nemotron works much better than some open-weight models that we ran locally, suc
 * Which Nebius platform capabilities were most valuable to your project and how?
 Please include detail on how you leveraged Nebius infrastructure to run Nemotron (e.g., GPU instance types, deployment setup, API access, scaling).
 
-**Token Factory's OpenAI-compatible API**, serving the whole Nemotron family behind one key and one client, which made a different model per job trivial: a per-request model override picks Super, Ultra, Nano or VL. Most valuable features:
-- **JSON mode** and **structured output** (`json_schema`), so the planner returns schema-valid documents.
-- **The reasoning toggle** (`chat_template_kwargs.enable_thinking=false`), which made Nano edits about 3× faster (3.3 s to 1.1 s on a typical edit).
-- **Multimodal input** (image data URLs) on Super VL.
-- **Per-call usage counts**, which the app shows live for every call.
+**Token Factory's OpenAI-compatible API** for the whole Nemotron range, with no GPUs or deployments to manage. That let us give each step its own model in the same run: Super 120B to write and repair code and plan scenes, Ultra 550B as an optional bigger coder, Nano 30B with reasoning off for one-second decisions, and Super VL to critique rendered motion. Three candidates are written in parallel, so concurrent requests mattered. JSON mode and the `enable_thinking` toggle let us trade quality for latency per call, and the dashboard shows every call's model, latency and tokens. **Token Factory Sandboxes** is the backend MotionHarness was designed around: its immutable images, where every run saves a new image you can run from again, map directly onto "branch candidates from one checkpoint and repair from the parent's state". The backend is built on contree-sdk and ready; our project's activation was still pending at submission.
 
-There's no GPU provisioning or deployment on our side: Token Factory is serverless inference, so scaling is the platform's job.
 
 * How likely are you to recommend running Nemotron on Nebius to other developers? (1 = Unlikely, 10 = Highly Likely)
 Please share why or provide additional feedback.
@@ -174,18 +169,21 @@ Please share why or provide additional feedback.
 * What additional features or improvements would have made the Nemotron on Nebius experience more effective for your project?
 
 1. **A per-request reasoning budget** (max reasoning tokens). The same planning prompt took 22 s to 87 s depending on reasoning length; interactive apps need to cap that tail.
-2. **Structured output that supports, or cleanly ignores, `propertyNames`**, which Pydantic emits for `dict[Literal, …]`. Today Ultra returns a 400 and Super a bare 500 with no message.
-3. **Documenting the reasoning toggle per model family.** `enable_thinking=false` works, while `/no_think` in the prompt made Nano spin to `max_tokens` and return nothing.
-4. **Model ids in the public docs**, not only via `/v1/models`.
-5. **A fix for a JSON-mode slip on Super:** about 1 in 4 replies came back as the whole document escaped into a single key.
+2. **Sandboxes on by default for hackathon projects**, or faster activation: our coding agent was built around Sandboxes, and the project was still not activated at submission. The Python SDK's `run()` also lacks the `networking` option that REST has, which matters most for untrusted generated code.
+3. **Structured output that supports, or cleanly ignores, `propertyNames`**, which Pydantic emits for `dict[Literal, …]`. Today Ultra returns a 400 and Super a bare 500 with no message.
+4. **Documenting the reasoning toggle per model family.** `enable_thinking=false` works, while `/no_think` in the prompt made Nano spin to `max_tokens` and return nothing.
+5. **Model ids in the public docs**, not only via `/v1/models`.
+6. **A fix for a JSON-mode slip on Super:** about 1 in 4 replies came back as the whole document escaped into a single key.
 
 * What do you most hope to see from the Nemotron team next?
 
-**[check]** Reliable structured output across every size (Ultra degenerated under constrained decoding where Super excelled), controllable reasoning length, and a VL model that can look at rendered animation frames to judge motion, which would close our loop from "valid" to "matches the intent".
+Reliable structured output across every size (Ultra degenerated under constrained decoding where Super excelled), controllable reasoning length, and video or multi-frame input for the VL model, so it can judge motion from the animation itself rather than from a contact sheet of frames and curves.
 
 * Did you use Tavily in your project?
 To qualify: your project must make a functional, runtime call to the Tavily API as part of its solution.
-Yes. When a prompt names an object the planner can't draw from basic shapes ("a crystal drops from the sky"), and the app's shape library has none, the server calls Tavily's search API at runtime, restricted to icon sites (`include_domains`: svgrepo.com, commons.wikimedia.org), to find SVG files of it. The app fetches and sanitizes them, Nemotron VL ranks them, and the user picks one to animate. The side panel shows the Tavily step with its result counts. Code: `apps/sketchdynamics/src/sketchdynamics/shapes.py` (`WebSearch`).
+Yes
+
+<!-- Not part of the form (it only asks yes/no); for reference if asked how: Before writing code, Nemotron Nano decides whether the task depends on an external file format, product or API (for example a Lottie exporter, or matching After Effects' `wiggle` expression). If it does, the harness calls Tavily's search API at runtime with up to two queries and gives the results to the coding model as reference material; the dashboard's agent log shows each search and its result count. Tasks that only need math or physics (springs, pendulums, wobbles) skip the search. Code: `apps/motionharness/src/motionharness/harness.py` (`tavily_search`, `Harness.lookup_docs`). -->
 
 Builders & Brews - IRL Events City
 If you're attending one of the 20 participating IRL hackathon events, select your city to be eligible for the City Winner Award.
