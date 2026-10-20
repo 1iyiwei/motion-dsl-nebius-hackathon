@@ -741,6 +741,9 @@ dependencies = [
 agent = [
     { name = "openai" },
 ]
+render = [
+    { name = "pillow" },
+]
 testing = [
     { name = "hypothesis" },
     { name = "pytest" },
@@ -751,10 +754,11 @@ requires-dist = [
     { name = "hypothesis", marker = "extra == 'testing'", specifier = ">=6.100" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "openai", marker = "extra == 'agent'", specifier = ">=1.40" },
+    { name = "pillow", marker = "extra == 'render'", specifier = ">=10.1" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pytest", marker = "extra == 'testing'", specifier = ">=8" },
 ]
-provides-extras = ["agent", "testing"]
+provides-extras = ["agent", "testing", "render"]
 
 [[package]]
 name = "numpy"

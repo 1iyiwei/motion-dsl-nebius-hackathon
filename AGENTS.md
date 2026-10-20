@@ -35,6 +35,7 @@ uv run pytest packages/motionlang -q      # library tests only
 uv run motionlang validate FILE.motion.json
 uv run motionlang bake FILE.motion.json -o tracks.json
 uv run motionlang preview FILE.motion.json -o preview.html   # self-contained SVG player
+uv run motionlang render FILE.motion.json --gif out.gif     # animated GIF (motionlang[render], Pillow)
 uv run motionlang schema                  # JSON Schema (also the LLM structured-output schema)
 uv run motionlang prompt                  # verb reference for LLM system prompts
 uv run motionlang generate "INTENT" -o out/x.motion.json --preview out/x.html   # Nemotron (needs NEBIUS_API_KEY in .env)
@@ -58,6 +59,7 @@ edits.py     id-addressed edit ops (set/insert/remove/wrap)
 verbs/       Verb base class + registry (entry point group `motionlang.verbs`); core verbs in verbs/core.py
 schema.py    JSON Schema + LLM prompt reference generated from the registry
 preview.py   baked tracks → standalone HTML/SVG player
+render.py    baked tracks → PIL frames / animated GIF (optional extra `render`)
 importers/   svg.py: SVG → assets (transforms flattened, arcs → cubics) + suggested group actors
 agent/       LLM loop (optional extra `agent`): llm.py client + telemetry, prompts.py, loop.py generate/tweak
 ```

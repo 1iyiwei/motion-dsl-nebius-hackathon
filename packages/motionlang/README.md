@@ -29,6 +29,7 @@ motionlang schema   > motion.schema.json                                 # JSON 
 motionlang prompt   > motion-reference.md                                # verb reference for system prompts
 motionlang edit     doc.motion.json ops.json -o doc2.motion.json
 motionlang import-svg logo.svg --fit 1280x720 -o logo.json             # SVG → assets + suggested actors
+motionlang render   doc.motion.json --gif out.gif --width 480             # animated GIF (pip install motionlang[render])
 ```
 
 ```python

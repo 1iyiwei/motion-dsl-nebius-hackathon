@@ -1,4 +1,4 @@
-"""motionlang command line: validate, bake, preview, edit, import-svg, schema, prompt."""
+"""motionlang command line: validate, bake, preview, render, edit, import-svg, generate, tweak, schema, prompt."""
 
 from __future__ import annotations
 
@@ -39,6 +39,13 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("preview", help="write a standalone HTML player")
     p.add_argument("file")
     p.add_argument("-o", "--out", required=True)
+
+    r = sub.add_parser("render", help="rasterize a document to an animated GIF (needs motionlang[render])")
+    r.add_argument("file")
+    r.add_argument("--gif", required=True, help="output .gif path")
+    r.add_argument("--width", type=int, default=480, help="output width in px (default 480)")
+    r.add_argument("--fps", type=float, default=20, help="frames per second (default 20)")
+    r.add_argument("--once", action="store_true", help="play once instead of looping")
 
     e = sub.add_parser("edit", help="apply edit ops (JSON list) and print the new document")
     e.add_argument("file")
@@ -100,6 +107,8 @@ def main(argv: list[str] | None = None) -> int:
 
     result = check(_load(args.file))
     report = result.report
+    if args.cmd == "render":
+        return _render(args, result)
     if args.cmd == "validate":
         _write(json.dumps(report.to_dict(), indent=2) if args.json else report.summary(), None)
         return 0 if report.ok else 1
@@ -114,6 +123,23 @@ def main(argv: list[str] | None = None) -> int:
     else:
         title = result.parsed.doc.meta.get("title") or Path(args.file).stem  # type: ignore[union-attr]
         _write(preview_html(tracks, title), args.out)
+    return 0
+
+
+def _render(args: argparse.Namespace, result) -> int:  # noqa: ANN001
+    try:
+        from .render import to_gif
+    except ImportError:
+        print("render needs Pillow: pip install motionlang[render]", file=sys.stderr)
+        return 1
+    if result.baked is None:
+        print(result.report.summary(), file=sys.stderr)
+        return 1
+    if not result.report.ok:
+        print(result.report.summary(), file=sys.stderr)  # still render: useful for seeing what's wrong
+    data = to_gif(result.baked.to_json(), width=args.width, fps=args.fps, loop=not args.once)
+    Path(args.gif).write_bytes(data)
+    print(f"wrote {args.gif} ({len(data) / 1024:.0f} KB)", file=sys.stderr)
     return 0
 
 

@@ -13,6 +13,8 @@ dependencies = ["pydantic>=2.7", "numpy>=1.26"]
 agent = ["openai>=1.40"]
 # motionlang.testing: the verb contract suite for plugin authors.
 testing = ["pytest>=8", "hypothesis>=6.100"]
+# motionlang.render: baked tracks → PNG frames / animated GIF.
+render = ["pillow>=10.1"]
 
 [project.scripts]
 motionlang = "motionlang.cli:main"

@@ -22,7 +22,6 @@ Deadline: **Fri Oct 30, 10:00 am PT**. Three separate submissions, one per track
 | Planner / coder | Nemotron 3 Ultra | Turning intent into a DSL program, writing verb implementations, repair after test failures |
 | Fast editor | Nemotron 3 Super / Nano | One-line tweaks, parameter edits, classification, tool routing |
 | Eyes | NVIDIA vision model on Token Factory | Reading sketches, critiquing rendered frames, tagging images |
-| Memory | Embedding model on Token Factory | CanvasMind retrieval |
 
 Log tokens and latency per call. That gives concrete numbers for the "credits stretch further" story and the feedback prize.
 
@@ -81,34 +80,11 @@ Open question for you: build on GSAP, Lottie or your prior motion-blocks work ra
 - **Benchmark**: a Serverless Job runs a subset of the MoVer 5,600-prompt dataset as Nemotron → GSAP (MoVer's baseline) vs. Nemotron → Motion, and reports pass rates. That's a measured result for the write-up and video.
 - **Why it's distinct from P1**: a different user (a developer, not a designer), a different artifact (code + tests, not animations), and a different interface.
 
-## P3: CanvasMind · Personal AI (Oct 27–28)
+## P3: CanvasMind · Personal AI (Oct 21–28)
 
-**User**: an individual creative. A private, always-on creative memory that acts for them.
+**Full plan: [canvasmind-plan.md](canvasmind-plan.md)** (agreed Oct 20; supersedes the earlier mood-board sketch here).
 
-### The three named tools are one stack
-
-| Layer | What it is | Role here |
-| --- | --- | --- |
-| **Hermes Agent** (Nous Research, MIT) | Self-hosted personal agent: persistent memory, self-created skills, messaging (Telegram/Discord/Slack/WhatsApp) | The assistant the user talks to |
-| **OpenShell** (NVIDIA Agent Toolkit) | Sandbox runtime: filesystem/network/process policy + inference routing, so the agent never sees raw API keys | Keeps the user's files and credentials contained (the "data under your control" story) |
-| **NemoClaw** (NVIDIA, alpha) | Host-side installer/orchestrator; `nemohermes` CLI sets up Hermes inside OpenShell | One-command setup |
-
-Inference: NemoClaw onboarding supports "Other OpenAI-compatible endpoint" (`NEMOCLAW_PROVIDER=custom` + endpoint + model + `COMPATIBLE_API_KEY`) → point it at Token Factory Nemotron.
-
-Install: `curl -fsSL https://www.nvidia.com/nemoclaw.sh | NEMOCLAW_AGENT=hermes bash -s -- --defer-onboarding`, then `nemohermes onboard`.
-
-**Risk**: NemoClaw is alpha. Spike it for half a day early (Oct 18, while waiting on Sandboxes access). Fallback: plain Hermes Agent pointed at Token Factory, no NemoClaw.
-
-### What we build (Hermes does memory/chat/messaging for free)
-
-- **`canvasmind` MCP server** that Hermes calls:
-  - `ingest(folder)`: a vision model captions/tags each image or animation → Token Factory embeddings → local LanceDB. Data stays local.
-  - `recall(query)`: "that bouncy blue logo from last week"
-  - `moodboard(brief)`: renders an HTML board
-  - `style_profile()`: "you favor ease-out-back, muted palettes"
-- **Hermes skills**: a daily trend digest via **Tavily**, filtered by the style profile and delivered to Telegram, plus "watch my sketches folder."
-- **Cold start**: seed with your own sketches and the P1/P2 outputs.
-- Scope it small: ingest + recall + one proactive skill is enough.
+In short: an always-on studio assistant for a motion designer. You message it from your phone; it files your sketches and references privately, learns your motion style from what you accept and reject, drafts animations in that style (MotionLang → GIF), and sends a weekly Tavily trend digest. Stack: Hermes Agent inside OpenShell, installed with NemoClaw, inference on Token Factory Nemotron; our `apps/canvasmind` is a host-side library + MCP server reached over Tailscale HTTPS. Developed and demoed on the MacBook; the judging host (Mac or a Nebius VM for Dec 1–15) is decided around Nov 25. NemoClaw spike Oct 21 morning, with the plain Hermes fallback.
 
 ## Oct 29: videos and submissions
 
@@ -118,7 +94,7 @@ Install: `curl -fsSL https://www.nvidia.com/nemoclaw.sh | NEMOCLAW_AGENT=hermes 
 ## Cut lines if time slips
 
 1. Drop exporters and voice input.
-2. CanvasMind shrinks to ingest + recall + digest.
+2. CanvasMind follows the cut lines in [canvasmind-plan.md](canvasmind-plan.md).
 3. If P2 is late, ship it CLI + MCP only and skip the dashboard.
 4. Never cut a project's video. A finished smaller project beats an unfinished bigger one.
 
