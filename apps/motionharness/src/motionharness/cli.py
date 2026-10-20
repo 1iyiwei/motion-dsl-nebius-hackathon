@@ -4,6 +4,7 @@
     motionharness serve                      # dashboard: branch tree, tests, frames, model calls
     motionharness sandbox-check              # is Token Factory Sandboxes access set up?
     motionharness runs                       # past runs
+    motionharness install RUN / uninstall RUN / installed   # try a plugin in this environment
     motionharness mcp                        # MCP server (stdio) for coding agents
 """
 
@@ -76,6 +77,45 @@ def cmd_sandbox_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_dir(args: argparse.Namespace) -> Path:
+    d = args.out / args.run
+    if not (d / "run.json").exists():
+        sys.exit(f"no such run: {d} (see `motionharness runs`)")
+    return d
+
+
+def cmd_install(args: argparse.Namespace) -> int:
+    from . import installer
+
+    d = _run_dir(args)
+    ok, log = installer.install(d)
+    info = installer.run_info(d)
+    print(f"{'installed' if ok else 'install failed:'} {info['dist']} ({info['verb']})" + ("" if ok else f"\n{log}"))
+    if ok:
+        print("Restart apps that are already running (e.g. SketchDynamics) to pick it up.")
+    return 0 if ok else 1
+
+
+def cmd_uninstall(args: argparse.Namespace) -> int:
+    from . import installer
+
+    dist = installer.run_info(_run_dir(args))["dist"] if (args.out / args.run / "run.json").exists() else args.run
+    ok, log = installer.uninstall(dist)
+    print(f"{'uninstalled' if ok else 'uninstall failed:'} {dist}" + ("" if ok else f"\n{log}"))
+    return 0 if ok else 1
+
+
+def cmd_installed(args: argparse.Namespace) -> int:
+    from . import installer
+
+    plugins = installer.installed()
+    for p in plugins:
+        print(f"{p['dist']:40} {p['version']:8} {', '.join(p['modules'])}")
+    if not plugins:
+        print("no verb plugins installed")
+    return 0
+
+
 def cmd_runs(args: argparse.Namespace) -> int:
     for p in sorted(args.out.glob("*/run.json"), reverse=True)[:30]:
         r = json.loads(p.read_text())
@@ -126,6 +166,14 @@ def main(argv: list[str] | None = None) -> None:
     sc.set_defaults(fn=cmd_sandbox_check)
 
     sub.add_parser("runs", help="list past runs").set_defaults(fn=cmd_runs)
+
+    ins = sub.add_parser("install", help="install a run's plugin into this environment")
+    ins.add_argument("run", help="run id (see `motionharness runs`)")
+    ins.set_defaults(fn=cmd_install)
+    uns = sub.add_parser("uninstall", help="uninstall a run's plugin (run id or distribution name)")
+    uns.add_argument("run")
+    uns.set_defaults(fn=cmd_uninstall)
+    sub.add_parser("installed", help="list installed verb plugins").set_defaults(fn=cmd_installed)
 
     sv = sub.add_parser("serve", help="web dashboard")
     sv.add_argument("--host", default="127.0.0.1")

@@ -205,6 +205,15 @@ def test_dashboard_api(tmp_path):
     assert client.get(f"/api/runs/{rid}/file/../../etc/passwd").status_code == 404
     assert client.get("/api/runs/..%2F..%2Fetc").status_code == 404
     assert client.post("/api/runs", json={"task": "add a verb", "name": "Bad-Name"}).status_code == 422
+    z = client.get(f"/api/runs/{rid}/plugin.zip")
+    assert z.status_code == 200 and z.headers["content-type"] == "application/zip"
+    import io
+    import zipfile
+
+    names = zipfile.ZipFile(io.BytesIO(z.content)).namelist()
+    assert "motionlang-mh-pulse/pyproject.toml" in names and "motionlang-mh-pulse/src/mh_pulse/verb.py" in names
+    assert "motionlang-mh-pulse/run/report.md" in names
+    assert all(p["dist"] != "motionlang" for p in client.get("/api/installed").json())
 
 
 class FakeContree:
@@ -323,3 +332,64 @@ def test_auto_falls_back_to_local_when_sandboxes_are_inactive(tmp_path, monkeypa
     assert make_sandbox("auto", tmp_path).name == "contree"
     monkeypatch.setattr(ContreeSandbox, "whoami", staticmethod(lambda timeout=10: (401, {"error": "bad key"})))
     assert "HTTP 401" in make_sandbox("auto", tmp_path).fallback_reason
+
+
+def test_try_in_a_scene_plans_with_and_without_the_verb(tmp_path):
+    from motionharness.scenes import SceneTrier, list_trials
+
+    def scene(verb_block: dict) -> str:
+        return json.dumps({"motion": "0.1", "actors": [{"id": "heart", "shape": {"kind": "ellipse", "rx": 40, "ry": 40}, "init": {"x": 640, "y": 360}}],
+                           "timeline": {"id": "root", "seq": [verb_block]}})
+
+    with_verb = scene({"id": "b1", "verb": "mh.pulse", "actor": "heart", "amount": 0.3, "beats": 2})
+    broken = scene({"id": "b1", "verb": "mh.pulse", "actor": "heart"})  # unknown verb without the plugin
+    core = scene({"id": "b1", "verb": "scale", "actor": "heart", "by": 0.3})
+    h, fake = harness(tmp_path, GOOD, crit(9))
+    run = h.run(TASK, Config(candidates=1))
+    replies = {"with": [with_verb], "without": [broken, core]}
+
+    class BySide:  # the two sides plan concurrently; answer each from its own script
+        def complete(self, model, messages, **kw):
+            side = "with" if "mh.pulse" in messages[0]["content"] else "without"
+            return replies[side].pop(0), {"prompt_tokens": 1, "completion_tokens": 1}
+
+    h.llm.backend = BySide()
+    trial = SceneTrier(h).run(run.to_dict(), run.dir, "a heart beats")
+    w, wo = trial.data["sides"]["with"], trial.data["sides"]["without"]
+    assert trial.data["status"] == "done"
+    assert w["ok"] and w["uses_verb"] and len(w["attempts"]) == 1 and (run.dir / w["preview"]).exists()
+    assert wo["ok"] and not wo["uses_verb"] and [a["ok"] for a in wo["attempts"]] == [False, True]
+    assert "mh.pulse" in (run.dir / "scenes" / "system-with.txt").read_text()
+    assert "mh.pulse" not in (run.dir / "scenes" / "system-without.txt").read_text()
+    assert [t["n"] for t in list_trials(run.dir)] == [1]
+
+
+def test_hosted_mode_requires_sandboxes_and_guards_runs(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from motionharness.guard import Guard
+    from motionharness.server import create_app
+
+    monkeypatch.delenv("NEBIUS_PROJECT_ID", raising=False)  # Sandboxes not configured
+    client = TestClient(create_app(tmp_path / "paused", hosted=True))
+    assert client.get("/healthz").json() == {"ok": True}
+    info = client.get("/api/info").json()
+    assert info["hosted"] and info["sandbox"]["backend"] == "unavailable" and "NEBIUS_PROJECT_ID" in info["sandbox"]["reason"]
+    r = client.post("/api/runs", json={"task": "add a `pulse` verb: a heartbeat"})
+    assert r.status_code == 503 and "Runs are paused" in r.json()["detail"]
+
+    # With a working sandbox (here the local one stands in for Sandboxes), the guard and caps apply.
+    h, _ = harness(tmp_path, GOOD, crit(9))
+    client = TestClient(create_app(tmp_path / "runs", harness=h, hosted=True, guard=Guard(access_code="judges")))
+    task = {"task": "add a `pulse` verb: a heartbeat-style scale pulse", "candidates": 5, "rounds": 5}
+    assert client.post("/api/runs", json=task).status_code == 401
+    rid = client.post("/api/runs", json=task, headers={"X-Access-Code": "judges"}).json()["id"]
+    for _ in range(300):
+        run = client.get(f"/api/runs/{rid}").json()
+        if run["status"] != "running":
+            break
+        time.sleep(0.1)
+    assert run["config"]["candidates"] == 3 and run["config"]["max_rounds"] == 3
+    assert client.post(f"/api/runs/{rid}/install").status_code == 403
+    assert client.get("/api/installed").json() == []
+    assert client.get(f"/api/runs/{rid}/plugin.zip").status_code == 200

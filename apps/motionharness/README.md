@@ -44,12 +44,16 @@ claude mcp add motionharness -- uv run --directory /path/to/this/repo motionharn
 
 Name verbs as actions, the way a prompt would use them ("the lamp *swings*"): `swing`, not `pendulum`. A noun-named verb reads as an object, and a planner such as SketchDynamics' may try to draw it. A fast check before writing (Nemotron Super, reasoning off: does "the actor <name>s" read as English?) flags noun-like names and suggests one (`✎` in the log); rerun with `--name` to take it.
 
-Install what it made:
+Install what it made (or use **Install here** / **Uninstall** on the dashboard's Ship tab, which does the same):
 
 ```bash
-uv pip install out/motionharness/<run id>/plugin   # into the workspace venv, where motionlang is
-uv run motionlang prompt | grep mh.swing                 # the planner sees the new verb right away
+uv run motionharness install <run id>      # = uv pip install out/motionharness/<run id>/plugin, into the workspace venv
+uv run motionlang prompt | grep mh.swing   # the planner sees the new verb right away
+uv run motionharness installed             # verb plugins installed here
+uv run motionharness uninstall <run id>    # = uv pip uninstall motionlang-mh-swing
 ```
+
+Apps that are already running (SketchDynamics) load plugins at startup: restart them after installing or uninstalling. To compare a scene with and without a verb without installing anything, use **Try in a scene** (below).
 
 motionlang isn't on PyPI yet, so a plain `pip install <plugin>` in another environment fails to resolve `motionlang>=0.1`. Install the library first there: `pip install packages/motionlang out/motionharness/<run id>/plugin`.
 
@@ -59,7 +63,8 @@ motionlang isn't on PyPI yet, so a plain `pip install <plugin>` in another envir
 - **Tests**: every contract and task test with its failure output, plus the checks around them: the package installs, it registers the verb, the verb shows up in the JSON Schema and the planner prompt, and the demo validates. What was sent back to the model for repair is shown verbatim.
 - **Motion**: the contact sheet the critic saw (onion skin, keyframes, position/scale/rotation curves), a live player, and the critique.
 - **Code / Diff**: the three files the model wrote, and the diff against the candidate it repaired.
-- **Ship**: the package, the install command, report.md, plugin.diff, preview.html.
+- **Ship**: download the plugin as a zip (package + report + diff + preview), install or uninstall it in this environment, and links to report.md, plugin.diff, preview.html.
+- **Try in a scene**: type a scene ("a puppy runs and its balloon chases after it") and Nemotron Super plans it twice, side by side: with the new verb in its vocabulary and with core verbs only. It gets the same system prompt SketchDynamics' planner gets. Both prompts are built in sandboxes (the winner's checkpoint, which has the plugin installed, and the plain environment), and both plans are validated and baked there, so nothing is installed in the harness. A badge says whether the planner actually used the new verb.
 - **Model calls**: every Token Factory request on a timeline and in a table: model, reasoning on/off, latency, prompt and completion tokens.
 
 ## How Nemotron / Token Factory is used
@@ -108,13 +113,32 @@ Sandboxes is in Beta, and a project must be activated for it.
 
    Every later run starts from that cached image, and the dashboard's header pill reads **Token Factory Sandboxes**.
 
+## Host a demo
+
+A public copy runs model-written code for strangers and spends your Token Factory credits, so hosted mode changes three things. Set `MOTIONHARNESS_HOSTED=1`:
+
+- **Sandboxes only**: candidates run in Token Factory Sandboxes, never in local subprocesses. Until the project is activated, the page stays up with past runs viewable, and new runs are refused with the reason.
+- **No installing into the server**: the Ship tab offers the zip download instead.
+- **Caps**: at most 3 candidates and 3 repair rounds per run, and one run at a time (`MOTIONHARNESS_MAX_ACTIVE`, default 1 when hosted).
+
+Guardrails (the same design as SketchDynamics'; all off by default):
+
+| Variable | Effect |
+| --- | --- |
+| `MOTIONHARNESS_ACCESS_CODE` | Starting a run or a scene trial needs this code; visitors enter it under the task box (kept in their browser). Viewing runs doesn't. |
+| `MOTIONHARNESS_RATE_LIMIT` | Runs and scene trials per visitor (client IP) per hour. |
+| `MOTIONHARNESS_DAILY_TOKENS` | Tokens all visitors may spend per UTC day (a run is typically 60–130k tokens). |
+| `MOTIONHARNESS_BEHIND_PROXY` | `1` behind a reverse proxy that sets `X-Forwarded-For` (Render does). |
+
+Start command: `uv run --frozen --no-dev motionharness serve --host 0.0.0.0 --port $PORT --no-browser`, health check `/healthz`. It also needs `NEBIUS_API_KEY` and `NEBIUS_PROJECT_ID` (and optionally `TAVILY_API_KEY`). On [Render](https://render.com), the repo's [`render.yaml`](../../render.yaml) Blueprint has a `motionharness` web service next to SketchDynamics: **New → Blueprint** (or sync the existing Blueprint) asks for `NEBIUS_API_KEY`, `NEBIUS_PROJECT_ID`, `TAVILY_API_KEY` and `MOTIONHARNESS_ACCESS_CODE`. The disk is reset on every deploy, so runs don't persist across deploys.
+
 ## Tests
 
 ```bash
 uv run pytest apps/motionharness -q     # scripted model, local sandbox: no key, no network
 ```
 
-They cover a repair from failing tests, a polish driven by the critique, a polish that breaks the tests and gets repaired, parallel candidates that never pass, the secret-stripping sandbox, the contract-suite gate on a good and a broken plugin, the Sandboxes backend against a fake client (checkpoint branching, platform errors), the contact sheet, the dashboard API including path traversal, and the MCP tools.
+They cover a repair from failing tests, a polish driven by the critique, a polish that breaks the tests and gets repaired, parallel candidates that never pass, the secret-stripping sandbox, the contract-suite gate on a good and a broken plugin, the Sandboxes backend against a fake client (checkpoint branching, platform errors), the contact sheet, the dashboard API including path traversal and the plugin zip, try-in-a-scene (with vs. without the verb, a repair on the core-only side), hosted mode (Sandboxes required, access code, caps, no install), the fallback when Sandboxes is configured but inactive, and the MCP tools.
 
 ## Layout
 
@@ -126,7 +150,10 @@ src/motionharness/
   plugin.py     Task, model reply parsing, plugin package files, diffs, reports
   prompts.py    plugin contract, reference verbs, write/repair/critique prompts
   render.py     baked tracks → contact sheet (onion skin, keyframes, curves) with Pillow
-  server.py     dashboard API; static/ holds the single-page UI
+  server.py     dashboard API (+ hosted mode); static/ holds the single-page UI
+  guard.py      access code, rate limit, daily token budget for a hosted copy
+  scenes.py     try in a scene: plan a prompt with and without the verb, validated in sandboxes
+  installer.py  install / uninstall / list plugins in this environment; the plugin zip
   mcp_server.py MCP tools: new_verb, list_runs, get_run, read_artifact
-  sandbox_files/  what runs inside the sandbox besides the plugin: the probe and the local install shim
+  sandbox_files/  what runs inside the sandbox besides the plugin: the probe, the scene planner's checker, the local install shim
 ```

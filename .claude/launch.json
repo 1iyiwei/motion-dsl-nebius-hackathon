@@ -27,6 +27,22 @@
         "local"
       ],
       "port": 8767
+    },
+    {
+      "name": "motionharness-hosted",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "MOTIONHARNESS_HOSTED=1",
+        "MOTIONHARNESS_ACCESS_CODE=test",
+        "uv",
+        "run",
+        "motionharness",
+        "serve",
+        "--port",
+        "8768",
+        "--no-browser"
+      ],
+      "port": 8768
     }
   ]
 }

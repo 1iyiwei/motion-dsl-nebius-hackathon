@@ -1,4 +1,4 @@
-# Render Blueprint for the hosted SketchDynamics demo (render.com → New → Blueprint → this repo).
+# Render Blueprint for the hosted SketchDynamics and MotionHarness demos (render.com → New → Blueprint → this repo).
 # Secrets (sync: false) are entered in Render's dashboard when the Blueprint is created, never committed.
 services:
   - type: web
@@ -25,3 +25,32 @@ services:
         value: "1"
       - key: SKETCHDYNAMICS_SAVE_SHAPES  # the disk is shared by all visitors and reset on deploy
         value: "0"
+
+  # MotionHarness dashboard (apps/motionharness). Hosted mode runs generated code only in Token Factory Sandboxes:
+  # until the project is activated for Sandboxes, the page is up with past runs viewable and new runs are refused.
+  - type: web
+    name: motionharness
+    runtime: python
+    plan: free  # sleeps after ~15 min idle; a run takes 1–5 min, so pick a paid plan during judging
+    buildCommand: pip install uv && uv sync --frozen --no-dev
+    startCommand: uv run --frozen --no-dev motionharness serve --host 0.0.0.0 --port $PORT --no-browser
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: NEBIUS_API_KEY
+        sync: false
+      - key: NEBIUS_PROJECT_ID  # Token Factory project activated for Sandboxes
+        sync: false
+      - key: TAVILY_API_KEY  # optional: doc lookup for tasks that depend on an external spec
+        sync: false
+      - key: MOTIONHARNESS_HOSTED
+        value: "1"
+      - key: MOTIONHARNESS_ACCESS_CODE  # share with judges in the submission's "additional info"
+        sync: false
+      - key: MOTIONHARNESS_RATE_LIMIT  # runs + scene trials per visitor per hour
+        value: "6"
+      - key: MOTIONHARNESS_DAILY_TOKENS  # all visitors together, per UTC day (a run is typically 60–130k)
+        value: "3000000"
+      - key: MOTIONHARNESS_BEHIND_PROXY  # Render's proxy sets X-Forwarded-For
+        value: "1"

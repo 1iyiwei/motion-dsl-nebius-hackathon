@@ -16,9 +16,18 @@ const EXAMPLES = [
 
 const state = { run: null, runId: null, sel: null, tab: "tests", file: "verb.py", timer: null, sig: "" };
 
-async function api(path, opts) {
-  const r = await fetch(path, opts);
-  if (!r.ok) throw new Error((await r.text()) || r.statusText);
+const storage = { get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+
+async function api(path, opts = {}) {
+  const code = storage.get("mh-access-code");
+  const headers = { ...(opts.headers || {}), ...(code ? { "X-Access-Code": code } : {}) };
+  const r = await fetch(path, { ...opts, headers });
+  if (!r.ok) {
+    const text = await r.text();
+    let msg = text;
+    try { msg = JSON.parse(text).detail || text; } catch {}
+    throw new Error(typeof msg === "string" ? msg : JSON.stringify(msg) || r.statusText);
+  }
   return r.json();
 }
 
@@ -33,9 +42,21 @@ function svg(tag, attrs = {}, parent) {
 
 async function loadInfo() {
   const info = await api("/api/info");
+  state.info = info;
+  $("#code-row").hidden = !info.access_required;
+  $("#code").value = storage.get("mh-access-code");
+  $("#code").onchange = () => storage.set("mh-access-code", $("#code").value.trim());
+  const paused = info.sandbox.backend === "unavailable";
+  $("#go").disabled = paused;
+  $("#form-note").hidden = !(paused || info.hosted);
+  $("#form-note").textContent = paused ? info.sandbox.reason : info.hosted
+    ? `Hosted demo: every candidate runs in Token Factory Sandboxes; up to ${info.caps.candidates} candidates and ${info.caps.rounds} repair rounds per run.`
+    : "";
+  if (info.caps) { $("#ncand").max = info.caps.candidates; $("#nrounds").max = info.caps.rounds; }
   const sb = info.sandbox.backend;
   $("#info").innerHTML = [
-    `<span class="pill ${sb === "contree" ? "ok" : "warn"}" title="${esc(info.sandbox.fallback_reason || "")}">sandbox <b>${sb === "contree" ? "Token Factory Sandboxes" : info.sandbox.fallback_reason ? "local (Sandboxes inactive)" : "local subprocess"}</b></span>`,
+    ...(info.hosted ? [`<span class="pill ok">hosted demo</span>`] : []),
+    `<span class="pill ${sb === "contree" ? "ok" : "warn"}" title="${esc(info.sandbox.fallback_reason || info.sandbox.reason || "")}">sandbox <b>${sb === "contree" ? "Token Factory Sandboxes" : sb === "unavailable" ? "unavailable" : info.sandbox.fallback_reason ? "local (Sandboxes inactive)" : "local subprocess"}</b></span>`,
     `<span class="pill">coder <b>${esc(short(info.coder))}</b></span>`,
     `<span class="pill">critic <b>${esc(short(info.vision))}</b></span>`,
     `<span class="pill ${info.tavily ? "ok" : ""}">docs <b>${info.tavily ? "Tavily" : "off"}</b></span>`,
@@ -70,9 +91,10 @@ $("#new").onsubmit = async (ev) => {
     await openRun(id);
     loadRuns();
   } catch (e) {
-    alert(e.message);
+    $("#form-note").hidden = false;
+    $("#form-note").textContent = e.message;
   } finally {
-    $("#go").disabled = false;
+    $("#go").disabled = state.info?.sandbox?.backend === "unavailable";
   }
 };
 
@@ -258,6 +280,7 @@ function drawDetail(run) {
   drawCode(c);
   drawDiff(c);
   drawShip(run);
+  drawTry(run);
 }
 
 function drawTests(c, rep) {
@@ -288,6 +311,7 @@ function drawMotion(c) {
   const cr = c.critique;
   $("#p-motion").innerHTML = `<div class="motion"><div><img src="${fileUrl(`candidates/${c.id}/frames.png`)}" alt="contact sheet"></div>
     <div><iframe sandbox="allow-scripts" src="${fileUrl(`candidates/${c.id}/preview.html`)}"></iframe>
+    <div class="notes"><a href="${fileUrl(`candidates/${c.id}/preview.html`)}" target="_blank">open the player ↗</a></div>
     ${cr ? `<div class="critique"><div class="lbl">Nemotron VL critique</div><span class="score ${cr.accepted ? "ok" : "bad"}">${cr.score}/10</span>
       ${cr.accepted ? " accepted" : " wants changes"}<div class="notes">${esc(cr.observations || cr.error || "")}</div>
       ${(cr.issues || []).length ? `<ul>${cr.issues.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>` : ""}
@@ -315,22 +339,112 @@ function drawDiff(c) {
 function drawShip(run) {
   if (!run.winner) { $("#p-ship").innerHTML = `<p class="m">${run.status === "running" ? "Still working…" : "Nothing shipped."}</p>`; return; }
   const w = run.candidates.find((c) => c.id === run.winner);
+  const zip = `/api/runs/${encodeURIComponent(run.id)}/plugin.zip`;
   $("#p-ship").innerHTML = `<div class="ship-grid"><div>
       <div class="lbl">Plugin package</div>
       <p>${w.status === "passed" ? "✅" : "⚠️"} <b>${esc(run.task.dist)}</b> from candidate <b>${esc(run.winner)}</b>, registering <code>${esc(run.task.verb)}</code> under the <code>motionlang.verbs</code> entry point.</p>
       ${w.critique && !w.critique.accepted ? `<p>⚠️ It passes every test, but the critic wasn't satisfied (${w.critique.score}/10): ${esc((w.critique.issues || [])[0] || w.critique.observations || "")}</p>` : ""}
-      <div class="cmd">uv pip install out/motionharness/${esc(run.id)}/plugin</div>
-      <p class="notes">Installs into the workspace's venv, where motionlang is. motionlang isn't on PyPI yet, so with plain pip
-        in another environment, install it first: <code>pip install packages/motionlang out/motionharness/${esc(run.id)}/plugin</code></p>
-      <div class="cmd">uv run motionlang prompt | grep ${esc(run.task.verb)}</div>
+      <div class="ship-actions">
+        <a class="btn" href="${zip}" download>⬇ Download plugin (.zip)</a>
+        <span id="install-box" class="install-box"></span>
+      </div>
+      <p class="notes" id="install-note"></p>
+      <details class="manual"><summary>Install from a terminal</summary>
+        <div class="cmd">uv pip install out/motionharness/${esc(run.id)}/plugin</div>
+        <div class="cmd">uv run motionlang prompt | grep ${esc(run.task.verb)}</div>
+        <div class="cmd">uv pip uninstall ${esc(run.task.dist)}</div>
+        <p class="notes">motionlang isn't on PyPI yet: in another environment, install it first
+          (<code>pip install packages/motionlang &lt;plugin&gt;</code>).</p></details>
       <p><a href="${fileUrl("report.md")}" target="_blank">report.md</a> · <a href="${fileUrl("plugin.diff")}" target="_blank">plugin.diff</a> ·
          <a href="${fileUrl("preview.html")}" target="_blank">preview.html</a> · <a href="${fileUrl("frames.png")}" target="_blank">frames.png</a></p>
     </div><div>${w.has_frames ? `<img style="width:100%;border-radius:8px" src="${fileUrl("frames.png")}">` : ""}</div></div>`;
+  drawInstall(run);
+}
+
+async function drawInstall(run, busy = "") {
+  const box = $("#install-box");
+  if (!box) return;
+  if (state.info && state.info.hosted) { box.innerHTML = ""; $("#install-note").textContent = "Download the package to use it with your own MotionLang setup."; return; }
+  if (busy) { box.innerHTML = `<button class="btn" disabled>${busy}…</button>`; return; }
+  let installed = [];
+  try { installed = await api("/api/installed"); } catch (e) { box.textContent = e.message; return; }
+  const norm = (d) => d.toLowerCase().replace(/_/g, "-");
+  const here = installed.find((p) => norm(p.dist) === norm(run.task.dist));
+  box.innerHTML = here
+    ? `<span class="tag ok">installed here (${esc(here.version)})</span> <button class="btn ghost" id="uninstall">Uninstall</button>`
+    : `<button class="btn" id="install">Install here</button>`;
+  $("#install-note").textContent = here
+    ? "The planner in this environment now knows the verb. Restart running apps (e.g. SketchDynamics) to pick up the change."
+    : "Installs into this environment for experiments: compare a scene with and without the verb, then uninstall. Restart running apps afterwards.";
+  const act = async (verb) => {
+    drawInstall(run, verb === "install" ? "Installing" : "Uninstalling");
+    let err = "";
+    try { await api(`/api/runs/${encodeURIComponent(run.id)}/${verb}`, { method: "POST" }); }
+    catch (e) { err = e.message; }
+    await drawInstall(run);
+    if (err) $("#install-note").textContent = `${verb} failed: ${err.replace(/^\{"detail":"|"\}$/g, "").slice(0, 400)}`;
+  };
+  $("#install")?.addEventListener("click", () => act("install"));
+  $("#uninstall")?.addEventListener("click", () => act("uninstall"));
+}
+
+// ---- try in a scene ---------------------------------------------------------------------------------
+
+function drawTry(run) {
+  const pane = $("#p-try");
+  if (pane.dataset.run === run.id && pane.querySelector("#try-form")) { if (state.tab === "try") loadTrials(run); return; }
+  pane.dataset.run = run.id;
+  const winner = run.candidates.find((c) => c.id === run.winner);
+  if (!winner || winner.status !== "passed") { pane.innerHTML = `<p class="m">${run.status === "running" ? "Available once a candidate passes." : "Nothing passed, so there's nothing to try."}</p>`; return; }
+  pane.innerHTML = `<p class="intro">Plan one scene twice with Nemotron Super: with <code>${esc(run.task.verb)}</code> in the planner's vocabulary ` +
+      `and without it. The planner gets the same system prompt SketchDynamics' planner gets, built in the sandbox, and each plan is ` +
+      `validated and baked in its sandbox, so nothing is installed here.</p>
+    <form id="try-form" class="try-form"><input id="try-prompt" maxlength="500" placeholder="Describe a scene, e.g. a lamp hangs from the ceiling and the wind makes it ${esc(run.task.verb.split(".").pop().replace(/_/g, " "))}">
+      <button class="btn" id="try-go">Plan both</button></form>
+    <div id="trials"></div>`;
+  $("#try-form").onsubmit = async (ev) => {
+    ev.preventDefault();
+    const prompt = $("#try-prompt").value.trim();
+    if (prompt.length < 4) return;
+    $("#try-go").disabled = true;
+    try { await api(`/api/runs/${encodeURIComponent(run.id)}/scenes`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }) }); }
+    catch (e) { $("#trials").insertAdjacentHTML("afterbegin", `<p class="notes">${esc(e.message)}</p>`); }
+    $("#try-go").disabled = false;
+    loadTrials(run);
+  };
+  loadTrials(run);
+}
+
+async function loadTrials(run) {
+  clearTimeout(state.tryTimer);
+  let trials = [];
+  try { trials = await api(`/api/runs/${encodeURIComponent(run.id)}/scenes`); } catch (e) { return; }
+  const sig = JSON.stringify(trials);
+  if (sig !== state.trySig) {
+    state.trySig = sig;
+    const url = (p) => `/api/runs/${encodeURIComponent(run.id)}/file/${p}`;
+    const side = (t, name, title) => {
+      const s = t.sides[name];
+      const busy = ["waiting", "planning", "checking"].includes(s.status);
+      const att = s.attempts.map((a) => `${a.kind} ${a.seconds}s${a.ok ? " ✓" : " ✗"}`).join(" → ");
+      return `<div class="side"><div class="side-head"><b>${title}</b>
+          ${busy ? `<span class="tag">${esc(s.status)}…</span>` : s.ok ? `<span class="tag ok">valid</span>` : `<span class="tag bad">${esc(s.status)}</span>`}
+          ${name === "with" && !busy ? (s.uses_verb ? `<span class="tag ok">uses ${esc(run.task.verb)}</span>` : `<span class="tag bad">didn't use ${esc(run.task.verb)}</span>`) : ""}</div>
+        ${s.preview ? `<iframe sandbox="allow-scripts" src="${url(s.preview)}"></iframe>` : `<div class="noframe">${busy ? "planning…" : "no preview"}</div>`}
+        <div class="notes">verbs: ${esc((s.verbs || []).join(", ") || "–")}${att ? ` · ${esc(att)}` : ""}${s.preview ? ` · <a href="${url(s.preview)}" target="_blank">open ↗</a>` : ""}${s.doc ? ` · <a href="${url(s.doc)}" target="_blank">document</a>` : ""}</div>
+        ${!s.ok && s.problems.length && !busy ? `<pre class="probs">${esc(s.problems.join("\n"))}</pre>` : ""}</div>`;
+    };
+    $("#trials").innerHTML = trials.slice().reverse().map((t) => `<div class="trial"><div class="trial-q">“${esc(t.prompt)}”</div>
+        ${t.error ? `<p class="notes">${esc(t.error)}</p>` : `<div class="sides">${side(t, "with", `With ${esc(run.task.verb)}`)}${side(t, "without", "Core verbs only")}</div>`}</div>`).join("")
+      || `<p class="m">No trials yet.</p>`;
+  }
+  if (trials.some((t) => t.status === "running") && state.runId === run.id) state.tryTimer = setTimeout(() => loadTrials(run), 1500);
 }
 
 // ---- boot -------------------------------------------------------------------------------------------
 
 window.addEventListener("resize", () => state.run && render(state.run));
+window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && id !== state.runId) openRun(id); });
 loadInfo().catch((e) => ($("#info").textContent = e.message));
 loadRuns().then((runs) => {
   const id = location.hash.slice(1) || runs[0]?.id;

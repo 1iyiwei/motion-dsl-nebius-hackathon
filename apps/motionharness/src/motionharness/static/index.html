@@ -30,7 +30,9 @@
         </select></label>
         <label class="check"><input id="critique" type="checkbox" checked> vision critique</label>
       </div>
+      <div class="row" id="code-row" hidden><label>access code <input id="code" type="password" autocomplete="off" size="14"></label></div>
       <button type="submit" id="go">Write, test &amp; critique</button>
+      <p class="form-note" id="form-note" hidden></p>
     </form>
     <div class="card runs">
       <div class="lbl">Runs</div>
@@ -73,6 +75,7 @@
           <button data-tab="code">Code</button>
           <button data-tab="diff">Diff</button>
           <button data-tab="ship">Ship</button>
+          <button data-tab="try">Try in a scene</button>
         </div>
         <div class="dhead" id="d-head"></div>
         <div class="pane" id="p-tests"></div>
@@ -80,6 +83,7 @@
         <div class="pane" id="p-code" hidden></div>
         <div class="pane" id="p-diff" hidden></div>
         <div class="pane" id="p-ship" hidden></div>
+        <div class="pane" id="p-try" hidden></div>
       </div>
         <div class="card log-card">
           <div class="lbl">Agent log</div>
