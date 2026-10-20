@@ -2,7 +2,15 @@
 
 Run `uv run motionharness serve` and record the dashboard in Chrome, full window (1440 px or wider, so the tree and log sit side by side). A run takes 2–5 minutes, mostly Super writing code with reasoning on. Start the run, then speed up the waits in editing: the log's timestamps and the model-call timeline show the real latency, so the speed-up is honest. Keep a finished run in the sidebar as a fallback for every shot.
 
-Before recording: `uv run motionharness sandbox-check` (steps in the app README, "Turn on Token Factory Sandboxes"). If Sandboxes access is active, the header pill reads **Token Factory Sandboxes** and the checkpoint ids in the tree are real image UUIDs. Record the run on Sandboxes if at all possible: it's the track's headline requirement. Otherwise say "local fallback" out loud once and move on.
+Before recording: `uv run motionharness sandbox-check` (steps in the app README, "Turn on Token Factory Sandboxes"). If Sandboxes access is active, the header pill reads **Token Factory Sandboxes** and the checkpoint ids in the tree are real image UUIDs. Record the run on Sandboxes if at all possible: it's the track's headline requirement.
+
+**Plan while access is pending:**
+
+1. **Now**: record a full take on the local backend as the fallback. Everything except the header pill and the checkpoint ids looks the same on either backend.
+2. **When access lands**: re-record only the shots where the sandbox shows (the header pill, the environment node, a tree node's checkpoint UUID, ideally one complete run) and splice them in.
+3. **Cutoff Oct 27**: if access still hasn't arrived, submit the local take. Say once, plainly: "the Sandboxes backend is built and tested; while the project awaits activation, local subprocesses stand in."
+
+**Scope**: the video is the dashboard only. Install/uninstall are buttons on the Ship tab now, and the CLI, `rm`, `sandbox-check`, MCP setup and hosting live in the app README. The one optional exception is a 5–10 s MCP clip near the end (Claude Code calling `new_verb`), because "other coding agents can use it as a tool" fits the track.
 
 Live runs measured Oct 19 (local backend, Super 120B ×3, VL critic):
 
@@ -27,9 +35,9 @@ Live runs measured Oct 19 (local backend, Super 120B ×3, VL critic):
 | 0:50–1:25 | Test in sandboxes | Tree nodes turn red/green with contract and own-test bars. Open a failing node: the failing test with its traceback; the "Sent back for repair" box | "Each candidate is a sandbox run branched from one prepared checkpoint. The contract suite is fixed; the model also writes tests for what *this* verb should do." |
 | 1:25–1:55 | Repair | A repair node appears to the right of its parent; Diff tab shows the fix | "Failures go back verbatim. The repair branches from its parent's own checkpoint, so the tree you see is the tree of sandbox images." |
 | 1:55–2:25 | The critic | Motion tab on c2: every test green, but VL says 4/10, "0.0% overshoot". Click along the polish chain c4 → c5 → c6: overshoot 0.0% → 0.1% → 6.2%, then 8/10 accepted | "Passing tests isn't the same as looking right. Nemotron VL watches the motion, with exact measurements next to the image, and sends it back." |
-| 2:25–2:45 | Ship | Ship tab: `uv pip install …/plugin`, then a terminal: `uv run motionlang prompt \| grep mh.spring_follow` | "The winner is a real package with an entry point. MotionLang's planner sees the new verb immediately: SketchDynamics can use it on its next run." |
-| (alt. 2:25–2:45) | Try in a scene | "Try in a scene" tab: "a puppy runs across the yard and its red balloon chases after it and bobs to a stop": left plan uses `mh.spring_follow` (badge), right one falls back to `follow` | "And the payoff: the same planner SketchDynamics uses, with and without the new verb." (measured: 14 s with, 23 s without incl. one repair) |
-| 2:45–3:00 | Under the hood + close | Model-call table (Super, Ultra, Nano, VL with latency and tokens); MCP: Claude Code calling `new_verb` | "Every call runs on NVIDIA Nemotron via Nebius Token Factory. It's a CLI, a dashboard and an MCP server." |
+| 2:25–2:35 | Ship | Ship tab: the package card, **Download plugin (.zip)**, **Install here** turning into "installed here" | "The winner is a real package with an entry point: download it, or install it here in one click." |
+| 2:35–2:50 | Try in a scene | "Try in a scene" tab: "a puppy runs across the yard and its red balloon chases after it and bobs to a stop". Same cast on both sides; the left plan uses `mh.spring_follow` (badge), the right one falls back to `follow` | "And the payoff: the planner SketchDynamics uses, with and without the new verb, on the same scene." (~20 s; the core-only side plans first) |
+| 2:50–3:00 | Under the hood + close | Model-call table (Super, Nano, VL with latency and tokens). Optional 5 s: Claude Code calling the MCP tool `new_verb` | "Every call runs on NVIDIA Nemotron via Nebius Token Factory, and other coding agents can call it as a tool." |
 
 ## Known gaps (prioritised for the video)
 
