@@ -305,3 +305,21 @@ def test_mcp_tools(tmp_path):
             await server.call_tool("read_artifact", {"run_id": out["id"], "path": "../../secret"})
 
     anyio.run(go)
+
+
+def test_auto_falls_back_to_local_when_sandboxes_are_inactive(tmp_path, monkeypatch):
+    pytest.importorskip("contree_sdk")
+    from motionharness.sandbox import ContreeSandbox, make_sandbox
+
+    monkeypatch.setenv("NEBIUS_API_KEY", "k")
+    monkeypatch.setenv("NEBIUS_PROJECT_ID", "p")
+    inactive = {"permissions": {"import": False, "spawn": False}, "limits": {}}
+    monkeypatch.setattr(ContreeSandbox, "whoami", staticmethod(lambda timeout=10: (200, inactive)))
+    sb = make_sandbox("auto", tmp_path)
+    assert sb.name == "local" and "not activated" in sb.fallback_reason and "contree@nebius.com" in sb.describe()["fallback_reason"]
+    with pytest.raises(RuntimeError, match="not activated"):
+        make_sandbox("contree", tmp_path)
+    monkeypatch.setattr(ContreeSandbox, "whoami", staticmethod(lambda timeout=10: (200, {"permissions": {"import": True, "spawn": True}})))
+    assert make_sandbox("auto", tmp_path).name == "contree"
+    monkeypatch.setattr(ContreeSandbox, "whoami", staticmethod(lambda timeout=10: (401, {"error": "bad key"})))
+    assert "HTTP 401" in make_sandbox("auto", tmp_path).fallback_reason

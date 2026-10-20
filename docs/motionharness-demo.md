@@ -2,7 +2,7 @@
 
 Run `uv run motionharness serve` and record the dashboard in Chrome, full window (1440 px or wider, so the tree and log sit side by side). A run takes 2–5 minutes, mostly Super writing code with reasoning on. Start the run, then speed up the waits in editing: the log's timestamps and the model-call timeline show the real latency, so the speed-up is honest. Keep a finished run in the sidebar as a fallback for every shot.
 
-Before recording: `uv run motionharness sandbox-check`. If Sandboxes access is active, the header pill reads **Token Factory Sandboxes** and the checkpoint ids in the tree are real image UUIDs. Record the run on Sandboxes if at all possible: it's the track's headline requirement. Otherwise say "local fallback" out loud once and move on.
+Before recording: `uv run motionharness sandbox-check` (steps in the app README, "Turn on Token Factory Sandboxes"). If Sandboxes access is active, the header pill reads **Token Factory Sandboxes** and the checkpoint ids in the tree are real image UUIDs. Record the run on Sandboxes if at all possible: it's the track's headline requirement. Otherwise say "local fallback" out loud once and move on.
 
 Live runs measured Oct 19 (local backend, Super 120B ×3, VL critic):
 

@@ -33,6 +33,7 @@ CONTRACT_TEST = b"from motionlang.testing.contract import *  # noqa: F401,F403  
 
 TEST_DEPS = ("pydantic>=2.7", "numpy>=1.26", "pytest>=8", "hypothesis>=6.100", "hatchling>=1.26")
 OCI_BASE = "docker.io/library/python:3.12-slim"
+SANDBOXES_URL = "https://api.tokenfactory.nebius.com/sandboxes"
 WORK = "/work"
 
 
@@ -105,6 +106,7 @@ class LocalSandbox(Sandbox):
         self.python = python or sys.executable
         self.max_workers = max_workers
         self._env: Checkpoint | None = None
+        self.fallback_reason: str | None = None  # why Sandboxes wasn't used, when it was configured
 
     def environment(self) -> Checkpoint:
         if self._env is None:
@@ -150,7 +152,10 @@ class LocalSandbox(Sandbox):
             return list(pool.map(self._one, jobs))
 
     def describe(self) -> dict:
-        return {"backend": self.name, "isolation": "subprocess (no isolation; secrets stripped)", "root": str(self.root)}
+        d = {"backend": self.name, "isolation": "subprocess (no isolation; secrets stripped)", "root": str(self.root)}
+        if self.fallback_reason:
+            d["fallback_reason"] = self.fallback_reason
+        return d
 
 
 def _q(s: str) -> str:
@@ -200,6 +205,39 @@ class ContreeSandbox(Sandbox):
             return "contree-sdk is not installed (pip install 'motionharness[sandboxes]')"
         missing = [k for k in ("NEBIUS_API_KEY", "NEBIUS_PROJECT_ID") if not os.environ.get(k)]
         return f"{' and '.join(missing)} not set" if missing else None
+
+    NEEDED = ("import", "spawn")  # import the base image once; spawn every candidate run
+
+    @staticmethod
+    def whoami(timeout: float = 10) -> tuple[int, dict]:
+        """(HTTP status, body) of the Sandboxes whoami probe: permissions and limits for this key + project."""
+        import httpx
+
+        r = httpx.get(f"{SANDBOXES_URL}/v1/whoami", timeout=timeout,
+                      headers={"Authorization": f"Bearer {os.environ['NEBIUS_API_KEY']}", "Project": os.environ["NEBIUS_PROJECT_ID"]})
+        try:
+            return r.status_code, r.json()
+        except ValueError:
+            return r.status_code, {"error": r.text[:300]}
+
+    @classmethod
+    def access(cls, timeout: float = 10) -> str | None:
+        """None if this project may run Sandboxes, else why not (configured but inactive, bad key, unreachable)."""
+        why = cls.available()
+        if why:
+            return why
+        try:
+            status, info = cls.whoami(timeout)
+        except Exception as e:
+            return f"Sandboxes API unreachable ({type(e).__name__})"
+        if status != 200:
+            return f"Sandboxes API refused the key/project (HTTP {status}: {str(info.get('error', ''))[:120]})"
+        perms = info.get("permissions") or {}
+        missing = [p for p in cls.NEEDED if not perms.get(p)]
+        if missing:
+            return (f"the project is not activated for Sandboxes yet (permissions {', '.join(missing)} are false; "
+                    "email contree@nebius.com with the project ID to activate it)")
+        return None
 
     def install_cmd(self, plugin_dir: str) -> str:
         return f"python -m pip install -q --no-deps --no-build-isolation --no-index ./{plugin_dir}"
@@ -275,13 +313,23 @@ class ContreeSandbox(Sandbox):
 
 
 def make_sandbox(kind: str, root: Path) -> Sandbox:
-    """kind: auto (Sandboxes when configured, else local) | local | contree."""
+    """kind: auto (Sandboxes when this project may use them, else local) | local | contree.
+
+    auto probes access once (whoami, a few seconds at most), so a configured-but-inactive project falls back to local
+    with a note instead of failing every run."""
     kind = kind or os.environ.get("MOTIONHARNESS_SANDBOX", "auto")
     if kind == "local":
         return LocalSandbox(root)
-    why = ContreeSandbox.available()
     if kind == "contree":
+        why = ContreeSandbox.access()
         if why:
             raise RuntimeError(f"Sandboxes backend unavailable: {why}")
         return ContreeSandbox()
-    return LocalSandbox(root) if why else ContreeSandbox()
+    if ContreeSandbox.available():  # not configured at all: local, quietly
+        return LocalSandbox(root)
+    why = ContreeSandbox.access(timeout=5)
+    if why:
+        sb = LocalSandbox(root)
+        sb.fallback_reason = why
+        return sb
+    return ContreeSandbox()

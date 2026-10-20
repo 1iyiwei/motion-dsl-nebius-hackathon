@@ -41,6 +41,8 @@ def cmd_new_verb(args: argparse.Namespace) -> int:
                  critique=not args.no_critique, docs=not args.no_docs)
     harness = Harness(sandbox, root=args.out, tavily=tavily_search() if cfg.docs else None)
     print(f"MotionHarness: {task.verb}  (sandbox: {sandbox.name}, {cfg.candidates} candidates, up to {cfg.max_rounds} repair rounds)")
+    if getattr(sandbox, "fallback_reason", None):
+        print(f"  note: not using Token Factory Sandboxes: {sandbox.fallback_reason}")
     run = harness.run(task, cfg, on_event=print_event)
     print(f"\nrun: {run.dir}")
     if run.winner:
@@ -57,18 +59,15 @@ def cmd_sandbox_check(args: argparse.Namespace) -> int:
         print(f"Token Factory Sandboxes: not configured ({why}).")
         print("Add NEBIUS_PROJECT_ID (Token Factory → Project settings) to .env, then rerun. Until then runs use the local backend.")
         return 1
-    import httpx
-
-    r = httpx.get("https://api.tokenfactory.nebius.com/sandboxes/v1/whoami", timeout=20,
-                  headers={"Authorization": f"Bearer {os.environ['NEBIUS_API_KEY']}", "Project": os.environ["NEBIUS_PROJECT_ID"]})
-    print(f"whoami: HTTP {r.status_code}")
-    try:
-        info = r.json()
-        print(json.dumps({k: info.get(k) for k in ("permissions", "limits") if k in info}, indent=1)[:1500] or r.text[:500])
-    except ValueError:
-        print(r.text[:500])
-    if r.status_code != 200:
+    status, info = ContreeSandbox.whoami(timeout=20)
+    print(f"whoami: HTTP {status}")
+    print(json.dumps({k: info.get(k) for k in ("permissions", "limits", "error") if k in info}, indent=1)[:1500])
+    why = ContreeSandbox.access(timeout=20)
+    if why:
+        print(f"\nToken Factory Sandboxes: not usable: {why}.")
+        print("Runs keep using the local backend (--sandbox auto) until this check passes.")
         return 1
+    print("\nToken Factory Sandboxes: active.")
     if args.run:
         sb = ContreeSandbox()
         print("preparing the environment image (first time: pip install inside the sandbox, ~1–2 min)…")

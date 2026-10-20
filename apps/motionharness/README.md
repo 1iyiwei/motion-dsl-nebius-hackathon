@@ -32,7 +32,7 @@ uv run motionharness serve                      # dashboard on http://127.0.0.1:
 uv run motionharness new-verb "add a \`swing\` verb: the actor swings like a pendulum about a pivot above it and comes to rest"
 ```
 
-`new-verb` options: `--candidates 3`, `--models super,super,ultra` (per candidate; `super`, `ultra`, `nano` or a full model id), `--rounds 3` (repair rounds), `--namespace acme` (verb `acme.swing`), `--sandbox auto|local|contree`, `--no-critique`, `--no-docs`. Runs are written to `out/motionharness/<run id>/`. `motionharness runs` lists them, and `motionharness sandbox-check --run` verifies Token Factory Sandboxes access and caches the environment image.
+`new-verb` options: `--candidates 3`, `--models super,super,ultra` (per candidate; `super`, `ultra`, `nano` or a full model id), `--rounds 3` (repair rounds), `--namespace acme` (verb `acme.swing`), `--sandbox auto|local|contree`, `--no-critique`, `--no-docs`. Runs are written to `out/motionharness/<run id>/`. `motionharness runs` lists them. To run candidates in Token Factory Sandboxes, see [Turn on Token Factory Sandboxes](#turn-on-token-factory-sandboxes).
 
 **From a coding agent (MCP)**: `motionharness mcp` serves the tools `new_verb`, `list_runs`, `get_run` and `read_artifact` over stdio. For Claude Code:
 
@@ -80,8 +80,33 @@ All chat calls use the OpenAI-compatible Token Factory endpoint through `motionl
 
 Generated code never runs in the harness process. The harness sends files into a sandbox and reads back one JSON bundle (JUnit reports, logs, baked tracks). Rendering and critique work on that data, so the host never imports model-written code.
 
-- **`contree` (Token Factory Sandboxes)**, used when `contree-sdk` is installed and `NEBIUS_API_KEY` and `NEBIUS_PROJECT_ID` are set. The first run builds an environment image (python 3.12 + motionlang + pytest/hypothesis) and caches its UUID in `~/.cache/motionharness/contree.json`. Every candidate is a `run(..., disposable=False)` from an image, so its result is a new image: a repair branches from the candidate it fixes, and the tree in the dashboard is the tree of images.
+- **`contree` (Token Factory Sandboxes)**, used when `contree-sdk` is installed, `NEBIUS_API_KEY` and `NEBIUS_PROJECT_ID` are set, and the project is activated for Sandboxes (see below). The first run builds an environment image (python 3.12 + motionlang + pytest/hypothesis) and caches its UUID in `~/.cache/motionharness/contree.json`. Every candidate is a `run(..., disposable=False)` from an image, so its result is a new image: a repair branches from the candidate it fixes, and the tree in the dashboard is the tree of images.
 - **`local`**, the fallback: the same checkpoint and branch semantics with directories and subprocesses. It strips secrets from the environment, but it does **not** isolate untrusted code. Use it on your own machine only.
+
+`--sandbox auto` (the default) uses Sandboxes when the project may, and otherwise falls back to `local`, printing why. `--sandbox contree` refuses to run without Sandboxes.
+
+#### Turn on Token Factory Sandboxes
+
+Sandboxes is in Beta, and a project must be activated for it.
+
+1. Copy the project ID from Token Factory → Project settings, and add it to `.env` as `NEBIUS_PROJECT_ID=…` next to `NEBIUS_API_KEY`.
+2. Check access:
+
+   ```bash
+   uv run motionharness sandbox-check
+   ```
+
+   It prints the project's Sandboxes permissions and limits, then one of:
+   - **active**: you're set.
+   - **not activated** (HTTP 200, but `import`/`spawn` are `false`): the key and project are fine, and the project still needs activation. Request it from the Sandboxes team (the docs point to contree@nebius.com; send the project ID, never the key). Until then runs use `local`.
+   - **refused** (HTTP 401/403) or **unreachable**: recheck the key and project ID, or the network.
+3. Once it's active, build and cache the environment image (Python 3.12 + motionlang + pytest/hypothesis, ~1–2 min once):
+
+   ```bash
+   uv run motionharness sandbox-check --run
+   ```
+
+   Every later run starts from that cached image, and the dashboard's header pill reads **Token Factory Sandboxes**.
 
 ## Tests
 

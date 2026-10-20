@@ -40,7 +40,10 @@ Add an entry when something surprises us. Include the date, what happened, and t
 
 - **Sandboxes access**: the Sandboxes API answers `400 Missing "Project" header` without a project ID, and the access
   page says a valid key can still come back `inactive` until the project is activated by email (contree@nebius.com).
-  Applied for access on Oct 19; waiting. MotionHarness was built behind a small sandbox interface with a local
+  Applied for access on Oct 19. Oct 20: with `NEBIUS_PROJECT_ID` set, `whoami` returns HTTP 200 with every permission
+  `false` (import, spawn, …): the "inactive" state, so activation by email is still pending. The first real call then fails
+  with a bare `403 Forbidden` on `/v1/inspect/?tag=python:3.12-slim`; the SDK could surface "project not activated for
+  Sandboxes" instead (it knows from whoami). MotionHarness now probes whoami and falls back to local with that reason. MotionHarness was built behind a small sandbox interface with a local
   subprocess fallback, so the agent works today and switches over when `NEBIUS_PROJECT_ID` is set. Hackathon teams
   in the Coding & Agentic track would benefit from Sandboxes being enabled with the hackathon credits by default.
 - **Sandboxes docs**: the checkpoint/branch model (every `run(disposable=False)` returns a new immutable image; branch

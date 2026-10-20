@@ -35,7 +35,7 @@ async function loadInfo() {
   const info = await api("/api/info");
   const sb = info.sandbox.backend;
   $("#info").innerHTML = [
-    `<span class="pill ${sb === "contree" ? "ok" : "warn"}">sandbox <b>${sb === "contree" ? "Token Factory Sandboxes" : "local subprocess"}</b></span>`,
+    `<span class="pill ${sb === "contree" ? "ok" : "warn"}" title="${esc(info.sandbox.fallback_reason || "")}">sandbox <b>${sb === "contree" ? "Token Factory Sandboxes" : info.sandbox.fallback_reason ? "local (Sandboxes inactive)" : "local subprocess"}</b></span>`,
     `<span class="pill">coder <b>${esc(short(info.coder))}</b></span>`,
     `<span class="pill">critic <b>${esc(short(info.vision))}</b></span>`,
     `<span class="pill ${info.tavily ? "ok" : ""}">docs <b>${info.tavily ? "Tavily" : "off"}</b></span>`,
