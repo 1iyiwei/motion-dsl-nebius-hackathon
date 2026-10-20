@@ -37,7 +37,37 @@ Live runs measured Oct 19 (local backend, Super 120B ×3, VL critic):
 | 1:55–2:25 | The critic | Motion tab on c2: every test green, but VL says 4/10, "0.0% overshoot". Click along the polish chain c4 → c5 → c6: overshoot 0.0% → 0.1% → 6.2%, then 8/10 accepted | "Passing tests isn't the same as looking right. Nemotron VL watches the motion, with exact measurements next to the image, and sends it back." |
 | 2:25–2:35 | Ship | Ship tab: the package card, **Download plugin (.zip)**, **Install here** turning into "installed here" | "The winner is a real package with an entry point: download it, or install it here in one click." |
 | 2:35–2:50 | Try in a scene | "Try in a scene" tab: "a puppy runs across the yard and its red balloon chases after it and bobs to a stop". Same cast on both sides; the left plan uses `mh.spring_follow` (badge), the right one falls back to `follow` | "And the payoff: the planner SketchDynamics uses, with and without the new verb, on the same scene." (~20 s; the core-only side plans first) |
-| 2:50–3:00 | Under the hood + close | Model-call table (Super, Nano, VL with latency and tokens). Optional 5 s: Claude Code calling the MCP tool `new_verb` | "Every call runs on NVIDIA Nemotron via Nebius Token Factory, and other coding agents can call it as a tool." |
+| 2:50–3:00 | Under the hood + close | Model-call table (Super, Nano, VL with latency and tokens). Optional 5–10 s: Claude Code calling the MCP tool `new_verb` (see "The MCP clip" below) | "Every call runs on NVIDIA Nemotron via Nebius Token Factory, and other coding agents can call it as a tool." |
+
+## The MCP clip (optional, 5–10 s on screen)
+
+Shows another coding agent using MotionHarness as a tool. Record it separately and cut the wait.
+
+**One-time setup** (already done Oct 20; registered in local scope for `apps/motionharness`, so it only appears in Claude Code sessions started there):
+
+```bash
+cd ~/Trees/nebius-hackathon/apps/motionharness
+claude mcp add motionharness -- uv run --directory . motionharness mcp
+claude mcp list        # motionharness: … ✔ Connected
+```
+
+**Recording:**
+
+1. Have the dashboard running (`uv run motionharness serve`) in a browser window next to the terminal.
+2. Start Claude Code from that folder, with a tool timeout long enough for a run (1–5 min):
+
+   ```bash
+   cd ~/Trees/nebius-hackathon/apps/motionharness && MCP_TOOL_TIMEOUT=600000 claude
+   ```
+
+3. At the Claude Code prompt, type:
+
+   > Use the motionharness tool to add a `wobble` verb: the actor wobbles like jelly after landing and settles.
+
+4. Allow `motionharness - new_verb` when asked. On screen: the tool call, then its result (status, each candidate's contract and own-test counts, the critic's score, and the plugin path).
+5. Cut to the dashboard: the same run is in the sidebar, since the CLI, the dashboard and MCP share one runs folder (`out/motionharness` at the repo root). Click it and the full branch tree is there.
+
+Voice-over: "Other coding agents can use it too: here Claude Code calls MotionHarness over MCP, and the run shows up in the same dashboard."
 
 ## Known gaps (prioritised for the video)
 
