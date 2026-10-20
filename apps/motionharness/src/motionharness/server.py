@@ -28,7 +28,7 @@ from pydantic import BaseModel, Field
 
 from . import installer
 from .guard import Guard
-from .harness import MODELS, Config, Harness, Run, coder_model, delete_run, tavily_search
+from .harness import MODELS, Config, Harness, Run, coder_model, default_runs_root, delete_run, tavily_search
 from .plugin import Task
 from .scenes import SceneTrial, SceneTrier, list_trials
 from .sandbox import make_sandbox
@@ -59,12 +59,12 @@ def hosted_from_env() -> bool:
     return os.environ.get("MOTIONHARNESS_HOSTED", "") not in ("", "0", "false")
 
 
-def create_app(root: Path = Path("out/motionharness"), sandbox_kind: str = "auto", harness: Harness | None = None,
+def create_app(root: Path | None = None, sandbox_kind: str = "auto", harness: Harness | None = None,
                hosted: bool | None = None, guard: Guard | None = None) -> FastAPI:
     """hosted (default: MOTIONHARNESS_HOSTED): a public copy. Generated code runs only in Token Factory Sandboxes
     (runs are refused while they're unavailable), installing into the server is off, and runs are capped.
     guard (default: MOTIONHARNESS_* env vars, all off): access code, per-visitor rate limit, daily token budget."""
-    root = Path(root)
+    root = Path(root) if root else default_runs_root()
     root.mkdir(parents=True, exist_ok=True)
     hosted = hosted_from_env() if hosted is None else hosted
     guard = guard or Guard.from_env()

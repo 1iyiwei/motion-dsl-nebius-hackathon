@@ -97,4 +97,4 @@ def _run_dir(root: Path, run_id: str) -> Path:
 
 def main(root: Path, sandbox_kind: str = "auto") -> None:
     load_env()
-    create_server(Path(os.environ.get("MOTIONHARNESS_RUNS", root)), sandbox_kind).run()  # stdio
+    create_server(Path(root), sandbox_kind).run()  # stdio; root is already resolved by the CLI

@@ -47,6 +47,19 @@ APPROACHES = [
 ]
 
 
+def default_runs_root(start: Path | None = None) -> Path:
+    """Where runs go unless told otherwise: $MOTIONHARNESS_RUNS, else <workspace>/out/motionharness, where the
+    workspace is the nearest folder at or above `start` (cwd) with a uv.lock. So the CLI, the dashboard and the MCP
+    server share one runs folder whichever directory they're started from."""
+    if env := os.environ.get("MOTIONHARNESS_RUNS"):
+        return Path(env).expanduser()
+    here = (start or Path.cwd()).resolve()
+    for d in (here, *here.parents):
+        if (d / "uv.lock").is_file():
+            return d / "out" / "motionharness"
+    return here / "out" / "motionharness"
+
+
 def coder_model() -> str:
     return os.environ.get("MOTIONHARNESS_CODER_MODEL", MODELS["super"])
 
@@ -164,14 +177,14 @@ class Run:
 
 
 class Harness:
-    def __init__(self, sandbox: Sandbox, llm: LLM | None = None, root: Path = Path("out/motionharness"), tavily: Any = None,
+    def __init__(self, sandbox: Sandbox, llm: LLM | None = None, root: Path | None = None, tavily: Any = None,
                  triage: bool = True):
         """triage: a fast check (Super, reasoning off) that the verb name reads as an action, before writing."""
         load_env()
         self.triage = triage
         self.sandbox = sandbox
         self.llm = llm or LLM()
-        self.root = Path(root)
+        self.root = Path(root) if root else default_runs_root()
         self.tavily = tavily
 
     # ---- model calls ------------------------------------------------------------------------------

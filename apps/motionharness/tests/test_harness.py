@@ -439,3 +439,16 @@ def test_delete_run_removes_folder_and_local_images(tmp_path):
     assert client.get("/api/runs").json() == [] and client.delete(f"/api/runs/{run.id}").status_code == 404
     hosted = TestClient(create_app(tmp_path / "runs", harness=h, hosted=True))
     assert hosted.delete("/api/runs/whatever").status_code == 403
+
+
+def test_runs_go_to_the_workspace_root_from_any_subfolder(tmp_path, monkeypatch):
+    from motionharness.harness import default_runs_root
+
+    monkeypatch.delenv("MOTIONHARNESS_RUNS", raising=False)
+    (tmp_path / "uv.lock").write_text("")
+    sub = tmp_path / "apps" / "motionharness"
+    sub.mkdir(parents=True)
+    assert default_runs_root(sub) == tmp_path.resolve() / "out" / "motionharness"
+    assert default_runs_root(tmp_path) == tmp_path.resolve() / "out" / "motionharness"
+    monkeypatch.setenv("MOTIONHARNESS_RUNS", str(tmp_path / "elsewhere"))
+    assert default_runs_root(sub) == tmp_path / "elsewhere"

@@ -21,11 +21,10 @@ from pathlib import Path
 
 from motionlang.agent.llm import load_env
 
-from .harness import Config, Harness, tavily_search
+from .harness import Config, Harness, default_runs_root, tavily_search
 from .plugin import Task
 from .sandbox import ContreeSandbox, make_sandbox
 
-DEFAULT_ROOT = Path(os.environ.get("MOTIONHARNESS_RUNS", "out/motionharness"))
 ICON = {"start": "▶", "docs": "🔎", "sandbox": "📦", "round": "⟳", "call_start": "…", "candidate": "•", "tests": "🧪",
         "critique": "👁", "naming": "✎", "ship": "✅", "error": "✖", "end": "■"}
 
@@ -161,7 +160,8 @@ def cmd_mcp(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> None:
     load_env()
     ap = argparse.ArgumentParser(prog="motionharness", description=__doc__.splitlines()[0])
-    ap.add_argument("--out", type=Path, default=DEFAULT_ROOT, help="runs directory (default: out/motionharness)")
+    ap.add_argument("--out", type=Path, default=None,
+                    help="runs directory (default: $MOTIONHARNESS_RUNS, else out/motionharness at the workspace root)")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     nv = sub.add_parser("new-verb", help="write, test and critique a new verb plugin")
@@ -205,6 +205,7 @@ def main(argv: list[str] | None = None) -> None:
     mc.set_defaults(fn=cmd_mcp)
 
     args = ap.parse_args(argv)
+    args.out = args.out or default_runs_root()
     sys.exit(args.fn(args))
 
 
