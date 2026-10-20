@@ -78,17 +78,12 @@ Python, FastAPI, Pydantic, NumPy, Pillow, pytest, Hypothesis, NVIDIA Nemotron 3 
 
 https://github.com/1iyiwei/motion-dsl-nebius-hackathon/tree/main/apps/motionharness
 
-- Demo video: https://youtu.be/Yiqjqel_Z0Q
-- Hosted dashboard: https://motion-harness.dragoniac.com/ (generated code runs only in Token Factory Sandboxes)
-
-
 ### Project Media
 Image gallery
 JPG, PNG or GIF format, 5 MB max file size. For best results, use a 3:2 ratio. Up to 15 images.
 
 * Demo video URL
-https://youtu.be/Yiqjqel_Z0Q
-
+https://youtu.be/-WKw1R56PpE
 
 ## Additional info
 For judges and organizers
