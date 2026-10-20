@@ -10,6 +10,24 @@ NAME = re.compile(r"^[a-z][a-z0-9_]{1,40}$")
 WORDS = re.compile(r"`([a-z][a-z0-9_]*\.)?([a-z][a-z0-9_]{1,40})`")
 
 
+_NAMED = [
+    re.compile(r"[`'\"‘“](?:[a-z][a-z0-9_]*\.)?([a-z][a-z0-9_]{1,40})[`'\"’”]", re.I),  # add a `smash` / 'smash' verb
+    re.compile(r"\bverbs?\s+(?:called|named)\s+([a-z][a-z0-9_]{1,40})\b", re.I),    # a verb called smash
+    re.compile(r"\b(?:a|an|the|new)\s+(?!new\b)([a-z][a-z0-9_]{1,40})\s+verb\b", re.I),  # add a smash verb
+    re.compile(r"^\s*([a-z][a-z0-9_]{1,40})\s*[:—–-]\s", re.I),                      # smash: the actor crumples
+    re.compile(r"^\s*([a-z][a-z0-9_]{1,40})\s*$", re.I),                             # smash
+    re.compile(r"\b([a-z]+_[a-z0-9_]+)\b"),                                          # any snake_case word
+]
+
+
+def infer_name(description: str) -> str:
+    """The verb name a task asks for, or "custom_verb" when it names none."""
+    for rx in _NAMED:
+        if m := rx.search(description):
+            return m.group(1).lower()
+    return "custom_verb"
+
+
 @dataclass
 class Task:
     """`add a spring_follow verb: the actor chases a target with spring physics`."""
@@ -20,8 +38,7 @@ class Task:
 
     def __post_init__(self) -> None:
         if not self.name:
-            m = WORDS.search(self.description) or re.search(r"\b([a-z]+_[a-z0-9_]+)\b", self.description)
-            self.name = (m.group(m.lastindex or 1) if m else "custom_verb").lower()
+            self.name = infer_name(self.description)
         if "." in self.name:
             self.namespace, self.name = self.name.split(".", 1)
         if not NAME.match(self.name) or not NAME.match(self.namespace):

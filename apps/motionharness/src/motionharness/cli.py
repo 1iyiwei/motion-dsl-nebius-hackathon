@@ -5,6 +5,7 @@
     motionharness sandbox-check              # is Token Factory Sandboxes access set up?
     motionharness runs                       # past runs
     motionharness install RUN / uninstall RUN / installed   # try a plugin in this environment
+    motionharness rm RUN [RUN …]             # delete runs
     motionharness mcp                        # MCP server (stdio) for coding agents
 """
 
@@ -105,6 +106,20 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def cmd_rm(args: argparse.Namespace) -> int:
+    from .harness import delete_run
+
+    code = 0
+    for rid in args.runs:
+        try:
+            out = delete_run(args.out, rid)
+            print(f"deleted {rid} ({out['sandbox_images']} local sandbox images)")
+        except (FileNotFoundError, RuntimeError) as e:
+            print(f"{rid}: {e}")
+            code = 1
+    return code
+
+
 def cmd_installed(args: argparse.Namespace) -> int:
     from . import installer
 
@@ -174,6 +189,9 @@ def main(argv: list[str] | None = None) -> None:
     uns.add_argument("run")
     uns.set_defaults(fn=cmd_uninstall)
     sub.add_parser("installed", help="list installed verb plugins").set_defaults(fn=cmd_installed)
+    rm = sub.add_parser("rm", help="delete finished runs and their local sandbox images")
+    rm.add_argument("runs", nargs="+", help="run ids (see `motionharness runs`)")
+    rm.set_defaults(fn=cmd_rm)
 
     sv = sub.add_parser("serve", help="web dashboard")
     sv.add_argument("--host", default="127.0.0.1")

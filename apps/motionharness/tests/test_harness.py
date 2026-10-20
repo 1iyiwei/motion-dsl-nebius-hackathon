@@ -51,6 +51,12 @@ def test_task_names():
     assert (TASK.verb, TASK.module, TASK.dist, TASK.test_file) == ("mh.pulse", "mh_pulse", "motionlang-mh-pulse", "test_pulse.py")
     assert Task("add a spring_follow verb", namespace="acme").verb == "acme.spring_follow"
     assert Task("anything", name="acme.wobble").verb == "acme.wobble"
+    from motionharness.plugin import infer_name
+
+    assert [infer_name(d) for d in ("smash", "add a smash verb: crumples", "smash: the actor crumples",
+                                    "make a new verb called Wobble", "a `swing` verb", "do something nice",
+                                    "add a 'smash' verb: breaks apart", 'add a "smash" verb', "add a “smash” verb")] == [
+        "smash", "smash", "smash", "wobble", "swing", "custom_verb", "smash", "smash", "smash"]
     with pytest.raises(ValueError):
         Task("x", name="Bad-Name")
 
@@ -341,7 +347,9 @@ def test_try_in_a_scene_plans_with_and_without_the_verb(tmp_path):
         return json.dumps({"motion": "0.1", "actors": [{"id": "heart", "shape": {"kind": "ellipse", "rx": 40, "ry": 40}, "init": {"x": 640, "y": 360}}],
                            "timeline": {"id": "root", "seq": [verb_block]}})
 
-    with_verb = scene({"id": "b1", "verb": "mh.pulse", "actor": "heart", "amount": 0.3, "beats": 2})
+    with_verb = json.loads(scene({"id": "b1", "verb": "mh.pulse", "actor": "heart", "amount": 0.3, "beats": 2}))
+    with_verb["actors"][0]["shape"] = {"kind": "rect", "w": 10, "h": 10}  # the model changed the cast: it must be put back
+    with_verb = json.dumps(with_verb)
     broken = scene({"id": "b1", "verb": "mh.pulse", "actor": "heart"})  # unknown verb without the plugin
     core = scene({"id": "b1", "verb": "scale", "actor": "heart", "by": 0.3})
     h, fake = harness(tmp_path, GOOD, crit(9))
@@ -361,7 +369,9 @@ def test_try_in_a_scene_plans_with_and_without_the_verb(tmp_path):
     assert wo["ok"] and not wo["uses_verb"] and [a["ok"] for a in wo["attempts"]] == [False, True]
     assert "mh.pulse" in (run.dir / "scenes" / "system-with.txt").read_text()
     assert "mh.pulse" not in (run.dir / "scenes" / "system-without.txt").read_text()
-    assert [t["n"] for t in list_trials(run.dir)] == [1]
+    assert [t["n"] for t in list_trials(run.dir)] == [1] and trial.data["same_cast"]
+    with_doc = json.loads((run.dir / w["doc"]).read_text())
+    assert with_doc["actors"][0]["shape"] == {"kind": "ellipse", "rx": 40, "ry": 40}  # the core-only side's cast
 
 
 def test_hosted_mode_requires_sandboxes_and_guards_runs(tmp_path, monkeypatch):
@@ -393,3 +403,39 @@ def test_hosted_mode_requires_sandboxes_and_guards_runs(tmp_path, monkeypatch):
     assert client.post(f"/api/runs/{rid}/install").status_code == 403
     assert client.get("/api/installed").json() == []
     assert client.get(f"/api/runs/{rid}/plugin.zip").status_code == 200
+
+
+def test_scene_documents_get_missing_block_ids_and_pointed_excerpts():
+    from motionharness.scenes import fill_block_ids, with_excerpts
+
+    doc = {"actors": [{"id": "b1"}], "timeline": {"id": "root", "seq": [
+        {"id": "b2", "verb": "hold", "duration": 1},
+        {"repeat": {"verb": "rotate", "actor": "b1", "by": 10}, "count": 2},
+    ]}}
+    fill_block_ids(doc)
+    rep = doc["timeline"]["seq"][1]
+    ids = [rep["id"], rep["repeat"]["id"]]
+    assert ids == ["b3", "b4"]  # skips ids already used by actors and blocks
+    msgs = with_excerpts(["E_SCHEMA [at /timeline/seq/1/repeat]: block needs a non-empty string `id`"], doc)
+    assert '"verb": "rotate"' in msgs[0] and "that part of your document" in msgs[0]
+    assert with_excerpts(["E_X: no pointer"], doc) == ["E_X: no pointer"]
+
+
+def test_delete_run_removes_folder_and_local_images(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from motionharness.server import create_app
+
+    h, _ = harness(tmp_path, GOOD, crit(9))
+    run = h.run(TASK, Config(candidates=1))
+    image = Path(run.candidates[0].checkpoint.id)
+    env = Path(h.sandbox.environment().id)
+    assert image.is_dir()
+    client = TestClient(create_app(tmp_path / "runs", harness=h))
+    assert client.delete("/api/runs/../../etc").status_code in (404, 405)
+    out = client.delete(f"/api/runs/{run.id}").json()
+    assert out == {"deleted": run.id, "sandbox_images": 1}
+    assert not run.dir.exists() and not image.exists() and env.is_dir()  # the shared environment stays
+    assert client.get("/api/runs").json() == [] and client.delete(f"/api/runs/{run.id}").status_code == 404
+    hosted = TestClient(create_app(tmp_path / "runs", harness=h, hosted=True))
+    assert hosted.delete("/api/runs/whatever").status_code == 403

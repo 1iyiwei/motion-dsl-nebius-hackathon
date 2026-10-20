@@ -79,7 +79,14 @@ for (const c of $("#examples").querySelectorAll(".chip")) c.onclick = () => { $(
 $("#new").onsubmit = async (ev) => {
   ev.preventDefault();
   const task = $("#task").value.trim();
-  if (task.length < 8) return $("#task").focus();
+  const note = (msg) => { $("#form-note").hidden = false; $("#form-note").textContent = msg; };
+  if (/^[a-z][a-z0-9_]*$/i.test(task)) {  // just a name: turn it into a task to finish
+    $("#task").value = `add a \`${task.toLowerCase()}\` verb: the actor `;
+    $("#task").focus();
+    return note(`Say what ${task.toLowerCase()} should do (one sentence), then press the button again.`);
+  }
+  if (task.length < 12) { $("#task").focus(); return note("Describe the verb in a sentence, e.g. add a `smash` verb: the actor squashes flat on impact and pops back."); }
+  $("#form-note").hidden = !(state.info && state.info.hosted);
   $("#go").disabled = true;
   try {
     const models = $("#models").value ? $("#models").value.split(",") : [];
@@ -132,6 +139,7 @@ function render(run) {
     ["status", run.status, "status"], ["time", `${Math.round(run.seconds)}s`], ["candidates", `${passed}/${run.candidates.length} pass`],
     ["model calls", run.calls.length], ["tokens", (run.tokens || 0).toLocaleString()], ["model time", `${Math.round(modelSecs)}s`],
   ].map(([k, v, cls]) => `<div class="stat ${cls || ""}"><div class="k">${k}</div><div class="v ${cls ? esc(v) : ""}">${esc(v)}</div></div>`).join("");
+  $("#r-delete").hidden = run.status === "running" || !!state.info?.hosted;
   if (!state.sel || !run.candidates.find((c) => c.id === state.sel)) state.sel = run.winner || run.candidates.at(-1)?.id || null;
   drawTree(run);
   drawLog(run);
@@ -397,9 +405,9 @@ function drawTry(run) {
   const winner = run.candidates.find((c) => c.id === run.winner);
   if (!winner || winner.status !== "passed") { pane.innerHTML = `<p class="m">${run.status === "running" ? "Available once a candidate passes." : "Nothing passed, so there's nothing to try."}</p>`; return; }
   pane.innerHTML = `<p class="intro">Plan one scene twice with Nemotron Super: with <code>${esc(run.task.verb)}</code> in the planner's vocabulary ` +
-      `and without it. The planner gets the same system prompt SketchDynamics' planner gets, built in the sandbox, and each plan is ` +
+      `and without it. The core-only plan runs first and its cast is reused, so only the motion differs. The planner gets the same system prompt SketchDynamics' planner gets, built in the sandbox, and each plan is ` +
       `validated and baked in its sandbox, so nothing is installed here.</p>
-    <form id="try-form" class="try-form"><input id="try-prompt" maxlength="500" placeholder="Describe a scene, e.g. a lamp hangs from the ceiling and the wind makes it ${esc(run.task.verb.split(".").pop().replace(/_/g, " "))}">
+    <form id="try-form" class="try-form"><input id="try-prompt" maxlength="500" placeholder="Describe a scene in plain words; the planner decides whether ${esc(run.task.verb)} fits">
       <button class="btn" id="try-go">Plan both</button></form>
     <div id="trials"></div>`;
   $("#try-form").onsubmit = async (ev) => {
@@ -434,12 +442,29 @@ async function loadTrials(run) {
         <div class="notes">verbs: ${esc((s.verbs || []).join(", ") || "–")}${att ? ` · ${esc(att)}` : ""}${s.preview ? ` · <a href="${url(s.preview)}" target="_blank">open ↗</a>` : ""}${s.doc ? ` · <a href="${url(s.doc)}" target="_blank">document</a>` : ""}</div>
         ${!s.ok && s.problems.length && !busy ? `<pre class="probs">${esc(s.problems.join("\n"))}</pre>` : ""}</div>`;
     };
-    $("#trials").innerHTML = trials.slice().reverse().map((t) => `<div class="trial"><div class="trial-q">“${esc(t.prompt)}”</div>
+    $("#trials").innerHTML = trials.slice().reverse().map((t) => `<div class="trial"><div class="trial-q">“${esc(t.prompt)}”${t.same_cast ? ` <span class="tag" title="The core-only plan runs first; its actors are reused for the other side">same cast</span>` : ""}</div>
         ${t.error ? `<p class="notes">${esc(t.error)}</p>` : `<div class="sides">${side(t, "with", `With ${esc(run.task.verb)}`)}${side(t, "without", "Core verbs only")}</div>`}</div>`).join("")
       || `<p class="m">No trials yet.</p>`;
   }
   if (trials.some((t) => t.status === "running") && state.runId === run.id) state.tryTimer = setTimeout(() => loadTrials(run), 1500);
 }
+
+$("#r-delete").onclick = async () => {
+  const run = state.run;
+  if (!run) return;
+  let installedHere = false;
+  try { installedHere = (await api("/api/installed")).some((p) => p.dist.toLowerCase() === run.task.dist.toLowerCase()); } catch {}
+  const extra = installedHere ? `\n\n${run.task.dist} is installed in this environment; it stays installed (uninstall it on the Ship tab first if you want it gone).` : "";
+  if (!confirm(`Delete run ${run.id} (${run.task.verb})? This removes its plugin package, reports, scene trials and local sandbox images. It can't be undone.${extra}`)) return;
+  try {
+    await api(`/api/runs/${encodeURIComponent(run.id)}`, { method: "DELETE" });
+  } catch (e) { alert(e.message); return; }
+  clearTimeout(state.timer); clearTimeout(state.tryTimer);
+  state.run = null; state.runId = null; state.sel = null; state.sig = "";
+  const runs = await loadRuns();
+  if (runs[0]) openRun(runs[0].id);
+  else { history.replaceState(null, "", "#"); $("#run").hidden = true; $("#empty").hidden = false; }
+};
 
 // ---- boot -------------------------------------------------------------------------------------------
 

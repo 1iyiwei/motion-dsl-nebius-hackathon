@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from importlib import resources
 from pathlib import Path
@@ -26,6 +25,76 @@ from .sandbox import Checkpoint, Job
 
 CANVAS = {"width": 1280, "height": 720, "background": "#ffffff", "fps": 30}
 SIDES = ("with", "without")
+
+
+CONTAINERS = ("seq", "par", "stagger", "repeat")
+
+
+def fill_block_ids(doc: dict) -> dict:
+    """Give every timeline block without an id a fresh one (b1, b2, …). Models often forget the id on a block
+    nested in a container (`repeat`'s child); that's bookkeeping, not part of what the plan means."""
+    used: set[str] = set(a.get("id") for a in doc.get("actors") or [] if isinstance(a, dict))
+
+    def collect(node):
+        if isinstance(node, dict):
+            if isinstance(node.get("id"), str):
+                used.add(node["id"])
+            for k in CONTAINERS:
+                collect(node.get(k))
+        elif isinstance(node, list):
+            for n in node:
+                collect(n)
+
+    counter = [0]
+
+    def fresh() -> str:
+        while True:
+            counter[0] += 1
+            if (bid := f"b{counter[0]}") not in used:
+                used.add(bid)
+                return bid
+
+    def fill(node):
+        if isinstance(node, dict):
+            if ("verb" in node or any(k in node for k in CONTAINERS)) and not (isinstance(node.get("id"), str) and node["id"]):
+                node["id"] = fresh()
+            for k in CONTAINERS:
+                fill(node.get(k))
+        elif isinstance(node, list):
+            for n in node:
+                fill(n)
+
+    tl = doc.get("timeline")
+    collect(tl)
+    fill(tl)
+    return doc
+
+
+def _at(doc: Any, pointer: str) -> Any:
+    node = doc
+    for part in pointer.strip("/").split("/"):
+        if part == "":
+            continue
+        part = part.replace("~1", "/").replace("~0", "~")
+        if isinstance(node, list) and part.isdigit() and int(part) < len(node):
+            node = node[int(part)]
+        elif isinstance(node, dict) and part in node:
+            node = node[part]
+        else:
+            return None
+    return node
+
+
+def with_excerpts(errors: list[str], doc: dict | None) -> list[str]:
+    """Quote the part of the document each error points at, so a repair can find it."""
+    import re
+
+    out = []
+    for e in errors:
+        m = re.search(r"\[at (/[^\]]*)\]", e)
+        node = _at(doc, m.group(1)) if (m and doc is not None) else None
+        out.append(e + (f"\n  that part of your document is: {json.dumps(node)[:400]}" if node is not None else ""))
+    return out
 
 
 def _scene_file() -> bytes:
@@ -99,14 +168,20 @@ class SceneTrier:
         raw = self._sandbox(base, f"{_py(py)} scene.py check doc.json", {"doc.json": json.dumps(doc).encode()}, "out/scene.json")
         return json.loads(raw) if raw else {"ok": False, "errors": ["the sandbox returned nothing"], "verbs": [], "tracks": None}
 
-    def plan(self, trial: SceneTrial, side: str, base: Checkpoint, verb: str, run_dir: Path) -> None:
+    def plan(self, trial: SceneTrial, side: str, base: Checkpoint, verb: str, run_dir: Path, cast: list | None = None) -> dict | None:
+        """Plan the trial's prompt on one side; returns the final document. `cast`: actors to reuse unchanged."""
         trial.update(side, status="planning")
         try:
             system = self.system_prompt(run_dir, side, base)
         except RuntimeError as e:
             trial.update(side, status="error", problems=[str(e)])
-            return
-        messages = [{"role": "system", "content": system}, {"role": "user", "content": generation_user(trial.data["prompt"], CANVAS)}]
+            return None
+        user = generation_user(trial.data["prompt"], CANVAS)
+        if cast:
+            user += ("\n\nUse exactly these actors, unchanged (same ids, shapes, styles and init), and write the timeline "
+                     "and constraints for them; another version of this scene uses the same cast, so only the motion should differ:\n"
+                     + json.dumps(cast, separators=(",", ":")))
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         model = MODELS["super"]
         for attempt in range(self.max_repairs + 1):
             t = time.time()
@@ -115,11 +190,14 @@ class SceneTrier:
                                                           max_tokens=12000, temperature=0.3)
             except Exception as e:
                 trial.update(side, status="error", problems=[f"planner call failed: {e}"])
-                return
+                return None
             call = Call(f"scene {trial.n} {side}", model, time.time() - t, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0))
             try:
                 doc = json.loads(extract_json_text(text))
                 doc["motion"], doc["canvas"] = "0.1", {**CANVAS, **{k: v for k, v in (doc.get("canvas") or {}).items() if k == "background"}}
+                if cast:
+                    doc["actors"] = json.loads(json.dumps(cast))  # the shared cast wins over anything the model changed
+                fill_block_ids(doc)
                 if side == "with" and verb in json.dumps(doc.get("timeline")):
                     doc["requires"] = sorted(set(doc.get("requires") or []) | {verb})
                 trial.update(side, status="checking")
@@ -137,8 +215,9 @@ class SceneTrier:
                 trial.update(side, preview=f"scenes/{trial.n}-{side}.html", doc=f"scenes/{trial.n}-{side}.json")
             if res["ok"]:
                 break
-            messages += [{"role": "assistant", "content": text}, {"role": "user", "content": repair_user(res["errors"][:12])}]
+            messages += [{"role": "assistant", "content": text}, {"role": "user", "content": repair_user(with_excerpts(res["errors"][:12], doc))}]
         trial.update(side, status="done" if trial.data["sides"][side]["ok"] else "failed")
+        return doc if trial.data["sides"][side]["ok"] else None
 
     def run(self, run: dict, run_dir: Path, prompt: str) -> SceneTrial:
         """Synchronously plan `prompt` with and without the run's winning verb."""
@@ -157,9 +236,11 @@ class SceneTrier:
         verb = run["task"]["verb"]
 
         def go() -> None:
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                for f in [pool.submit(self.plan, trial, "with", with_cp, verb, run_dir), pool.submit(self.plan, trial, "without", env_cp, verb, run_dir)]:
-                    f.result()
+            # Core-only first; its cast is then reused on the "with" side, so the two versions differ only in motion.
+            base = self.plan(trial, "without", env_cp, verb, run_dir)
+            cast = base.get("actors") if base else None
+            trial.update(same_cast=bool(cast))
+            self.plan(trial, "with", with_cp, verb, run_dir, cast=cast)
             trial.update(status="done")
             if on_done:
                 on_done(trial)

@@ -460,3 +460,31 @@ def tavily_search(api_key: str | None = None) -> Callable[[str], list[dict]] | N
 
     return search
 
+
+
+def delete_run(root: Path, run_id: str) -> dict:
+    """Remove a finished run: its folder (plugin, scenes, reports) and the local sandbox images its candidates made.
+
+    Token Factory Sandboxes images are left to the service's retention policy."""
+    import shutil
+
+    root = Path(root).resolve()
+    d = (root / run_id).resolve()
+    if d.parent != root or not (d / "run.json").exists():
+        raise FileNotFoundError(f"no such run: {run_id}")
+    record = json.loads((d / "run.json").read_text())
+    if record.get("status") == "running":
+        raise RuntimeError("the run is still in progress")
+    sb = record.get("sandbox") or {}
+    sandbox_root = Path(sb.get("root") or root / ".sandbox").resolve()
+    images = 0
+    for c in record.get("candidates", []):
+        cp = c.get("checkpoint")
+        if not cp or sb.get("backend") != "local":
+            continue
+        p = Path(cp).resolve()
+        if p.parent == sandbox_root and p.name.startswith("img-") and p.is_dir():
+            shutil.rmtree(p)
+            images += 1
+    shutil.rmtree(d)
+    return {"deleted": run_id, "sandbox_images": images}

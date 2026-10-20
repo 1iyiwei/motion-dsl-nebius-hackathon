@@ -5,6 +5,7 @@ GET  /api/runs                      past and running runs (summaries)
 POST /api/runs                      {task, name?, namespace?, candidates?, models?, rounds?, critique?} → {id}
 GET  /api/runs/{id}                 the run record (run.json), live while it runs
 GET  /api/runs/{id}/file/{path}     a run artifact: candidates/c1/frames.png, preview.html, plugin.diff, report.md, …
+DELETE /api/runs/{id}               remove a finished run and its local sandbox images (not on a hosted copy)
 GET  /api/runs/{id}/plugin.zip      the shipped plugin package (+ report, diff, preview) as a zip
 GET  /api/runs/{id}/scenes          "try in a scene" trials: one prompt planned with and without the run's verb
 POST /api/runs/{id}/scenes          {prompt} → {n}; planned in the background, validated in sandboxes
@@ -27,7 +28,7 @@ from pydantic import BaseModel, Field
 
 from . import installer
 from .guard import Guard
-from .harness import MODELS, Config, Harness, Run, coder_model, tavily_search
+from .harness import MODELS, Config, Harness, Run, coder_model, delete_run, tavily_search
 from .plugin import Task
 from .scenes import SceneTrial, SceneTrier, list_trials
 from .sandbox import make_sandbox
@@ -168,6 +169,21 @@ def create_app(root: Path = Path("out/motionharness"), sandbox_kind: str = "auto
         if run_id in live:
             return JSONResponse(live[run_id].to_dict())
         return JSONResponse(json.loads((run_dir(run_id) / "run.json").read_text()))
+
+    @app.delete("/api/runs/{run_id}")
+    def remove_run(run_id: str) -> dict:
+        if hosted:
+            raise HTTPException(403, detail="Runs can't be deleted on the hosted demo.")
+        if run_id in live and live[run_id].status == "running":
+            raise HTTPException(409, detail="The run is still in progress.")
+        try:
+            out = delete_run(root, run_id)
+        except FileNotFoundError as e:
+            raise HTTPException(404, detail=str(e)) from e
+        except RuntimeError as e:
+            raise HTTPException(409, detail=str(e)) from e
+        live.pop(run_id, None)
+        return out
 
     @app.get("/api/runs/{run_id}/plugin.zip")
     def plugin_zip(run_id: str):
