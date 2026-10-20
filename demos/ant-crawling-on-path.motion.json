@@ -1,0 +1,412 @@
+{
+  "motion": "0.1",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "background": "#ffffff",
+    "fps": 60
+  },
+  "strokes": {
+    "s1": {
+      "points": [
+        [
+          66,
+          682
+        ],
+        [
+          80,
+          629
+        ],
+        [
+          108,
+          557
+        ],
+        [
+          122,
+          510
+        ],
+        [
+          131,
+          498
+        ],
+        [
+          161,
+          485
+        ],
+        [
+          188,
+          485
+        ],
+        [
+          207,
+          494
+        ],
+        [
+          274,
+          548
+        ],
+        [
+          306,
+          567
+        ],
+        [
+          328,
+          576
+        ],
+        [
+          380,
+          584
+        ],
+        [
+          487,
+          584
+        ],
+        [
+          554,
+          572
+        ],
+        [
+          602,
+          556
+        ],
+        [
+          677,
+          519
+        ],
+        [
+          702,
+          500
+        ],
+        [
+          720,
+          475
+        ],
+        [
+          733,
+          439
+        ],
+        [
+          740,
+          397
+        ],
+        [
+          771,
+          325
+        ],
+        [
+          788,
+          250
+        ],
+        [
+          802,
+          233
+        ],
+        [
+          835,
+          213
+        ],
+        [
+          923,
+          148
+        ],
+        [
+          955,
+          131
+        ],
+        [
+          1087,
+          122
+        ],
+        [
+          1124,
+          131
+        ],
+        [
+          1160,
+          158
+        ],
+        [
+          1211,
+          174
+        ]
+      ]
+    }
+  },
+  "actors": [
+    {
+      "id": "logo",
+      "label": "the whole logo",
+      "shape": {
+        "kind": "group"
+      },
+      "init": {
+        "x": 66,
+        "y": 682
+      }
+    },
+    {
+      "id": "ant_body",
+      "label": "ant body (turns about path1)",
+      "shape": {
+        "kind": "group"
+      },
+      "parent": "logo",
+      "init": {
+        "x": 5.23,
+        "y": 73.31
+      }
+    },
+    {
+      "id": "circle1",
+      "shape": {
+        "kind": "asset",
+        "ref": "circle1"
+      },
+      "parent": "ant_body",
+      "init": {
+        "x": 0.01,
+        "y": -288
+      },
+      "label": "head"
+    },
+    {
+      "id": "path1",
+      "shape": {
+        "kind": "asset",
+        "ref": "path1"
+      },
+      "parent": "ant_body",
+      "init": {
+        "x": 0,
+        "y": 0
+      },
+      "label": "thorax and abdomen"
+    },
+    {
+      "id": "line1",
+      "shape": {
+        "kind": "asset",
+        "ref": "line1"
+      },
+      "parent": "logo",
+      "init": {
+        "x": 5.24,
+        "y": -57.6
+      },
+      "label": "left middle leg"
+    },
+    {
+      "id": "polyline1",
+      "shape": {
+        "kind": "asset",
+        "ref": "polyline1"
+      },
+      "parent": "logo",
+      "init": {
+        "x": 5.24,
+        "y": -162.32
+      },
+      "label": "left upper leg"
+    },
+    {
+      "id": "ellipse1",
+      "shape": {
+        "kind": "asset",
+        "ref": "ellipse1"
+      },
+      "parent": "logo",
+      "init": {
+        "x": 5.24,
+        "y": 225.17
+      },
+      "label": "abdomen detail"
+    },
+    {
+      "id": "polyline2",
+      "shape": {
+        "kind": "asset",
+        "ref": "polyline2"
+      },
+      "parent": "logo",
+      "init": {
+        "x": 0,
+        "y": 78.54
+      },
+      "label": "left lower leg"
+    }
+  ],
+  "timeline": {
+    "id": "root",
+    "par": [
+      {
+        "id": "crawl",
+        "verb": "move_along",
+        "actor": "logo",
+        "path": {
+          "stroke": "s1"
+        },
+        "orient": true,
+        "duration": 5.5,
+        "ease": "inOutSine"
+      },
+      {
+        "id": "leg1_wiggle",
+        "verb": "wiggle",
+        "actor": "line1",
+        "props": [
+          "rotation"
+        ],
+        "amplitude": 35,
+        "frequency": 2.2,
+        "duration": 5.5,
+        "seed": 1
+      },
+      {
+        "id": "leg2_wiggle",
+        "verb": "wiggle",
+        "actor": "polyline1",
+        "props": [
+          "rotation"
+        ],
+        "amplitude": 35,
+        "frequency": 2.2,
+        "duration": 5.5,
+        "seed": 2
+      },
+      {
+        "id": "leg3_wiggle",
+        "verb": "wiggle",
+        "actor": "polyline2",
+        "props": [
+          "rotation"
+        ],
+        "amplitude": 35,
+        "frequency": 2.2,
+        "duration": 5.5,
+        "seed": 3
+      }
+    ]
+  },
+  "constraints": [
+    {
+      "type": "in_bounds",
+      "actors": "*",
+      "margin": 8,
+      "ignore": [
+        "crawl"
+      ]
+    },
+    {
+      "type": "total_duration",
+      "max": 6
+    }
+  ],
+  "meta": {
+    "intent": "the ant crawls along the drawn path with legs moving naturally",
+    "title": "Ant crawling on path"
+  },
+  "assets": {
+    "line1": {
+      "kind": "path",
+      "d": "M404.36,302.4 L886.11,302.4",
+      "stroke": "#000000",
+      "stroke_width": 20.95,
+      "meta": {
+        "source": "line1"
+      },
+      "bbox": [
+        404.36,
+        302.4,
+        481.75,
+        0
+      ],
+      "label": "left middle leg"
+    },
+    "circle1": {
+      "kind": "path",
+      "d": "M571.93,145.31 C571.93,104.82 604.75,72 645.24,72 C685.72,72 718.55,104.82 718.55,145.31 C718.55,185.8 685.72,218.62 645.24,218.62 C604.75,218.62 571.93,185.8 571.93,145.31 Z",
+      "fill": "#595959",
+      "stroke": "#000000",
+      "stroke_width": 20.95,
+      "fill_rule": "evenodd",
+      "meta": {
+        "source": "circle1"
+      },
+      "bbox": [
+        571.93,
+        72,
+        146.62,
+        146.62
+      ],
+      "label": "head"
+    },
+    "polyline1": {
+      "kind": "path",
+      "d": "M414.84,146.32 L533.51,250.04 L756.88,250.04 L875.64,145.31",
+      "stroke": "#000000",
+      "stroke_width": 20.95,
+      "meta": {
+        "source": "polyline1"
+      },
+      "bbox": [
+        414.84,
+        145.31,
+        460.8,
+        104.73
+      ],
+      "label": "left upper leg"
+    },
+    "path1": {
+      "kind": "path",
+      "d": "M697.6,368.06 L697.6,270.06 C697.6,241.65 674.57,218.62 646.16,218.62 L644.31,218.62 C615.9,218.62 592.87,241.65 592.87,270.06 L592.87,368.06 C549.61,391.22 519.56,442.21 519.56,501.38 C519.56,582.36 575.83,648 645.24,648 C714.64,648 770.91,582.36 770.91,501.38 C770.91,442.21 740.86,391.22 697.6,368.06 Z",
+      "fill": "#777777",
+      "stroke": "#000000",
+      "stroke_width": 20.95,
+      "fill_rule": "evenodd",
+      "meta": {
+        "source": "path1"
+      },
+      "bbox": [
+        519.56,
+        218.62,
+        251.35,
+        429.38
+      ],
+      "label": "thorax and abdomen"
+    },
+    "ellipse1": {
+      "kind": "path",
+      "d": "M603.35,585.16 C603.35,573.6 622.1,564.22 645.24,564.22 C668.37,564.22 687.13,573.6 687.13,585.16 C687.13,596.73 668.37,606.11 645.24,606.11 C622.1,606.11 603.35,596.73 603.35,585.16 Z",
+      "fill": "#ed5481",
+      "stroke": "#000000",
+      "stroke_width": 20.95,
+      "fill_rule": "evenodd",
+      "meta": {
+        "source": "ellipse1"
+      },
+      "bbox": [
+        603.35,
+        564.22,
+        83.78,
+        41.89
+      ],
+      "label": "abdomen detail"
+    },
+    "polyline2": {
+      "kind": "path",
+      "d": "M352,522.23 L475.2,396.54 L640,354.76 L810.88,397.4 L928,522.33",
+      "stroke": "#000000",
+      "stroke_width": 20.95,
+      "meta": {
+        "source": "polyline2"
+      },
+      "bbox": [
+        352,
+        354.76,
+        576,
+        167.57
+      ],
+      "label": "left lower leg"
+    }
+  }
+}

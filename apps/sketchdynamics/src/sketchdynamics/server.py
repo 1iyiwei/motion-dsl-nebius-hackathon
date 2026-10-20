@@ -3,6 +3,7 @@
 POST /generate    {intent, strokes, canvas, assets?, actors?}   Nemotron Ultra plans the document, the validator drives repairs
 POST /tweak       {doc, instruction}          Nemotron Nano edits it with id-addressed ops (escalates if needed)
 POST /bake        {doc}                       validate + bake only, no model (e.g. after redrawing a stroke)
+POST /open        {doc}                       a saved MotionLang document → tracks + its strokes and artwork, to keep working on
 POST /import-svg  {svg}                       a user's logo → MotionLang assets + suggested actors + a still preview
 POST /label-parts {image, assets, groups?}    Nemotron VL names each logo part and groups parts that move as one
 POST /regroup     {assets, groups, actors?}   a grouping (VL's or the user's) → actor tree + still preview
@@ -39,7 +40,7 @@ from motionlang.importers import import_svg
 from motionlang.preview import player_js_path, preview_html
 
 from .guard import Guard
-from .grouping import build_actors, groups_from_actors, normalize_groups, part_opacity, split_part
+from .grouping import ROOT, build_actors, groups_from_actors, normalize_groups, part_opacity, split_part
 from .shapes import Candidate, Library, WebSearch, clean_svg, draw_messages, judge_messages, needed_messages, parse_objects, parse_scores, placed_parts
 
 EDITOR_KINDS = {"edit", "edit-repair"}  # every other attempt kind (generate, repair, repair-edit, regenerate) is the planner's
@@ -90,6 +91,10 @@ class SplitRequest(BaseModel):
 
 
 class BakeRequest(BaseModel):
+    doc: dict[str, Any]
+
+
+class OpenRequest(BaseModel):
     doc: dict[str, Any]
 
 
@@ -407,6 +412,32 @@ def create_app(
     @app.post("/bake")
     def post_bake(req: BakeRequest):
         return JSONResponse(bake_json(req.doc))
+
+    @app.post("/open")
+    def post_open(req: OpenRequest):
+        """A MotionLang document saved earlier (Export → MotionLang JSON, or written by hand or another tool).
+        Besides the tracks, returns its artwork as an editable logo (parts + rigid groups), so the next
+        Generate or Tweak can build on it."""
+        baked = bake_json(req.doc)
+        if baked["tracks"] is None:
+            report = baked["report"] or {}
+            problems = "; ".join(e.get("message", "") for e in report.get("errors", [])[:3]) or "not a MotionLang document"
+            raise HTTPException(422, detail=f"this document can't be played: {problems}"[:400])
+        assets = req.doc.get("assets") or {}
+        logo = None
+        if assets:
+            # Groups come from the actor tree under the logo root; actors the planner added (balls, text) aren't artwork.
+            actors = [{**a, "parent": None if a.get("parent") == ROOT else a.get("parent")}
+                      for a in req.doc.get("actors", []) if isinstance(a, dict) and a.get("id") != ROOT]
+            canvas = {**Canvas().model_dump(), **(req.doc.get("canvas") or {})}
+            groups = []
+            for g in groups_from_actors(actors, assets):  # build_actors wrote a pivot into the label: "sun (turns about disc)"
+                if m := re.fullmatch(r"(.*) \(turns about (\S+)\)", g["label"]):
+                    g = {**g, "label": m.group(1), **({"pivot": m.group(2)} if m.group(2) in g["parts"] else {})}
+                groups.append(g)
+            logo = {"assets": assets, **grouped_logo(assets, groups, canvas, part_opacity(actors))}
+            logo.pop("preview")
+        return JSONResponse({**baked, "logo": logo})
 
     @app.post("/export.html")
     def post_export_html(req: ExportRequest):

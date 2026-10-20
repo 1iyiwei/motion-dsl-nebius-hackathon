@@ -1,0 +1,461 @@
+{
+  "motion": "0.1",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "background": "#ffffff",
+    "fps": 60
+  },
+  "actors": [
+    {
+      "id": "logo",
+      "label": "the whole logo",
+      "shape": {
+        "kind": "group"
+      },
+      "init": {
+        "x": 640,
+        "y": 360
+      }
+    },
+    {
+      "id": "sun_with_rays",
+      "label": "sun with rays (turns about disc)",
+      "shape": {
+        "kind": "group"
+      },
+      "parent": "logo",
+      "init": {
+        "x": 0,
+        "y": -16.94
+      }
+    },
+    {
+      "id": "disc",
+      "shape": {
+        "kind": "asset",
+        "ref": "disc"
+      },
+      "parent": "sun_with_rays",
+      "init": {
+        "x": 0,
+        "y": 0,
+        "opacity": 0
+      },
+      "label": "sun disc"
+    },
+    {
+      "id": "ray1",
+      "shape": {
+        "kind": "asset",
+        "ref": "ray1"
+      },
+      "parent": "sun_with_rays",
+      "init": {
+        "x": 0,
+        "y": 0,
+        "opacity": 0
+      },
+      "label": "left ray"
+    },
+    {
+      "id": "ray2",
+      "shape": {
+        "kind": "asset",
+        "ref": "ray2"
+      },
+      "parent": "sun_with_rays",
+      "init": {
+        "x": 0,
+        "y": 0,
+        "opacity": 0
+      },
+      "label": "upper left ray"
+    },
+    {
+      "id": "ray3",
+      "shape": {
+        "kind": "asset",
+        "ref": "ray3"
+      },
+      "parent": "sun_with_rays",
+      "init": {
+        "x": 0,
+        "y": 0,
+        "opacity": 0
+      },
+      "label": "top ray"
+    },
+    {
+      "id": "ray4",
+      "shape": {
+        "kind": "asset",
+        "ref": "ray4"
+      },
+      "parent": "sun_with_rays",
+      "init": {
+        "x": 0,
+        "y": 0,
+        "opacity": 0
+      },
+      "label": "upper right ray"
+    },
+    {
+      "id": "ray5",
+      "shape": {
+        "kind": "asset",
+        "ref": "ray5"
+      },
+      "parent": "sun_with_rays",
+      "init": {
+        "x": 0,
+        "y": 0,
+        "opacity": 0
+      },
+      "label": "right ray"
+    },
+    {
+      "id": "ocean_waves",
+      "label": "ocean waves",
+      "shape": {
+        "kind": "group"
+      },
+      "parent": "logo",
+      "init": {
+        "x": 0,
+        "y": 216.47
+      }
+    },
+    {
+      "id": "wave1",
+      "shape": {
+        "kind": "asset",
+        "ref": "wave1"
+      },
+      "parent": "ocean_waves",
+      "init": {
+        "x": 0,
+        "y": -45.18,
+        "trim": 0
+      },
+      "label": "top wave"
+    },
+    {
+      "id": "wave2",
+      "shape": {
+        "kind": "asset",
+        "ref": "wave2"
+      },
+      "parent": "ocean_waves",
+      "init": {
+        "x": 18.83,
+        "y": 44.16,
+        "trim": 0
+      },
+      "label": "bottom wave"
+    }
+  ],
+  "timeline": {
+    "id": "root",
+    "seq": [
+      {
+        "id": "disc_fade",
+        "verb": "fade",
+        "actor": "disc",
+        "to": 1,
+        "duration": 0.5,
+        "ease": "inOutSine"
+      },
+      {
+        "id": "rays_stagger",
+        "stagger": [
+          {
+            "id": "ray1_anim",
+            "par": [
+              {
+                "id": "ray1_fade",
+                "verb": "fade",
+                "actor": "ray1",
+                "to": 1,
+                "duration": 0.2,
+                "ease": "inOutSine"
+              },
+              {
+                "id": "ray1_move",
+                "verb": "move",
+                "actor": "ray1",
+                "to": [
+                  -318.31,
+                  -3.01
+                ],
+                "duration": 0.5,
+                "ease": "outExpo"
+              }
+            ]
+          },
+          {
+            "id": "ray2_anim",
+            "par": [
+              {
+                "id": "ray2_fade",
+                "verb": "fade",
+                "actor": "ray2",
+                "to": 1,
+                "duration": 0.2,
+                "ease": "inOutSine"
+              },
+              {
+                "id": "ray2_move",
+                "verb": "move",
+                "actor": "ray2",
+                "to": [
+                  -194.26,
+                  -164.7
+                ],
+                "duration": 0.5,
+                "ease": "outExpo"
+              }
+            ]
+          },
+          {
+            "id": "ray3_anim",
+            "par": [
+              {
+                "id": "ray3_fade",
+                "verb": "fade",
+                "actor": "ray3",
+                "to": 1,
+                "duration": 0.2,
+                "ease": "inOutSine"
+              },
+              {
+                "id": "ray3_move",
+                "verb": "move",
+                "actor": "ray3",
+                "to": [
+                  0,
+                  -225.88
+                ],
+                "duration": 0.5,
+                "ease": "outExpo"
+              }
+            ]
+          },
+          {
+            "id": "ray4_anim",
+            "par": [
+              {
+                "id": "ray4_fade",
+                "verb": "fade",
+                "actor": "ray4",
+                "to": 1,
+                "duration": 0.2,
+                "ease": "inOutSine"
+              },
+              {
+                "id": "ray4_move",
+                "verb": "move",
+                "actor": "ray4",
+                "to": [
+                  194.26,
+                  -164.7
+                ],
+                "duration": 0.5,
+                "ease": "outExpo"
+              }
+            ]
+          },
+          {
+            "id": "ray5_anim",
+            "par": [
+              {
+                "id": "ray5_fade",
+                "verb": "fade",
+                "actor": "ray5",
+                "to": 1,
+                "duration": 0.2,
+                "ease": "inOutSine"
+              },
+              {
+                "id": "ray5_move",
+                "verb": "move",
+                "actor": "ray5",
+                "to": [
+                  318.31,
+                  -3.01
+                ],
+                "duration": 0.5,
+                "ease": "outExpo"
+              }
+            ]
+          }
+        ],
+        "offset": 0.1
+      },
+      {
+        "id": "waves_stagger",
+        "stagger": [
+          {
+            "id": "wave1_draw",
+            "verb": "draw_on",
+            "actor": "wave1",
+            "duration": 1,
+            "ease": "inOutSine"
+          },
+          {
+            "id": "wave2_draw",
+            "verb": "draw_on",
+            "actor": "wave2",
+            "duration": 1,
+            "ease": "inOutSine"
+          }
+        ],
+        "offset": 0.2
+      }
+    ]
+  },
+  "constraints": [
+    {
+      "type": "in_bounds",
+      "actors": "*",
+      "margin": 8
+    },
+    {
+      "type": "total_duration",
+      "max": 10
+    }
+  ],
+  "meta": {
+    "intent": "The sun disc fades in, rays shoot outward one by one, then waves draw in from left to right with a gentle ease.",
+    "title": "Sun and Waves Animation"
+  },
+  "assets": {
+    "disc": {
+      "kind": "path",
+      "d": "M414.12,456 C414.12,331.25 515.25,230.12 640,230.12 C764.75,230.12 865.88,331.25 865.88,456 Z",
+      "fill": "#f4a259",
+      "label": "sun disc",
+      "meta": {
+        "source": "disc"
+      },
+      "bbox": [
+        414.12,
+        230.12,
+        451.76,
+        225.88
+      ]
+    },
+    "ray1": {
+      "kind": "path",
+      "d": "M364.05,355.48 L279.34,324.61",
+      "stroke": "#f4a259",
+      "stroke_width": 30.12,
+      "label": "left ray",
+      "meta": {
+        "source": "ray1"
+      },
+      "bbox": [
+        279.34,
+        324.61,
+        84.71,
+        30.87
+      ]
+    },
+    "ray2": {
+      "kind": "path",
+      "d": "M471.72,215.44 L419.76,141.27",
+      "stroke": "#f4a259",
+      "stroke_width": 30.12,
+      "label": "upper left ray",
+      "meta": {
+        "source": "ray2"
+      },
+      "bbox": [
+        419.76,
+        141.27,
+        51.96,
+        74.17
+      ]
+    },
+    "ray3": {
+      "kind": "path",
+      "d": "M640,162.35 L640,72",
+      "stroke": "#f4a259",
+      "stroke_width": 30.12,
+      "label": "top ray",
+      "meta": {
+        "source": "ray3"
+      },
+      "bbox": [
+        640,
+        72,
+        0,
+        90.35
+      ]
+    },
+    "ray4": {
+      "kind": "path",
+      "d": "M808.28,215.44 L860.24,141.27",
+      "stroke": "#f4a259",
+      "stroke_width": 30.12,
+      "label": "upper right ray",
+      "meta": {
+        "source": "ray4"
+      },
+      "bbox": [
+        808.28,
+        141.27,
+        51.96,
+        74.17
+      ]
+    },
+    "ray5": {
+      "kind": "path",
+      "d": "M915.95,355.48 L1000.66,324.61",
+      "stroke": "#f4a259",
+      "stroke_width": 30.12,
+      "label": "right ray",
+      "meta": {
+        "source": "ray5"
+      },
+      "bbox": [
+        915.95,
+        324.61,
+        84.71,
+        30.87
+      ]
+    },
+    "wave1": {
+      "kind": "path",
+      "d": "M301.18,531.29 Q414.12,478.59 527.06,531.29 Q640,584 752.94,531.29 Q865.88,478.59 978.82,531.29",
+      "stroke": "#2e86ab",
+      "stroke_width": 30.12,
+      "label": "top wave",
+      "meta": {
+        "source": "wave1"
+      },
+      "bbox": [
+        301.18,
+        504.94,
+        677.64,
+        52.71
+      ]
+    },
+    "wave2": {
+      "kind": "path",
+      "d": "M376.47,621.65 Q489.41,568.94 602.35,621.65 Q715.29,674.35 828.24,621.65 Q941.18,568.94 941.18,614.12",
+      "stroke": "#2e86ab",
+      "stroke_width": 30.12,
+      "label": "bottom wave",
+      "meta": {
+        "source": "wave2"
+      },
+      "bbox": [
+        376.47,
+        593.27,
+        564.71,
+        54.73
+      ]
+    }
+  }
+}

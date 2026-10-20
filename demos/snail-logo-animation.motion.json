@@ -1,0 +1,281 @@
+{
+  "motion": "0.1",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "background": "#ffffff",
+    "fps": 60
+  },
+  "actors": [
+    {
+      "id": "logo",
+      "label": "the whole logo",
+      "shape": {
+        "kind": "group"
+      },
+      "init": {
+        "x": 640,
+        "y": 360
+      }
+    },
+    {
+      "id": "antennae",
+      "label": "antennae",
+      "shape": {
+        "kind": "group"
+      },
+      "parent": "logo",
+      "init": {
+        "x": 352.79,
+        "y": -43.19
+      }
+    },
+    {
+      "id": "line1",
+      "shape": {
+        "kind": "asset",
+        "ref": "line1"
+      },
+      "parent": "antennae",
+      "init": {
+        "x": -50.4,
+        "y": 7.2
+      },
+      "label": "right antenna"
+    },
+    {
+      "id": "line2",
+      "shape": {
+        "kind": "asset",
+        "ref": "line2"
+      },
+      "parent": "antennae",
+      "init": {
+        "x": 21.6,
+        "y": 0
+      },
+      "label": "left antenna"
+    },
+    {
+      "id": "path1",
+      "shape": {
+        "kind": "asset",
+        "ref": "path1"
+      },
+      "parent": "logo",
+      "init": {
+        "x": -115.15,
+        "y": -21.6,
+        "sx": 0,
+        "sy": 0
+      },
+      "label": "pink shell fill"
+    },
+    {
+      "id": "path2",
+      "shape": {
+        "kind": "asset",
+        "ref": "path2"
+      },
+      "parent": "logo",
+      "init": {
+        "x": -115.19,
+        "y": -21.6,
+        "trim": 0
+      },
+      "label": "shell outline"
+    },
+    {
+      "id": "path3",
+      "shape": {
+        "kind": "asset",
+        "ref": "path3"
+      },
+      "parent": "logo",
+      "init": {
+        "x": -7.2,
+        "y": 180,
+        "opacity": 0
+      },
+      "label": "grey body fill"
+    }
+  ],
+  "timeline": {
+    "id": "root",
+    "seq": [
+      {
+        "id": "fade_body",
+        "verb": "fade",
+        "actor": "path3",
+        "to": 1,
+        "duration": 0.8,
+        "ease": "inOutSine"
+      },
+      {
+        "id": "draw_shell",
+        "verb": "draw_on",
+        "actor": "path2",
+        "duration": 1.5,
+        "ease": "inOutSine"
+      },
+      {
+        "id": "expand_pink",
+        "verb": "spring_to",
+        "actor": "path1",
+        "prop": "scale",
+        "to": 1,
+        "stiffness": 170,
+        "damping": 26
+      },
+      {
+        "id": "antennae_pop",
+        "stagger": [
+          {
+            "id": "ant1_seq",
+            "seq": [
+              {
+                "id": "ant1_enter",
+                "verb": "enter",
+                "actor": "line1",
+                "from": "bottom",
+                "duration": 0.5
+              },
+              {
+                "id": "ant1_bounce",
+                "verb": "bounce",
+                "actor": "line1",
+                "height": 20,
+                "count": 2,
+                "decay": 0.6,
+                "squash": 0.15,
+                "duration": 0.8
+              }
+            ]
+          },
+          {
+            "id": "ant2_seq",
+            "seq": [
+              {
+                "id": "ant2_enter",
+                "verb": "enter",
+                "actor": "line2",
+                "from": "bottom",
+                "duration": 0.5
+              },
+              {
+                "id": "ant2_bounce",
+                "verb": "bounce",
+                "actor": "line2",
+                "height": 20,
+                "count": 2,
+                "decay": 0.6,
+                "squash": 0.15,
+                "duration": 0.8
+              }
+            ]
+          }
+        ],
+        "offset": 0.1
+      }
+    ]
+  },
+  "constraints": [
+    {
+      "type": "in_bounds",
+      "actors": "*",
+      "margin": 8
+    },
+    {
+      "type": "total_duration",
+      "max": 10
+    }
+  ],
+  "meta": {
+    "intent": "The grey body fades in, the snail shell outline draws itself outward in a spiral, followed by the pink shell fill gradually expanding, and the two antennae pop up with a small bounce.",
+    "title": "Snail logo animation"
+  },
+  "assets": {
+    "line1": {
+      "kind": "path",
+      "d": "M971.19,446.41 L913.59,201.61",
+      "stroke": "#000000",
+      "stroke_width": 28.8,
+      "meta": {
+        "source": "line1"
+      },
+      "bbox": [
+        913.59,
+        201.61,
+        57.6,
+        244.8
+      ],
+      "label": "right antenna"
+    },
+    "path1": {
+      "kind": "path",
+      "d": "M841.59,446.41 C840.86,457.73 851.87,329.92 765.05,212.21 C678.69,95.14 643.93,79.07 595.36,79.07 C546.79,79.07 466.62,52.65 368.57,102.08 C270.52,151.5 233.79,211.61 213.27,274.67 C192.75,337.72 232.92,469.19 322.26,524.12 C348.96,540.54 342.25,612.95 530.22,604.05 C718.2,595.14 841.59,446.41 841.59,446.41 Z",
+      "fill": "#f87ea1",
+      "fill_rule": "evenodd",
+      "meta": {
+        "source": "path1"
+      },
+      "bbox": [
+        208.01,
+        72.04,
+        633.68,
+        532.71
+      ],
+      "label": "pink shell fill"
+    },
+    "path2": {
+      "kind": "path",
+      "d": "M841.59,432.01 C841.59,432.01 799.56,-29.58 406.29,92.44 C13.02,214.46 296.86,604.8 471.27,604.8 C645.69,604.8 808.11,374.34 600.6,261.22 C417.83,161.59 310.96,426.42 436.12,467.63 C561.28,508.83 600.6,402.28 561.72,357.41",
+      "stroke": "#000000",
+      "stroke_width": 28.8,
+      "meta": {
+        "source": "path2"
+      },
+      "bbox": [
+        208.04,
+        72,
+        633.55,
+        532.8
+      ],
+      "label": "shell outline"
+    },
+    "line2": {
+      "kind": "path",
+      "d": "M956.79,460.81 L1071.99,172.81",
+      "stroke": "#000000",
+      "stroke_width": 28.8,
+      "meta": {
+        "source": "line2"
+      },
+      "bbox": [
+        956.79,
+        172.81,
+        115.2,
+        288
+      ],
+      "label": "left antenna"
+    },
+    "path3": {
+      "kind": "path",
+      "d": "M386.85,580.57 L280.01,648 L876.69,648 C936.83,648 985.59,599.53 985.59,540 L985.59,432.01 L831.76,432.01 L386.85,580.57 Z",
+      "fill": "#dddddd",
+      "stroke": "#000000",
+      "stroke_width": 27.84,
+      "fill_rule": "evenodd",
+      "meta": {
+        "source": "path3"
+      },
+      "bbox": [
+        280.01,
+        432.01,
+        705.58,
+        215.99
+      ],
+      "label": "grey body fill"
+    }
+  }
+}

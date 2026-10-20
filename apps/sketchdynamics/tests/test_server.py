@@ -370,6 +370,27 @@ def test_label_parts_returns_motion_ideas():
     assert "Suggest 3 animations" in fake.requests[0]["messages"][0]["content"][-1]["text"]
 
 
+def test_open_a_saved_document():
+    c, fake = client_for()
+    out = c.post("/open", json={"doc": DOC}).json()
+    assert out["tracks"]["frames"] > 1 and out["logo"] is None and out["doc"]["strokes"] == STROKES and not fake.requests
+    bad = c.post("/open", json={"doc": {"motion": "0.1"}})
+    assert bad.status_code == 422 and "can't be played" in bad.json()["detail"]
+
+
+def test_open_restores_artwork_and_groups():
+    c, _ = client_for()
+    imported = imported_logo(c)
+    g = c.post("/regroup", json={"assets": imported["assets"], "groups": [{"label": "Sun", "parts": ["disc", "ray1", "ray2"], "pivot": "disc"}]}).json()
+    doc = {"motion": "0.1", "canvas": {"width": 1280, "height": 720}, "assets": imported["assets"],
+           "actors": [*g["actors"], {"id": "ball", "shape": {"kind": "ellipse", "rx": 10, "ry": 10}, "init": {"x": 50, "y": 50}}],
+           "timeline": {"id": "root", "seq": [{"id": "up", "verb": "move", "actor": "sun", "by": [0, -100], "duration": 1}]}}
+    out = c.post("/open", json={"doc": doc}).json()
+    assert out["tracks"] is not None
+    assert out["logo"]["groups"] == [{"id": "sun", "label": "Sun", "parts": ["disc", "ray1", "ray2"], "pivot": "disc"}]
+    assert set(out["logo"]["assets"]) == set(imported["assets"]) and "ball" not in {a["id"] for a in out["logo"]["actors"]}
+
+
 def test_export_html_is_a_standalone_player():
     c, _ = client_for()
     r = c.post("/export.html", json={"doc": DOC, "title": "Roll & Bounce!"})

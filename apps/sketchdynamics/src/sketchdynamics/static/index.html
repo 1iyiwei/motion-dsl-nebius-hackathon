@@ -24,7 +24,7 @@
         <g id="ink"></g>
         <g id="hl"></g>
       </svg>
-      <div id="hint" class="stage-hint">Draw a path, or drop an SVG logo here. Then say what should happen.</div>
+      <div id="hint" class="stage-hint">Draw a path, or drop an SVG logo (or a saved MotionLang .json) here. Then say what should happen.</div>
       <div id="busy" class="busy" hidden><span class="spinner"></span><span id="busy-text">Planning…</span></div>
     </div>
 
@@ -65,10 +65,15 @@
     <div id="tweak-examples" class="examples" hidden></div>
 
     <div id="versions" class="versions"></div>
-    <div id="export" class="export" hidden>
-      <span class="chips-prefix">Export:</span>
-      <button id="export-html" type="button" title="A self-contained HTML player you can open or share">HTML player</button>
-      <button id="export-json" type="button" title="The MotionLang program, with its artwork">MotionLang JSON</button>
+    <div class="export">
+      <span class="chips-prefix">Import:</span>
+      <button id="open-json" type="button" title="Open a MotionLang program saved earlier (or drop a .json file on the canvas)">MotionLang JSON</button>
+      <input id="open-file" type="file" accept=".json,application/json" hidden>
+      <span id="export" class="export-group" hidden>
+        <span class="chips-prefix">Export:</span>
+        <button id="export-html" type="button" title="A self-contained HTML player you can open or share">HTML player</button>
+        <button id="export-json" type="button" title="The MotionLang program, with its artwork">MotionLang JSON</button>
+      </span>
     </div>
     <div id="status" class="status"></div>
   </section>

@@ -96,7 +96,7 @@ function endStroke() {
   const pts = simplify(drawing.pts);
   drawing = null;
   if (pts.length >= 2 && dist(pts[0], pts[pts.length - 1]) + pts.length > 6) {
-    const n = state.strokes.reduce((m, s) => Math.max(m, +s.id.slice(1)), 0) + 1;
+    const n = state.strokes.reduce((m, s) => Math.max(m, +s.id.slice(1) || 0), 0) + 1; // opened files may use other ids
     state.strokes.push({ id: `s${n}`, points: pts });
   }
   renderInk();
@@ -220,7 +220,7 @@ function setBusy(on, text = "") {
   state.busy = on;
   $("busy").hidden = !on;
   $("busy-text").textContent = text;
-  for (const id of ["gen", "tweak", "intent", "instruction", "mic-intent", "mic-instruction", "clear", "undo-stroke", "logo-pick", "shape-add", "planner"]) $(id).disabled = on;
+  for (const id of ["gen", "tweak", "intent", "instruction", "mic-intent", "mic-instruction", "clear", "undo-stroke", "logo-pick", "shape-add", "open-json", "planner"]) $(id).disabled = on;
 }
 function setStatus(text, bad = false, retry = null) {
   $("status").textContent = text;
@@ -768,7 +768,8 @@ async function importLogo(svgText, name) {
 
 async function importFile(file) {
   if (!file) return;
-  if (!/svg/i.test(file.type) && !/\.svg$/i.test(file.name)) return setStatus("Logos must be SVG files for now.", true);
+  if (/json/i.test(file.type) || /\.json$/i.test(file.name)) return openMotion(await file.text(), file.name);
+  if (!/svg/i.test(file.type) && !/\.svg$/i.test(file.name)) return setStatus("Drop an SVG logo or a MotionLang .json file.", true);
   importLogo(await file.text(), file.name);
 }
 
@@ -1076,3 +1077,34 @@ $("shape-add").onclick = () => {
   picker = { name: "", cands: [], resolve: null, log: null, status: config.web_search ? "Searches the shape library, then the web (Tavily); Nemotron can also draw one." : "Searches the shape library; Nemotron can also draw one." };
   renderPicker();
 };
+
+// ---------- open a saved MotionLang program ----------
+// The exported JSON round-trips: its animation plays as v1, its strokes come back as sketch strokes and its
+// artwork as editable parts and groups, so Tweak, Generate and the shape picker all work on it as before.
+async function openMotion(text, name) {
+  if (state.busy) return;
+  let doc;
+  try { doc = JSON.parse(text); } catch { return setStatus(`${name} isn't valid JSON.`, true); }
+  setBusy(true, `Opening ${name}…`);
+  try {
+    const r = await postJSON("/open", { doc });
+    $("clear").onclick();
+    state.strokes = Object.entries(r.doc.strokes || {})
+      .filter(([, s]) => Array.isArray(s?.points) && s.points.length >= 2)
+      .map(([id, s]) => ({ id, points: s.points }));
+    if (r.logo) {
+      state.logo = { name, assets: r.logo.assets, actors: r.logo.actors, groups: r.logo.groups, dropped: [], notes: [], description: "", selected: new Set() };
+      stage.classList.add("has-logo");
+    }
+    renderParts(); setExamples();
+    const title = r.doc.meta?.title || name.replace(/\.(motion\.)?json$/i, "");
+    state.versions = [{ label: title.length > 24 ? title.slice(0, 22) + "…" : title, doc: r.doc, tracks: r.tracks }];
+    show(0);
+    const issues = r.report?.errors?.length || 0;
+    setStatus(`Opened ${name}` + (issues ? ` (${issues} validator problem${issues === 1 ? "" : "s"}: it plays, but a Tweak will try to fix them)` : "")
+      + ". Tweak it, or Generate something new with its strokes and artwork.", issues > 0);
+  } catch (err) { setStatus(`Couldn't open ${name}: ${err.message}`, true); }
+  finally { setBusy(false); }
+}
+$("open-json").onclick = () => $("open-file").click();
+$("open-file").onchange = (e) => { importFile(e.target.files[0]); e.target.value = ""; };

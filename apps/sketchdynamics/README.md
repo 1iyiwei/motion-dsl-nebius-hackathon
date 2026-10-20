@@ -20,6 +20,7 @@ Options: `--port 8765`, `--host 127.0.0.1`, `--no-browser`. Outside this workspa
 2. Type or say what should happen, e.g. "a ball rolls along my line and bounces", and press **Generate**. The 🎤 button next to the prompt and tweak boxes listens; press it again (or pause) to stop.
 3. Watch it play. Scrub, pause (space), toggle the sketch overlay.
 4. Type a change ("slower") and press **Tweak**. Every result is a version chip you can go back to.
+5. **Export** the animation as a self-contained HTML player or as the MotionLang JSON. **Import → MotionLang JSON** (or dropping a `.json` file on the canvas) opens a saved program again: it plays as v1, its strokes come back as sketch strokes and its artwork as editable parts and groups (pivots included), so you can keep tweaking or generate from it.
 
 **Your own logo**: press **Import SVG logo** or drop an `.svg` file on the canvas. To try it, drag in one of the files in [`static/samples/`](src/sketchdynamics/static/samples/). The importer splits it into parts, keeping the file's groups. Nemotron VL looks at the logo, names each part ("sun disc", "left ray") and groups parts that form one object, such as the sun disc and its rays. The planner animates the parts and groups by name: pieces pop in one by one, a filled shape wipes in (`reveal`), a wave draws itself. The path data stays on the server. The models only see part ids, labels, bounding boxes and colours, so a detailed logo costs no more tokens than a simple one.
 
@@ -66,6 +67,7 @@ All model calls go through `motionlang.agent` (OpenAI-compatible client pointed 
 | `POST /tweak` | `{doc, instruction, planner?}` | outcome |
 | `POST /split-part` | `{assets, groups, actors, part}` | `{assets, pieces, groups, actors, preview}`: one part split into its subpaths, in place and in its group |
 | `POST /bake` | `{doc}` | `{doc, tracks, report}` with no model call |
+| `POST /open` | `{doc}` | `{doc, tracks, report, logo}`: a saved document to keep working on; `logo` is its artwork as `{assets, groups, actors}` (or null); 422 if it can't be played |
 | `POST /import-svg` | `{svg}` | `motionlang.importers.import_svg` output (`assets`, suggested `actors`, `dropped`) plus a still `preview` |
 | `POST /label-parts` | `{image: "data:image/jpeg;base64,…", marked?, name?, assets, groups?}` | `{labels: {id: label}, groups: [{id, label, parts, pivot?}] or null, suggestions: [3 motion ideas], description, call}`; failures are soft (empty labels plus `error`) |
 | `POST /regroup` | `{assets, groups: [{label, parts}], actors?}` | `{groups, actors, preview}`: the actor tree `logo → groups → parts`, with every part where it was drawn |

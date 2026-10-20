@@ -74,6 +74,7 @@ button.icon { width: 36px; padding: 6px 0; }
 .versions { display: flex; flex-wrap: wrap; gap: 6px; }
 .export { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .export button { font-size: 12px; padding: 3px 10px; }
+.export-group { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 10px; }
 .versions button { font-size: 12px; padding: 3px 10px; }
 .versions button.current { border-color: var(--accent); color: var(--accent); }
 .status { margin-top: 8px; color: var(--muted); min-height: 1.4em; }

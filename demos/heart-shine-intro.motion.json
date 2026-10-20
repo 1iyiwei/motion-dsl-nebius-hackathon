@@ -1,0 +1,368 @@
+{
+  "motion": "0.1",
+  "canvas": {
+    "width": 1280,
+    "height": 720,
+    "background": "#ffffff",
+    "fps": 60
+  },
+  "actors": [
+    {
+      "id": "logo",
+      "shape": {
+        "kind": "group"
+      },
+      "init": {
+        "x": 640,
+        "y": 360
+      },
+      "label": "the whole logo"
+    },
+    {
+      "id": "shine_rays",
+      "shape": {
+        "kind": "group"
+      },
+      "parent": "logo",
+      "label": "shine rays",
+      "init": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "path1_1",
+      "shape": {
+        "kind": "asset",
+        "ref": "path1_1"
+      },
+      "parent": "shine_rays",
+      "label": "top bar",
+      "init": {
+        "x": 0,
+        "y": -241.12,
+        "opacity": 0.8
+      }
+    },
+    {
+      "id": "path1_2",
+      "shape": {
+        "kind": "asset",
+        "ref": "path1_2"
+      },
+      "parent": "shine_rays",
+      "label": "left bar",
+      "init": {
+        "x": -241.12,
+        "y": 0,
+        "opacity": 0.8
+      }
+    },
+    {
+      "id": "path1_3",
+      "shape": {
+        "kind": "asset",
+        "ref": "path1_3"
+      },
+      "parent": "shine_rays",
+      "label": "right bar",
+      "init": {
+        "x": 241.12,
+        "y": 0,
+        "opacity": 0.8
+      }
+    },
+    {
+      "id": "path1_4",
+      "shape": {
+        "kind": "asset",
+        "ref": "path1_4"
+      },
+      "parent": "shine_rays",
+      "label": "bottom bar",
+      "init": {
+        "x": 0,
+        "y": 241.12,
+        "opacity": 0.8
+      }
+    },
+    {
+      "id": "shine_dots",
+      "shape": {
+        "kind": "group"
+      },
+      "parent": "logo",
+      "label": "shine dots",
+      "init": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "path2",
+      "shape": {
+        "kind": "asset",
+        "ref": "path2"
+      },
+      "parent": "shine_dots",
+      "label": "top left dot",
+      "init": {
+        "x": -156.14,
+        "y": -156.15,
+        "opacity": 0.5
+      }
+    },
+    {
+      "id": "path3",
+      "shape": {
+        "kind": "asset",
+        "ref": "path3"
+      },
+      "parent": "shine_dots",
+      "label": "top right dot",
+      "init": {
+        "x": 156.15,
+        "y": -156.15,
+        "opacity": 0.5
+      }
+    },
+    {
+      "id": "path4",
+      "shape": {
+        "kind": "asset",
+        "ref": "path4"
+      },
+      "parent": "shine_dots",
+      "label": "bottom left dot",
+      "init": {
+        "x": -156.14,
+        "y": 156.15,
+        "opacity": 0.5
+      }
+    },
+    {
+      "id": "path5",
+      "shape": {
+        "kind": "asset",
+        "ref": "path5"
+      },
+      "parent": "shine_dots",
+      "label": "bottom right dot",
+      "init": {
+        "x": 156.15,
+        "y": 156.15,
+        "opacity": 0.5
+      }
+    },
+    {
+      "id": "path6",
+      "shape": {
+        "kind": "asset",
+        "ref": "path6"
+      },
+      "parent": "logo",
+      "label": "heart",
+      "init": {
+        "x": 0,
+        "y": 13.39
+      }
+    }
+  ],
+  "timeline": {
+    "id": "root",
+    "par": [
+      {
+        "id": "b1",
+        "verb": "enter",
+        "actor": "path6",
+        "from": "bottom"
+      },
+      {
+        "id": "b2",
+        "verb": "rotate",
+        "actor": "shine_rays",
+        "by": 360
+      },
+      {
+        "id": "b3",
+        "par": [
+          {
+            "id": "b3a",
+            "verb": "enter",
+            "actor": "path2",
+            "from": "bottom"
+          },
+          {
+            "id": "b3b",
+            "verb": "enter",
+            "actor": "path3",
+            "from": "bottom"
+          },
+          {
+            "id": "b3c",
+            "verb": "enter",
+            "actor": "path4",
+            "from": "bottom"
+          },
+          {
+            "id": "b3d",
+            "verb": "enter",
+            "actor": "path5",
+            "from": "bottom"
+          }
+        ]
+      }
+    ]
+  },
+  "constraints": [
+    {
+      "type": "in_bounds",
+      "margin": 8
+    }
+  ],
+  "meta": {
+    "intent": "The heart fades in, the shine rays rotate outward, and the shine dots fade in around it.",
+    "title": "Heart shine intro"
+  },
+  "assets": {
+    "path1_1": {
+      "kind": "path",
+      "d": "M640,72 C651.1,72 660.09,81 660.09,92.09 L660.09,145.67 C660.09,156.77 651.1,165.77 640,165.77 C628.9,165.77 619.91,156.77 619.91,145.67 L619.91,92.09 C619.91,81 628.9,72 640,72 Z",
+      "fill": "#1c274c",
+      "fill_rule": "evenodd",
+      "meta": {
+        "source": "path1"
+      },
+      "bbox": [
+        619.91,
+        72,
+        40.18,
+        93.77
+      ],
+      "label": "top bar"
+    },
+    "path1_2": {
+      "kind": "path",
+      "d": "M352,360 C352,348.9 361,339.91 372.09,339.91 L425.67,339.91 C436.77,339.91 445.77,348.9 445.77,360 C445.77,371.1 436.77,380.09 425.67,380.09 L372.09,380.09 C361,380.09 352,371.1 352,360 Z",
+      "fill": "#1c274c",
+      "fill_rule": "evenodd",
+      "meta": {
+        "source": "path1"
+      },
+      "bbox": [
+        352,
+        339.91,
+        93.77,
+        40.18
+      ],
+      "label": "left bar"
+    },
+    "path1_3": {
+      "kind": "path",
+      "d": "M834.23,360 C834.23,348.9 843.23,339.91 854.33,339.91 L907.91,339.91 C919,339.91 928,348.9 928,360 C928,371.1 919,380.09 907.91,380.09 L854.33,380.09 C843.23,380.09 834.23,371.1 834.23,360 Z",
+      "fill": "#1c274c",
+      "fill_rule": "evenodd",
+      "meta": {
+        "source": "path1"
+      },
+      "bbox": [
+        834.23,
+        339.91,
+        93.77,
+        40.18
+      ],
+      "label": "right bar"
+    },
+    "path1_4": {
+      "kind": "path",
+      "d": "M640,554.23 C651.1,554.23 660.09,563.23 660.09,574.33 L660.09,627.91 C660.09,639 651.1,648 640,648 C628.9,648 619.91,639 619.91,627.91 L619.91,574.33 C619.91,563.23 628.9,554.23 640,554.23 Z",
+      "fill": "#1c274c",
+      "fill_rule": "evenodd",
+      "meta": {
+        "source": "path1"
+      },
+      "bbox": [
+        619.91,
+        554.23,
+        40.18,
+        93.77
+      ],
+      "label": "bottom bar"
+    },
+    "path2": {
+      "kind": "path",
+      "d": "M465.05,185.05 C472.9,177.2 485.62,177.2 493.46,185.05 L502.66,194.24 C510.51,202.09 510.51,214.81 502.66,222.66 C494.81,230.51 482.09,230.51 474.24,222.66 L465.05,213.46 C457.2,205.62 457.2,192.9 465.05,185.05 Z",
+      "fill": "#1c274c",
+      "meta": {
+        "source": "path2"
+      },
+      "bbox": [
+        459.16,
+        179.16,
+        49.38,
+        49.39
+      ],
+      "label": "top left dot"
+    },
+    "path3": {
+      "kind": "path",
+      "d": "M814.95,185.05 C822.8,192.9 822.8,205.62 814.95,213.46 L805.76,222.66 C797.91,230.51 785.19,230.51 777.34,222.66 C769.49,214.81 769.49,202.09 777.34,194.24 L786.54,185.05 C794.38,177.2 807.1,177.2 814.95,185.05 Z",
+      "fill": "#1c274c",
+      "meta": {
+        "source": "path3"
+      },
+      "bbox": [
+        771.45,
+        179.16,
+        49.38,
+        49.39
+      ],
+      "label": "top right dot"
+    },
+    "path4": {
+      "kind": "path",
+      "d": "M502.65,497.35 C510.5,505.19 510.5,517.92 502.65,525.76 L493.46,534.95 C485.62,542.8 472.9,542.8 465.05,534.95 C457.2,527.1 457.2,514.38 465.05,506.54 L474.24,497.35 C482.08,489.5 494.81,489.5 502.65,497.35 Z",
+      "fill": "#1c274c",
+      "meta": {
+        "source": "path4"
+      },
+      "bbox": [
+        459.16,
+        491.46,
+        49.38,
+        49.38
+      ],
+      "label": "bottom left dot"
+    },
+    "path5": {
+      "kind": "path",
+      "d": "M777.35,497.35 C785.19,489.5 797.92,489.5 805.76,497.35 L814.95,506.54 C822.8,514.38 822.8,527.1 814.95,534.95 C807.1,542.8 794.38,542.8 786.54,534.95 L777.35,525.76 C769.5,517.92 769.5,505.19 777.35,497.35 Z",
+      "fill": "#1c274c",
+      "meta": {
+        "source": "path5"
+      },
+      "bbox": [
+        771.46,
+        491.46,
+        49.37,
+        49.38
+      ],
+      "label": "bottom right dot"
+    },
+    "path6": {
+      "kind": "path",
+      "d": "M506.05,334.8 C506.05,402.91 559.89,439.21 599.3,471.7 C613.21,483.16 626.6,493.95 640,493.95 C653.4,493.95 666.79,483.16 680.7,471.7 C720.11,439.21 773.95,402.91 773.95,334.8 C773.95,266.69 700.28,218.39 640,283.87 C579.72,218.39 506.05,266.69 506.05,334.8 Z",
+      "fill": "#1c274c",
+      "meta": {
+        "source": "path6"
+      },
+      "bbox": [
+        506.05,
+        252.84,
+        267.9,
+        241.11
+      ],
+      "label": "heart"
+    }
+  }
+}
