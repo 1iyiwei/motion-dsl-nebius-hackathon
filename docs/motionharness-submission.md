@@ -44,7 +44,7 @@ Building SketchDynamics, we added verbs by hand: write the math, write tests, lo
 
 ### Challenges we ran into
 
-- **Sandboxes access**: Sandboxes is in Beta behind project activation. At submission time our project was still waiting: the API accepts the key, but every permission comes back `false`. We built behind a `Sandbox` interface whose local backend has the same checkpoint-and-branch semantics, so the agent worked from day one, and the Sandboxes backend is implemented and tested against a fake client. MotionHarness probes access at startup and says exactly why it isn't using Sandboxes; the hosted demo refuses to run generated code until they're active.
+- **Sandboxes access and a flaky control plane**: Sandboxes is in Beta behind project activation, so we built behind a `Sandbox` interface whose local backend has the same checkpoint-and-branch semantics, and the agent worked from day one. When activation arrived (Oct 20), the API returned intermittent 500s, and a run that uploaded ~33 small files concurrently failed every time. Packing each job into one tar (one upload per run) and retrying 5xx with backoff fixed it: environment image in ~15 s, each candidate in 8–10 s, three in parallel.
 - **Hidden failures**: our first live run reported "verb not registered" because a relative path made the plugin invisible to the test process, which hid the real error (`from motionlang.model import Vec2`, a type that doesn't exist). Surfacing the import traceback to the model fixed most first-round failures.
 - **Tests pass, motion is wrong**: the first spring candidate passed every test but was critically damped, so it never overshot. The vision critic caught it. Then it went the other way: VL accepted a follower that ended 20 px off the target as "overshoot". Passing exact measurements with the image, and telling the critic they win, fixed that.
 - **Finding a library bug**: pendulum candidates kept failing their own tests with "changes nothing" (`E_NOOP`) although they swing 16°. The agent's failures led us to a real validator bug: the no-op check sampled five points, which landed on the swing's zero crossings.
@@ -79,7 +79,7 @@ Python, FastAPI, Pydantic, NumPy, Pillow, pytest, Hypothesis, NVIDIA Nemotron 3 
 https://github.com/1iyiwei/motion-dsl-nebius-hackathon/tree/main/apps/motionharness
 
 - Demo video: https://youtu.be/Yiqjqel_Z0Q
-- Hosted dashboard: https://motion-harness.dragoniac.com/ (runs are paused until our Token Factory project is activated for Sandboxes; past runs are viewable)
+- Hosted dashboard: https://motion-harness.dragoniac.com/ (generated code runs only in Token Factory Sandboxes)
 
 
 ### Project Media
@@ -153,7 +153,7 @@ Nemotron works much better than some open-weight models that we ran locally, suc
 * Which Nebius platform capabilities were most valuable to your project and how?
 Please include detail on how you leveraged Nebius infrastructure to run Nemotron (e.g., GPU instance types, deployment setup, API access, scaling).
 
-**Token Factory's OpenAI-compatible API** for the whole Nemotron range, with no GPUs or deployments to manage. That let us give each step its own model in the same run: Super 120B to write and repair code and plan scenes, Ultra 550B as an optional bigger coder, Nano 30B with reasoning off for one-second decisions, and Super VL to critique rendered motion. Three candidates are written in parallel, so concurrent requests mattered. JSON mode and the `enable_thinking` toggle let us trade quality for latency per call, and the dashboard shows every call's model, latency and tokens. **Token Factory Sandboxes** is the backend MotionHarness was designed around: its immutable images, where every run saves a new image you can run from again, map directly onto "branch candidates from one checkpoint and repair from the parent's state". The backend is built on contree-sdk and ready; our project's activation was still pending at submission.
+**Token Factory's OpenAI-compatible API** for the whole Nemotron range, with no GPUs or deployments to manage. That let us give each step its own model in the same run: Super 120B to write and repair code and plan scenes, Ultra 550B as an optional bigger coder, Nano 30B with reasoning off for one-second decisions, and Super VL to critique rendered motion. Three candidates are written in parallel, so concurrent requests mattered. JSON mode and the `enable_thinking` toggle let us trade quality for latency per call, and the dashboard shows every call's model, latency and tokens. **Token Factory Sandboxes** is the backend MotionHarness was designed around: its immutable images, where every run saves a new image you can run from again, map directly onto "branch candidates from one checkpoint and repair from the parent's state". Activation arrived on Oct 20: the environment image builds in ~15 s, each candidate runs in 8–10 s (three in parallel), and the dashboard's branch tree shows the real image UUIDs.
 
 
 * How likely are you to recommend running Nemotron on Nebius to other developers? (1 = Unlikely, 10 = Highly Likely)
@@ -169,7 +169,7 @@ Please share why or provide additional feedback.
 * What additional features or improvements would have made the Nemotron on Nebius experience more effective for your project?
 
 1. **A per-request reasoning budget** (max reasoning tokens). The same planning prompt took 22 s to 87 s depending on reasoning length; interactive apps need to cap that tail.
-2. **Sandboxes on by default for hackathon projects**, or faster activation: our coding agent was built around Sandboxes, and the project was still not activated at submission. The Python SDK's `run()` also lacks the `networking` option that REST has, which matters most for untrusted generated code.
+2. **Sandboxes: earlier activation and a steadier control plane.** Our agent was built around Sandboxes, but activation took most of the hackathon, and right after it the Files API returned bare 500s under concurrent uploads. The Python SDK's `run()` also lacks the `networking` option that REST has, which matters most for untrusted generated code.
 3. **Structured output that supports, or cleanly ignores, `propertyNames`**, which Pydantic emits for `dict[Literal, …]`. Today Ultra returns a 400 and Super a bare 500 with no message.
 4. **Documenting the reasoning toggle per model family.** `enable_thinking=false` works, while `/no_think` in the prompt made Nano spin to `max_tokens` and return nothing.
 5. **Model ids in the public docs**, not only via `/v1/models`.

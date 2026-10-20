@@ -71,7 +71,7 @@ Voice-over: "Other coding agents can use it too: here Claude Code calls MotionHa
 
 ## Known gaps (prioritised for the video)
 
-1. **Sandboxes access pending** (applied Oct 19). The backend is implemented and unit-tested against a fake client; the first real run needs `NEBIUS_PROJECT_ID` and `motionharness sandbox-check --run` (builds and caches the environment image).
+1. **Sandboxes access: active since Oct 20** (first full run: 7 candidates in 177 s, 8–10 s per sandbox job). Re-record the sandbox-visible shots (header pill, environment node, a checkpoint UUID). Old note: applied Oct 19. The backend is implemented and unit-tested against a fake client; the first real run needs `NEBIUS_PROJECT_ID` and `motionharness sandbox-check --run` (builds and caches the environment image).
 2. **Latency**: Super with reasoning takes 20–130 s per candidate. Cut in editing. Ultra was faster on the one run we tried (23 s).
 3. **The critic can be fooled by the picture**: before we passed it measurements it accepted a spring that ended offset from the target as "overshoot". The measurements now win, but keep an eye on its verdicts in recorded takes.
 4. **Repairs are per candidate**; there's no merge of two half-good candidates.

@@ -67,3 +67,18 @@ Add an entry when something surprises us. Include the date, what happened, and t
   flagged a spring that never overshoots ("monotonic ease-in, no oscillation") on a candidate that passed every test,
   in ~2 s with reasoning off. Passing it exact measurements (overshoot %, settle time) next to the image keeps it
   from guessing about small effects.
+
+## 2026-10-20 (Sandboxes, after activation)
+
+- **Activation worked**: `whoami` now returns every permission `true`. The first real MotionHarness run on Sandboxes:
+  environment image built in ~15 s (python:3.12-slim + motionlang + pytest/hypothesis, cached by UUID), then each
+  candidate (pip install of the plugin, contract suite, its own tests, a probe) took 8–10 s, three in parallel, and
+  repairs branched from their parent's saved image exactly as the docs describe. A 7-candidate run took 177 s end to end.
+- **Intermittent 500s on the control plane**: right after activation, `GET /v1/whoami`, `POST /v1/files` and
+  `GET /v1/files/<sha256>` each returned a bare `500 Internal Server Error` some of the time. It was worst while the
+  SDK checked and uploaded ~33 small files concurrently for a single `run(files=…)`: that failed every time, while
+  the same files uploaded one by one succeeded. Workaround: we pack each job's files into one tar (one upload per run)
+  and retry 5xx with backoff; since then no failures. A 503/429 with a reason (or SDK-side upload concurrency limits)
+  would make this diagnosable.
+- **SDK details**: `run()` returns `uuid` as a `uuid.UUID`, not `str` (it breaks `json.dumps` of saved ids); the
+  documented `files.upload_bytes_file` doesn't exist in contree-sdk 0.3.6 (only `files.upload`).

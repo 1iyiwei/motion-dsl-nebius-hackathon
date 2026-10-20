@@ -228,6 +228,7 @@ class FakeContree:
     def __init__(self, bundle: bytes, fail: set[str] = frozenset()):
         self.bundle, self.fail = bundle, fail
         self.runs: list[dict] = []
+        self.transient_500s = 0
         self.images = _Images(self)
 
 
@@ -249,15 +250,32 @@ class _Image:
         self.client, self.uuid, self.files = client, uuid, files
 
     async def run(self, shell, files=None, cwd=None, timeout=None, disposable=True, truncate_output_at=None):
+        import io
+        import re
+        import tarfile
+        import uuid
+
         c = self.client
-        new = {**self.files, **(files or {})}
-        uid = f"img-{len(c.runs)}"
-        c.runs.append({"base": self.uuid, "shell": shell, "files": sorted(files or {}), "cwd": cwd, "disposable": disposable})
+        if c.transient_500s:  # the real API answers an occasional 500; the backend must retry
+            c.transient_500s -= 1
+            from contree_sdk.sdk.exceptions.api import ApiStatusCodeError
+
+            raise ApiStatusCodeError(status=500, error="Internal Server Error")
+        unpacked = {}
+        for path, data in (files or {}).items():  # do what the job's `tar -xf X -C DIR` does
+            m = re.search(rf"tar -xf {re.escape(path)} -C (\S+)", shell)
+            assert m, f"{path} uploaded but never unpacked"
+            with tarfile.open(fileobj=io.BytesIO(data)) as tar:
+                for member in tar.getmembers():
+                    unpacked["/" + (m.group(1).strip("/") + "/" if m.group(1) != "/" else "") + member.name] = tar.extractfile(member).read()
+        new = {**self.files, **unpacked}
+        uid = uuid.uuid4()  # the SDK returns uuid.UUID, not str
+        c.runs.append({"base": self.uuid, "shell": shell, "uploads": sorted(files or {}), "files": sorted(unpacked), "cwd": cwd, "disposable": disposable})
         if any(f in shell for f in c.fail):
             raise ConnectionError("sandbox API unavailable")
         if "pytest" in shell and "probe.py" in shell:
             new["/work/out/result.json"] = c.bundle
-        c.images.store[uid] = new
+        c.images.store[str(uid)] = new
         return _Result(uid if not disposable else None, new)
 
 
@@ -282,13 +300,17 @@ def test_contree_backend_branches_from_checkpoints(tmp_path, monkeypatch):
     env = sb.environment()
     first = fake.runs[0]
     assert first["base"].startswith("oci:docker.io/library/python") and not first["disposable"]
+    assert first["uploads"] == ["/tmp/mh-env.tar"]  # one upload per run (the Files API 500s under many parallel ones)
     assert "/opt/motionlang/src/motionlang/testing/contract.py" in first["files"] and "/work/test_contract.py" in first["files"]
     assert json.loads((tmp_path / "cache.json").read_text()) and ContreeSandbox(cache=tmp_path / "cache.json").environment().id == env.id
 
+    fake.transient_500s = 1
     a, b = sb.run_many([job_for(TASK, parse_reply(GOOD), sb, env, "c1"), job_for(TASK, parse_reply(BROKEN), sb, env, "c2")])
+    assert fake.transient_500s == 0 and a.error is None and b.error is None  # retried past the 500
+    assert all(r["uploads"] == ["/tmp/mh-job.tar"] for r in fake.runs[1:])
     assert {r["base"] for r in fake.runs[1:]} == {env.id} and all(not r["disposable"] and r["cwd"] == "/work" for r in fake.runs[1:])
     assert "/work/plugin/src/mh_pulse/verb.py" in fake.runs[1]["files"] and "pip install" in fake.runs[1]["shell"]
-    assert parse_result(TASK, a).passed and a.checkpoint.id != env.id
+    assert parse_result(TASK, a).passed and a.checkpoint.id != env.id and isinstance(a.checkpoint.id, str)
     child = sb.run(job_for(TASK, parse_reply(GOOD), sb, a.checkpoint, "c3"))  # a repair branches from its parent's image
     assert fake.runs[-1]["base"] == a.checkpoint.id and child.checkpoint.id not in (env.id, a.checkpoint.id)
 

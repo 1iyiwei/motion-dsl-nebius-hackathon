@@ -183,6 +183,38 @@ def _motionlang_tree() -> dict[str, bytes]:
     return files
 
 
+def _tar(files: dict[str, bytes]) -> bytes:
+    """A deterministic tar of {relative path: bytes}: one upload per job instead of one per file (the Files API
+    returned 500s under many concurrent per-file requests), and identical content gives identical bytes."""
+    import io
+    import tarfile
+
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w", format=tarfile.USTAR_FORMAT) as tar:
+        for name in sorted(files):
+            info = tarfile.TarInfo(name.lstrip("/"))
+            info.size, info.mtime, info.mode = len(files[name]), 0, 0o644
+            tar.addfile(info, io.BytesIO(files[name]))
+    return buf.getvalue()
+
+
+async def _retry(make, what: str, attempts: int = 4):
+    """Await make() again on transient platform errors (5xx, timeouts, dropped connections), with backoff."""
+    from contree_sdk.sdk.exceptions.api import ApiStatusCodeError, ApiTimeoutError, ContreeTransportError
+
+    for i in range(attempts):
+        try:
+            return await make()
+        except (ApiTimeoutError, ContreeTransportError):
+            if i == attempts - 1:
+                raise
+        except ApiStatusCodeError as e:
+            if i == attempts - 1 or not (e.status or 0) >= 500:
+                raise
+        await asyncio.sleep(1.5 * 2 ** i)  # 1.5, 3, 6 s
+    raise RuntimeError(f"{what}: unreachable")
+
+
 class ContreeSandbox(Sandbox):
     name = "contree"
     python = "python"
@@ -213,8 +245,12 @@ class ContreeSandbox(Sandbox):
         """(HTTP status, body) of the Sandboxes whoami probe: permissions and limits for this key + project."""
         import httpx
 
-        r = httpx.get(f"{SANDBOXES_URL}/v1/whoami", timeout=timeout,
-                      headers={"Authorization": f"Bearer {os.environ['NEBIUS_API_KEY']}", "Project": os.environ["NEBIUS_PROJECT_ID"]})
+        headers = {"Authorization": f"Bearer {os.environ['NEBIUS_API_KEY']}", "Project": os.environ["NEBIUS_PROJECT_ID"]}
+        for attempt in range(3):  # the API answers an occasional transient 500
+            r = httpx.get(f"{SANDBOXES_URL}/v1/whoami", timeout=timeout, headers=headers)
+            if r.status_code < 500 or attempt == 2:
+                break
+            time.sleep(1 + attempt)
         try:
             return r.status_code, r.json()
         except ValueError:
@@ -230,6 +266,8 @@ class ContreeSandbox(Sandbox):
             status, info = cls.whoami(timeout)
         except Exception as e:
             return f"Sandboxes API unreachable ({type(e).__name__})"
+        if status >= 500:
+            return f"Sandboxes API is failing right now (HTTP {status}: {str(info.get('error', ''))[:120]}); try again shortly"
         if status != 200:
             return f"Sandboxes API refused the key/project (HTTP {status}: {str(info.get('error', ''))[:120]})"
         perms = info.get("permissions") or {}
@@ -263,40 +301,42 @@ class ContreeSandbox(Sandbox):
             self._env = Checkpoint(cached[key], self.name, "environment (cached)")
             return self._env
         deps = " ".join(f"'{d}'" for d in TEST_DEPS)
-        shell = f"python -m pip install -q {deps} && python -m pip install -q /opt/motionlang && python -c 'import motionlang, hypothesis, pytest'"
+        shell = (f"tar -xf /tmp/mh-env.tar -C / && rm /tmp/mh-env.tar && python -m pip install -q {deps} && "
+                 f"python -m pip install -q /opt/motionlang && python -c 'import motionlang, hypothesis, pytest'")
+        bundle = {"/tmp/mh-env.tar": _tar(files)}
         t = time.time()
 
         async def go():
             client = self._client()
-            base = await client.images.oci(self.base_image)
-            return await base.run(shell=shell, files=files, cwd="/", timeout=900, disposable=False)
+            base = await _retry(lambda: client.images.oci(self.base_image), "import the base image")
+            return await _retry(lambda: base.run(shell=shell, files=bundle, cwd="/", timeout=900, disposable=False), "build the environment")
 
         r = asyncio.run(go())
         self.env_seconds = time.time() - t
         if r.exit_code != 0 or r.uuid is None:
             raise RuntimeError(f"preparing the Sandboxes environment failed (exit {r.exit_code}): {(r.stderr or '')[-2000:]}")
-        cached[key] = r.uuid
+        cached[key] = str(r.uuid)  # the SDK returns a uuid.UUID
         self.cache.parent.mkdir(parents=True, exist_ok=True)
         self.cache.write_text(json.dumps(cached, indent=1))
-        self._env = Checkpoint(r.uuid, self.name, "environment")
+        self._env = Checkpoint(str(r.uuid), self.name, "environment")
         return self._env
 
     async def _one(self, client, job: Job) -> RunResult:
         t = time.time()
         try:
-            image = await client.images.use(job.base.id, strict=True)
-            r = await image.run(
-                shell=job.shell, cwd=WORK, files={f"{WORK}/{k}": v for k, v in job.files.items()},
-                timeout=job.timeout, disposable=False, truncate_output_at=1_000_000,
-            )
+            image = await _retry(lambda: client.images.use(job.base.id, strict=True), "open the checkpoint")
+            bundle = {"/tmp/mh-job.tar": _tar(job.files)}
+            shell = f"tar -xf /tmp/mh-job.tar -C {WORK} && rm /tmp/mh-job.tar\n{job.shell}"
+            r = await _retry(lambda: image.run(shell=shell, cwd=WORK, files=bundle, timeout=job.timeout, disposable=False,
+                                               truncate_output_at=1_000_000), "run the job")
             files = {}
             if r.uuid is not None:
                 for rel in job.collect:
                     try:
-                        files[rel] = await r.read(f"{WORK}/{rel}")
+                        files[rel] = await _retry(lambda rel=rel: r.read(f"{WORK}/{rel}"), "read a result")
                     except Exception:  # a missing output file is the command's failure, reported by the caller
                         pass
-            cp = Checkpoint(r.uuid, self.name, job.label) if r.uuid else None
+            cp = Checkpoint(str(r.uuid), self.name, job.label) if r.uuid else None
             return RunResult(r.exit_code if r.exit_code is not None else -1, r.stdout or "", r.stderr or "", time.time() - t, cp, files)
         except Exception as e:  # platform failure, not a test failure
             return RunResult(-1, "", "", time.time() - t, None, error=f"{type(e).__name__}: {e}")
