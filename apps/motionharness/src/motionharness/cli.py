@@ -142,6 +142,14 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
     from .server import create_app
 
+    paas = bool(os.environ.get("PORT"))  # Render, Railway, Fly, Heroku…: bind where the platform routes traffic
+    args.host = args.host or ("0.0.0.0" if paas else "127.0.0.1")
+    args.port = args.port or int(os.environ.get("PORT") or 8766)
+    if paas:
+        args.no_browser = True
+        if os.environ.get("MOTIONHARNESS_HOSTED") is None:
+            os.environ["MOTIONHARNESS_HOSTED"] = "1"  # a public server never runs generated code outside Sandboxes
+            print("PORT is set: serving as a hosted demo (MOTIONHARNESS_HOSTED=1; set it to 0 to override)")
     url = f"http://{args.host}:{args.port}/"
     if not args.no_browser:
         threading.Timer(1.0, webbrowser.open, (url,)).start()
@@ -194,8 +202,8 @@ def main(argv: list[str] | None = None) -> None:
     rm.set_defaults(fn=cmd_rm)
 
     sv = sub.add_parser("serve", help="web dashboard")
-    sv.add_argument("--host", default="127.0.0.1")
-    sv.add_argument("--port", type=int, default=8766)
+    sv.add_argument("--host", default=None, help="default 127.0.0.1, or 0.0.0.0 when $PORT is set (hosting platforms)")
+    sv.add_argument("--port", type=int, default=None, help="default 8766, or $PORT when set")
     sv.add_argument("--no-browser", action="store_true")
     sv.add_argument("--sandbox", default=os.environ.get("MOTIONHARNESS_SANDBOX", "auto"), choices=["auto", "local", "contree"])
     sv.set_defaults(fn=cmd_serve)

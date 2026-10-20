@@ -319,12 +319,17 @@ def motion_metrics(tracks: dict, verb: str | None = None) -> list[str]:
             span = hi - lo
             if span < NOISE.get(prop, 1e-3):
                 continue
-            past = (hi - end) if end >= start else (end - lo)
-            over = 100 * past / travel if travel > 1e-6 else float("inf")
             tol = 0.02 * max(travel, span)
             settle = next((i for i in range(n) if all(abs(x - end) <= tol for x in v[i:])), n - 1) / fps
-            lines.append(f"{a['id']} ({role}) {prop}: {start:.4g} → {end:.4g}, range [{lo:.4g}, {hi:.4g}], "
-                         f"overshoot past the final value {'n/a' if over == float('inf') else f'{over:.1f}%'}, settles at t={settle:.2f}s")
+            head = f"{a['id']} ({role}) {prop}: {start:.4g} → {end:.4g}, range [{lo:.4g}, {hi:.4g}]"
+            if travel < 0.25 * span:
+                # It swings and comes back (a wobble, a pulse): "overshoot past the final value" would divide by ~0.
+                peak = max(hi - start, start - lo)
+                back = "returns to its start" if travel <= tol else f"ends {end - start:+.4g} from its start"
+                lines.append(f"{head}, oscillates: peak deviation ±{peak:.4g} from the start, {back}, settles at t={settle:.2f}s")
+            else:
+                past = (hi - end) if end >= start else (end - lo)
+                lines.append(f"{head}, overshoot past the final value {100 * past / travel:.1f}%, settles at t={settle:.2f}s")
     return lines[:12]
 
 

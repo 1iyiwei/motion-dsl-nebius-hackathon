@@ -130,7 +130,7 @@ Guardrails (the same design as SketchDynamics'; all off by default):
 | `MOTIONHARNESS_DAILY_TOKENS` | Tokens all visitors may spend per UTC day (a run is typically 60–130k tokens). |
 | `MOTIONHARNESS_BEHIND_PROXY` | `1` behind a reverse proxy that sets `X-Forwarded-For` (Render does). |
 
-Start command: `uv run --frozen --no-dev motionharness serve --host 0.0.0.0 --port $PORT --no-browser`, health check `/healthz`. It also needs `NEBIUS_API_KEY` and `NEBIUS_PROJECT_ID` (and optionally `TAVILY_API_KEY`). On [Render](https://render.com), the repo's [`render.yaml`](../../render.yaml) Blueprint has a `motionharness` web service next to SketchDynamics: **New → Blueprint** (or sync the existing Blueprint) asks for `NEBIUS_API_KEY`, `NEBIUS_PROJECT_ID`, `TAVILY_API_KEY` and `MOTIONHARNESS_ACCESS_CODE`. The disk is reset on every deploy, so runs don't persist across deploys.
+Start command: `uv run --frozen --no-dev motionharness serve --host 0.0.0.0 --port $PORT --no-browser`, health check `/healthz`. (`uv run motionharness serve` alone also works on such hosts: when `$PORT` is set, `serve` binds `0.0.0.0:$PORT`, doesn't open a browser, and turns hosted mode on unless `MOTIONHARNESS_HOSTED=0`.) It also needs `NEBIUS_API_KEY` and `NEBIUS_PROJECT_ID` (and optionally `TAVILY_API_KEY`). On [Render](https://render.com), the repo's [`render.yaml`](../../render.yaml) Blueprint has a `motionharness` web service next to SketchDynamics: **New → Blueprint** (or sync the existing Blueprint) asks for `NEBIUS_API_KEY`, `NEBIUS_PROJECT_ID`, `TAVILY_API_KEY` and `MOTIONHARNESS_ACCESS_CODE`. The disk is reset on every deploy, so runs don't persist across deploys.
 
 ## Tests
 

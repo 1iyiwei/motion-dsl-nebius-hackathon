@@ -452,3 +452,17 @@ def test_runs_go_to_the_workspace_root_from_any_subfolder(tmp_path, monkeypatch)
     assert default_runs_root(tmp_path) == tmp_path.resolve() / "out" / "motionharness"
     monkeypatch.setenv("MOTIONHARNESS_RUNS", str(tmp_path / "elsewhere"))
     assert default_runs_root(sub) == tmp_path / "elsewhere"
+
+
+def test_motion_metrics_describe_oscillations_without_fake_overshoot():
+    import motionlang
+
+    from motionharness.render import motion_metrics
+
+    doc = json.loads(parse_reply(GOOD).demo)
+    doc["timeline"]["seq"][0] = {"id": "w", "verb": "wiggle", "actor": "heart", "amplitude": 25, "frequency": 3, "props": ["sx", "sy"], "duration": 2}
+    m = motion_metrics(motionlang.check(doc).baked.to_json(), "wiggle")
+    assert m and all("oscillates" in line and "%" not in line for line in m if "scale" in line), m
+    doc["timeline"]["seq"][0] = {"id": "m", "verb": "move", "actor": "heart", "to": [600, 225], "ease": "outBack", "duration": 1}
+    m = motion_metrics(motionlang.check(doc).baked.to_json(), "move")
+    assert any(" x:" in line and "overshoot past the final value" in line for line in m), m
