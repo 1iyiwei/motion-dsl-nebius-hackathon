@@ -1,0 +1,22 @@
+[project]
+name = "canvasmind"
+version = "0.1.0"
+description = "CanvasMind: an always-on, private studio assistant (Hermes Agent in OpenShell) that files your sketches and animates in your motion style with NVIDIA Nemotron"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = [
+    "motionlang[agent,render]>=0.1",
+    "mcp>=1.10,<2",  # FastMCP API
+    "uvicorn>=0.29",
+    "pillow>=10.1",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+canvasmind = "canvasmind.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"

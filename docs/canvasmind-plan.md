@@ -120,6 +120,16 @@ Mitigations: now: (1) nothing public on the private instance: MCP reachable only
 | `forget(item)`, `export()` | Mitigation 4 |
 | `new_verb(description)` (stretch) | Calls the MotionHarness MCP over HTTP as a client (no import) |
 
+## Implementation notes (Oct 21)
+
+- **Files between the sandbox and the host.** OpenShell caps one MCP request at 128 KB, and a model can't put image bytes in a tool call. So:
+  - *In* (phone → library): Hermes caches Telegram attachments to a local path in the sandbox; the `canvasmind` skill runs `scripts/cm_upload.py <path>` with the Hermes venv's Python (an allowed binary for the MCP route). The script sends the file in 90 KB chunks via the `upload_part` / `upload_finish` tools, which `mcp_servers.canvasmind.tools.exclude` hides from the model.
+  - *Out* (library → phone): tools return MCP image content blocks; Hermes caches them and its Telegram adapter sends them natively. GIFs will go the same way.
+- **Hermes config** (`/sandbox/.hermes/config.yaml`, Hermes-owned keys, adopted on `mcp restart`; a rebuild may overwrite them, so an install script must reapply): `tools: {resources: false, prompts: false, exclude: [upload_part, upload_finish]}`. With resources on, Hermes listed the (empty) MCP resources and told the user the library was empty instead of calling `recall`.
+- **Skill install**: `openshell sandbox upload canvasmind apps/canvasmind/hermes/skills/canvasmind /sandbox/.hermes/skills/canvasmind` (it nests the folder one level; move it up).
+- **Recall**: FTS5 hits plus the 10–30 most recent items go to Nano, which scores each 0–3; only scores ≥ 2 are kept. Asking Nano to "list the matching ids" over-included (wind → sunrise, cloud) and missed the turbine.
+- **Measured**: VL caption 1.4–2.5 s at ~420–950 prompt tokens per item; Nano recall 1.2–2.5 s at ~800 tokens; a Hermes turn that calls recall costs ~63k prompt tokens (two rounds of ~31k), so Hermes's own prompt dominates cost.
+
 ## Hermes skills (seeded; Hermes refines them)
 
 1. **Animate in my style**: recall references → `animate` → send the GIF → ask for a verdict → `feedback`.
@@ -175,3 +185,12 @@ Cut lines, in order: drop `new_verb` and mitigations 2/3 → drop the studio pag
 ## Repo rules that apply
 
 `apps/canvasmind/` depends on `motionlang[render]>=0.1` by name, never imports another app, and has its own README and `.env.example` (`NEBIUS_API_KEY`, `TAVILY_API_KEY`, `CANVASMIND_MCP_TOKEN`, `CANVASMIND_HOME`). Secrets stay in `.env` and OpenShell's provider store. All model calls go to Nemotron on Token Factory. Apache-2.0.
+
+### Hermes wiring fixes (Oct 21, after the first phone test)
+
+The first phone test failed twice; `uv run canvasmind hermes-setup` now applies all of these (rerun it after `nemohermes canvasmind rebuild`):
+- **Photo → 400**: Hermes attached the photo as image input to Nemotron 3 Super (text-only). OpenShell's inference route rewrites *every* request to the configured model, so the sandbox can't reach Super-VL that way either. Fix: `agent.image_input_mode: text`. The agent gets the cached path, uploads it, and canvasmind's VL caption (on the host) is its description of the image. The `vision` toolset is dropped.
+- **"show me the wind stuff" → web search**: tool search deferred the MCP tools, and the generic Hermes persona doesn't know the library exists. Fixes: `tools.tool_search.enabled: false`; a smaller Telegram/API toolset (web, terminal, file, skills, memory, session_search, cronjob, todo, nemoclaw); a CanvasMind `SOUL.md`.
+- **SOUL.md location**: the gateway resolves the agent home from its session DB, and NemoClaw symlinks `state.db` into `~/.hermes/runtime/`, so SOUL.md must also be in `runtime/`.
+- **`mcp restart` regenerates `mcp_servers.<name>`**, so per-server `tools` filters don't stick. canvasmind now hides its upload tools and advertises no resources/prompts server-side.
+- **Cost**: with the smaller toolset a recall turn costs ~23k prompt tokens (was 63–74k).

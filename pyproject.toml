@@ -6,7 +6,7 @@
 name = "motion-dsl-workspace"
 version = "0.0.0"
 requires-python = ">=3.11"
-dependencies = ["motionlang[agent]", "sketchdynamics", "motionharness[sandboxes,mcp]"]
+dependencies = ["motionlang[agent]", "sketchdynamics", "motionharness[sandboxes,mcp]", "canvasmind"]
 
 [dependency-groups]
 dev = ["pytest>=8", "hypothesis>=6.100", "jsonschema>=4.22", "httpx>=0.27"]
@@ -21,6 +21,7 @@ members = ["packages/*", "apps/*"]
 motionlang = { workspace = true }
 sketchdynamics = { workspace = true }
 motionharness = { workspace = true }
+canvasmind = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["packages", "apps"]
