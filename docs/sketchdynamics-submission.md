@@ -181,7 +181,8 @@ No fine-tuning: the models are used as served, with prompt engineering around th
 <!--
 **[check: your experience]** _(We didn't run other providers in the app; Nemotron is the only runtime model. A comparison here should come from your own experience with other models.)_
 -->
-Nemotron works much better than some open-weight models that we ran locally, such as qwen2.5vl:32b.
+
+I haven't done a rigorous comparison yet, but my impression is that Nemotron excels at visual reasoning: VL analyzes SVGs into semantic components, Super and Ultra synthesize and validate motion parameters, and Nano handles quick motion edits.
 
 * Which Nebius platform capabilities were most valuable to your project and how?
 Please include detail on how you leveraged Nebius infrastructure to run Nemotron (e.g., GPU instance types, deployment setup, API access, scaling).

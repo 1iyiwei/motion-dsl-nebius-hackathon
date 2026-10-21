@@ -145,7 +145,7 @@ Out of the box, with prompt engineering and programs that check the output. Each
 
 * How did Nemotron's performance compare to other models you've used for similar tasks?
 
-Nemotron works much better than some open-weight models that we ran locally, such as qwen2.5vl:32b.
+I haven't done a rigorous comparison yet, but my impression is that Nemotron excels at visual reasoning: VL analyzes SVGs into semantic components, Super and Ultra synthesize and validate motion parameters, and Nano handles quick motion edits.
 
 * Which Nebius platform capabilities were most valuable to your project and how?
 Please include detail on how you leveraged Nebius infrastructure to run Nemotron (e.g., GPU instance types, deployment setup, API access, scaling).
