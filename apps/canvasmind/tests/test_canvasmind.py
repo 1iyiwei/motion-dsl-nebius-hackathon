@@ -391,3 +391,19 @@ def test_demo_reset_files_fixtures_and_seeds_style(tmp_path):
     lib = Library(home)
     dates = sorted(i.created for i in lib.recent(10))
     assert dates[0] < dates[-1] - 5 * 86400  # backdated, so "last week" means something
+
+
+def test_library_survives_demo_reset_while_running(tmp_path):
+    """A running server keeps its Library; demo-reset moves the folder away and makes a new one."""
+    import shutil
+
+    from canvasmind.demo import DEFAULT_FIXTURES, reset
+
+    home = tmp_path / "home"
+    running = Studio(Library(home), llm_factory=lambda: LLM(FakeBackend()))
+    running.file_bytes(png_bytes(), "old.png")
+    reset(home, DEFAULT_FIXTURES, lambda h: Studio(Library(h), llm_factory=lambda: LLM(FakeBackend())))
+    assert len(running.lib.recent(20)) == 5  # sees the new library
+    running.file_bytes(png_bytes("blue"), "new.png")  # and can write to it
+    shutil.rmtree(home)
+    assert running.lib.recent(5) == []  # even a deleted library comes back empty, not broken

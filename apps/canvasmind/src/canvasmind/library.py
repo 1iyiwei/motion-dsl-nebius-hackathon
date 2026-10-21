@@ -88,9 +88,25 @@ class Library:
         self.home = Path(home).expanduser()
         (self.home / "items").mkdir(parents=True, exist_ok=True)
         (self.home / "inbox").mkdir(exist_ok=True)  # drop files here; the studio scan files them
-        self.db = sqlite3.connect(self.home / "library.sqlite", check_same_thread=False)
-        self.db.row_factory = sqlite3.Row
-        self.db.executescript(SCHEMA)
+        self._db: sqlite3.Connection | None = None
+        self._ino: int | None = None
+
+    @property
+    def db(self) -> sqlite3.Connection:
+        """The connection, reopened if library.sqlite was replaced underneath us (e.g. `canvasmind demo-reset`
+        moving the library aside while the server runs); otherwise writes fail with "readonly database"."""
+        path = self.home / "library.sqlite"
+        ino = path.stat().st_ino if path.exists() else None
+        if self._db is None or ino != self._ino:
+            if self._db is not None:
+                self._db.close()
+            (self.home / "items").mkdir(parents=True, exist_ok=True)
+            (self.home / "inbox").mkdir(exist_ok=True)
+            self._db = sqlite3.connect(path, check_same_thread=False)
+            self._db.row_factory = sqlite3.Row
+            self._db.executescript(SCHEMA)
+            self._ino = path.stat().st_ino
+        return self._db
 
     def dir(self, item_id: str) -> Path:
         if not re.fullmatch(r"\d{8}-[0-9a-f]{6}", item_id):

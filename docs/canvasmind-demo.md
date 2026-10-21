@@ -10,7 +10,7 @@ Plan and architecture: [canvasmind-plan.md](canvasmind-plan.md). Status of each 
 2. Start the library server: `uv run canvasmind serve`. `tailscale serve` keeps proxying `https://<mac>.<tailnet>.ts.net` to `127.0.0.1:8770`; check with `tailscale serve status`.
 3. After any NemoClaw rebuild or upgrade: `uv run canvasmind hermes-setup` (skill, persona, Hermes settings).
 4. In the Telegram chat: send `/new`, so earlier test turns don't steer the agent.
-5. Library state for the take: `uv run canvasmind demo-reset --yes` (moves the real library to `~/CanvasMind.bak-<time>`), then restart `canvasmind serve`. It files `apps/canvasmind/demo/` per its manifest: the sunrise logo and three sunrise animations rated a week ago (2 👍 calm/hand-made, 1 👎 bouncy), and the café logo filed yesterday. The style line then reads "liked enter, draw_on, inOutSine … avoids bouncy, prefers calm".
+5. Library state for the take: `uv run canvasmind demo-reset --yes` (moves the real library to `~/CanvasMind.bak-<time>`), (the running server picks up the new library by itself). It files `apps/canvasmind/demo/` per its manifest: the sunrise logo and three sunrise animations rated a week ago (2 👍 calm/hand-made, 1 👎 bouncy), and the café logo filed yesterday. The style line then reads "liked enter, draw_on, inOutSine … avoids bouncy, prefers calm".
 6. Props: `apps/canvasmind/demo/cafe-logo.svg` ("Morning Cup") ready to send from Telegram Desktop or the phone's Files app, one café reference photo, and a link to a reference page.
 
 ## Measured so far (Oct 21)

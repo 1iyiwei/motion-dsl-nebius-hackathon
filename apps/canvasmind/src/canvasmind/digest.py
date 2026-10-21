@@ -26,7 +26,8 @@ Their library has these SVG logos you may draft an animation for: {svgs}
 Search results (title, url, snippet):
 {results}
 
-Pick the 3 most useful findings for them. For each: a one-line headline, one sentence on why it fits (or stretches)
+Pick the 3 most useful findings for them: motion-design craft, techniques, notable work or tools a motion designer
+would use. Skip AI-model and AI-product announcements and generic web-design listicles unless nothing else is left. For each: a one-line headline, one sentence on why it fits (or stretches)
 their style, and the source URL. Then pick ONE finding to try now: choose one of their SVGs and write a 15-30 word
 animation brief for it in the spirit of that finding (2D motion only: move, rotate, scale, fade, bounce, wiggle, draw
 a line on, wipe a shape in).
