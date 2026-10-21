@@ -197,7 +197,7 @@ def test_mcp_refuses_to_start_without_a_token(studio):
 def test_mcp_tools_and_upload_flow(client, studio):
     _, res = rpc(client, "tools/list")
     names = {t["name"] for t in res["result"]["tools"]}
-    assert names == {"file_link", "recall", "show", "studio_status", "scan_studio"}  # upload tools callable but unlisted
+    assert names == {"file_link", "recall", "show", "studio_status", "scan_studio", "animate", "tweak", "feedback", "style_profile"}  # upload tools callable but unlisted
     _, init = rpc(client, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
                                          "clientInfo": {"name": "t", "version": "0"}})
     caps = init["result"]["capabilities"]
@@ -224,3 +224,122 @@ def test_mcp_tools_and_upload_flow(client, studio):
 def test_media_kind_of():
     assert media.kind_of("A.MOTION.JSON") == "motion" and media.kind_of("x.svg") == "svg"
     assert media.kind_of("x.jpeg") == "image" and media.kind_of("x.pdf") is None
+
+
+# --- animation and style ------------------------------------------------------------------------------------
+
+LOGO = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<g id="sun"><circle id="disc" cx="50" cy="45" r="18" fill="#f4a259"/></g><rect id="sea" x="10" y="70" width="80" height="12" fill="#2e86ab"/></svg>"""
+
+
+def _plan(intent_text: str) -> dict:
+    return {"motion": "0.1", "canvas": {"width": 720, "height": 720, "fps": 30, "background": "#ffffff"},
+            "actors": [], "timeline": {"id": "t", "seq": [
+                {"id": "b1", "verb": "scale", "actor": "disc", "to": 1.4, "duration": 0.8, "ease": "outBack"},
+                {"id": "b2", "verb": "rotate", "actor": "sun", "by": 90, "duration": 1.2, "ease": "inOutSine"}]}}
+
+
+class AnimBackend(FakeBackend):
+    """Adds the planner (one fixed valid plan), part labels and edit ops to the fake model."""
+
+    def complete(self, model, messages, **kw):
+        content = messages[-1]["content"]
+        if isinstance(content, list) and any("numbered" in p.get("text", "") for p in content if p["type"] == "text"):
+            self.seen.append((model, messages))
+            return json.dumps({"labels": {"1": "sun disc", "sea": "sea"}, "idea": "the sun rises and spins"}), {}
+        system = messages[0]["content"] if messages[0]["role"] == "system" else ""
+        if isinstance(system, str) and "edit" in system.lower() and '"ops"' in system:
+            self.seen.append((model, messages))
+            return json.dumps({"ops": [{"op": "set", "id": "b2", "field": "duration", "value": 2.4}]}), {}
+        if isinstance(system, str) and system:
+            self.seen.append((model, messages))
+            return json.dumps(_plan(content if isinstance(content, str) else "")), {}
+        return super().complete(model, messages, **kw)
+
+
+@pytest.fixture
+def astudio(tmp_path):
+    backend = AnimBackend()
+    s = Studio(Library(tmp_path / "home"), llm_factory=lambda: LLM(backend))
+    s.backend = backend
+    return s
+
+
+def test_animate_svg_makes_a_gif_item(astudio):
+    logo = astudio.file_bytes(LOGO.encode(), "sunrise.svg").item
+    res = astudio.animate(logo.id, "")
+    assert res.ok, res.note
+    assert res.gif[:6] == b"GIF89a" and res.item.kind == "motion" and res.item.facts["parent"] == logo.id
+    assert res.item.caption == "the sun rises and spins"  # VL's idea fills an empty brief
+    assert set(res.item.facts["verbs"]) == {"scale", "rotate"} and "outBack" in res.item.facts["easings"]
+    planner_msgs = next(m for _, m in astudio.backend.seen if m[0]["role"] == "system" and "sun disc" in m[-1]["content"])
+    assert planner_msgs  # the planner saw VL's part labels
+    assert astudio.lib.gif(res.item.id) == res.gif
+
+
+def test_only_svgs_can_be_animated(astudio):
+    from canvasmind.animation import NotAnimatable
+
+    photo = astudio.file_bytes(png_bytes(), "photo.png").item
+    with pytest.raises(NotAnimatable, match="only SVG"):
+        astudio.animate(photo.id)
+
+
+def test_tweak_makes_a_new_version(astudio):
+    logo = astudio.file_bytes(LOGO.encode(), "sunrise.svg").item
+    v1 = astudio.animate(logo.id, "spin the sun").item
+    v2 = astudio.tweak(v1.id, "slower").item
+    assert v2.id != v1.id and v2.facts["version"] == 2 and v2.facts["parent"] == v1.id and v2.title.endswith("(v2)")
+
+
+def test_feedback_builds_the_style_profile(astudio):
+    from canvasmind import style
+
+    logo = astudio.file_bytes(LOGO.encode(), "sunrise.svg").item
+    v1 = astudio.animate(logo.id, "spin the sun").item
+    prof, _ = astudio.feedback(v1.id, "👍", "")
+    assert prof["likes"] == 1 and prof["easings"]["outBack"] == {"liked": 1}
+    assert "outBack easing" in style.summary(prof)
+    res = astudio.animate(logo.id, "spin the sun again")
+    assert "since you liked those in 1 of 1" in res.why
+    planner_prompt = [m for _, m in astudio.backend.seen if m[0]["role"] == "system"][-1][-1]["content"]
+    assert "motion style" in planner_prompt and "outBack" in planner_prompt
+    with pytest.raises(ValueError):
+        astudio.feedback(logo.id, "like")  # not an animation
+    with pytest.raises(ValueError):
+        astudio.feedback(v1.id, "meh")
+
+
+def test_mcp_animate_returns_a_gif(astudio):
+    from starlette.testclient import TestClient
+
+    from canvasmind.mcp_server import create_app
+
+    logo = astudio.file_bytes(LOGO.encode(), "sunrise.svg").item
+    with TestClient(create_app(astudio, "t0k", "", 8770), base_url="http://127.0.0.1:8770") as c:
+        _, res = rpc(c, "tools/call", {"name": "animate", "arguments": {"item_id": logo.id, "brief": "spin"}})
+        content = res["result"]["content"]
+        assert content[1]["type"] == "image" and content[1]["mimeType"] == "image/gif"
+        photo = astudio.file_bytes(png_bytes(), "p.png").item
+        _, res = rpc(c, "tools/call", {"name": "animate", "arguments": {"item_id": photo.id}})
+        assert "only SVG" in json.loads(res["result"]["content"][0]["text"])["message"]
+
+
+def test_tempo_requests_need_no_model():
+    from canvasmind.animation import retime, tempo_factor
+
+    assert tempo_factor("slower") == 1.5 and tempo_factor("Make it faster!") == round(1 / 1.5, 3)
+    assert 1 < tempo_factor("a bit slower") < 1.5 < tempo_factor("much slower")
+    assert tempo_factor("slower and bluer") is None and tempo_factor("make the sun slower") is None
+    doc = {"timeline": {"id": "t", "stagger": [{"id": "a", "duration": 1.0, "delay": 0.2}], "offset": 0.1}}
+    out = retime(doc, 2)
+    assert out["timeline"]["offset"] == 0.2 and out["timeline"]["stagger"][0] == {"id": "a", "duration": 2.0, "delay": 0.4}
+    assert doc["timeline"]["offset"] == 0.1  # the original is untouched
+
+
+def test_slower_tweak_skips_the_model(astudio):
+    logo = astudio.file_bytes(LOGO.encode(), "sunrise.svg").item
+    v1 = astudio.animate(logo.id, "spin the sun").item
+    n = len(astudio.backend.seen)
+    v2 = astudio.tweak(v1.id, "slower").item
+    assert len(astudio.backend.seen) == n and v2.facts["seconds"] > v1.facts["seconds"]

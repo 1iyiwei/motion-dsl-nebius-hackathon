@@ -5,6 +5,8 @@
       items/<id>/original.<ext>   what was filed, byte for byte
       items/<id>/preview.jpg      what the vision model saw (≤1024 px)
       items/<id>/thumb.jpg        what the chat gets back (≤384 px)
+      items/<id>/animation.gif    for animations CanvasMind made
+      style.json, journal.jsonl   the motion style profile and the feedback it is built from
 """
 
 from __future__ import annotations
@@ -102,9 +104,12 @@ class Library:
         row = self.db.execute("SELECT * FROM items WHERE sha256 = ?", (sha,)).fetchone()
         return self._item(row) if row else None
 
-    def add(self, item: Item, original: bytes | None, preview_jpg: bytes | None, thumb_jpg: bytes | None) -> Item:
+    def add(self, item: Item, original: bytes | None, preview_jpg: bytes | None, thumb_jpg: bytes | None,
+            extra: dict[str, bytes] | None = None) -> Item:
         d = self.dir(item.id)
         d.mkdir(parents=True, exist_ok=True)
+        for name, data in (extra or {}).items():
+            (d / name).write_bytes(data)
         if original is not None:
             ext = ".motion.json" if item.kind == "motion" else Path(item.filename).suffix.lower()
             (d / f"original{ext}").write_bytes(original)
@@ -131,6 +136,10 @@ class Library:
 
     def thumb(self, item_id: str) -> bytes | None:
         p = self.dir(item_id) / "thumb.jpg"
+        return p.read_bytes() if p.is_file() else None
+
+    def gif(self, item_id: str) -> bytes | None:
+        p = self.dir(item_id) / "animation.gif"
         return p.read_bytes() if p.is_file() else None
 
     def original(self, item_id: str) -> Path | None:

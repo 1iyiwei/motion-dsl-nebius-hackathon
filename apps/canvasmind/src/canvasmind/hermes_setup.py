@@ -15,6 +15,8 @@ from importlib import resources
 from pathlib import Path
 
 SKILL_DIR = "/sandbox/.hermes/skills/canvasmind"
+PLUGIN = "canvasmind_telegram"  # two Telegram fixes, see hermes_plugin/canvasmind_telegram
+PLUGIN_DIR = f"/sandbox/.hermes/plugins/{PLUGIN}"
 
 # Hermes-owned keys (adopted on gateway restart). Why each one:
 # - image_input_mode=text: the main model (Nemotron 3 Super) is text-only and OpenShell routes every inference call
@@ -29,6 +31,10 @@ p = pathlib.Path("/sandbox/.hermes/config.yaml")
 cfg = yaml.safe_load(p.read_text())
 toolsets = json.loads(sys.argv[1])
 cfg.setdefault("agent", {})["image_input_mode"] = "text"
+enabled = cfg.setdefault("plugins", {}).setdefault("enabled", [])
+enabled[:] = [p for p in enabled if p != "canvasmind_svg"]
+if "canvasmind_telegram" not in enabled:
+    enabled.append("canvasmind_telegram")
 cfg.setdefault("tools", {}).setdefault("tool_search", {})["enabled"] = False
 for platform in ("telegram", "api_server"):
     cfg.setdefault("platform_toolsets", {})[platform] = toolsets
@@ -48,22 +54,28 @@ def _run(cmd: list[str], *, check: bool = True) -> str:
     return out
 
 
+def _upload(exec_: list[str], openshell: str, sandbox: str, package_dir: str, dest: str) -> None:
+    """Copy a folder of this package to `dest` in the sandbox (upload nests it one level; flatten afterwards)."""
+    name = Path(dest).name
+    with tempfile.TemporaryDirectory() as tmp:
+        src = Path(tmp) / name
+        with resources.as_file(resources.files("canvasmind").joinpath(*package_dir.split("/"))) as folder:
+            shutil.copytree(folder, src, ignore=shutil.ignore_patterns("__pycache__"))
+        _run(exec_ + ["rm", "-rf", dest])
+        _run([openshell, "sandbox", "upload", sandbox, str(src), dest])
+    _run(exec_ + ["sh", "-c", f"if [ -d {dest}/{name} ]; then mv {dest}/{name}/* {dest}/ && rmdir {dest}/{name}; fi"])
+
+
 def setup(sandbox: str = "canvasmind", nemohermes: str = "nemohermes", openshell: str = "openshell") -> dict:
     for tool in (nemohermes, openshell):
         if not shutil.which(tool):
             raise RuntimeError(f"{tool} not found on PATH; install NemoClaw first (see README)")
     exec_ = [nemohermes, sandbox, "exec", "--no-tty", "--timeout", "120", "--"]
 
-    with tempfile.TemporaryDirectory() as tmp:  # upload nests the folder under DEST; flatten it afterwards
-        src = Path(tmp) / "canvasmind"
-        with resources.as_file(resources.files("canvasmind") / "skill") as skill:
-            shutil.copytree(skill, src, ignore=shutil.ignore_patterns("__pycache__"))
-        _run(exec_ + ["rm", "-rf", SKILL_DIR])
-        _run([openshell, "sandbox", "upload", sandbox, str(src), SKILL_DIR])
-    _run(exec_ + ["sh", "-c", f"if [ -d {SKILL_DIR}/canvasmind ]; then mv {SKILL_DIR}/canvasmind/* {SKILL_DIR}/ "
-                              f"&& rmdir {SKILL_DIR}/canvasmind; fi; "
-                              # the persona tells the model the library is its memory of the user's work
-                              f"[ -f /sandbox/.hermes/SOUL.md.hermes ] || cp /sandbox/.hermes/SOUL.md /sandbox/.hermes/SOUL.md.hermes; "
+    for package_dir, dest in (("skill", SKILL_DIR), (f"hermes_plugin/{PLUGIN}", PLUGIN_DIR)):
+        _upload(exec_, openshell, sandbox, package_dir, dest)
+    # the persona tells the model the library is its memory of the user's work
+    _run(exec_ + ["sh", "-c", f"[ -f /sandbox/.hermes/SOUL.md.hermes ] || cp /sandbox/.hermes/SOUL.md /sandbox/.hermes/SOUL.md.hermes; "
                               f"mv {SKILL_DIR}/SOUL.md /sandbox/.hermes/SOUL.md; "
                               # the gateway resolves the agent's home from its session DB, which NemoClaw keeps in
                               # runtime/ (state.db is a symlink there), so Hermes reads SOUL.md from runtime/ too
@@ -73,4 +85,5 @@ def setup(sandbox: str = "canvasmind", nemohermes: str = "nemohermes", openshell
     result = json.loads(next(line for line in out.splitlines() if line.startswith("{")))
     _run([nemohermes, sandbox, "gateway", "restart", "--quiet"])
     result["skill"] = SKILL_DIR
+    result["plugin"] = PLUGIN_DIR
     return result

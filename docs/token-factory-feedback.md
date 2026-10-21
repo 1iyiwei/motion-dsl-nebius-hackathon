@@ -102,3 +102,14 @@ Add an entry when something surprises us. Include the date, what happened, and t
 - **MCP through OpenShell**: a host MCP server must be HTTPS with a publicly trusted certificate (localhost/host.docker.internal are
   rejected). Tailscale's `serve` (ts.net cert, CGNAT address) + `--trusted-private-host` was a clean way to do that, and OpenShell injects
   the bearer token at egress, so the sandbox never holds it.
+- **Hermes Agent Telegram adapter (v0.21.3, under NemoClaw)**, two bugs we had to work around with a user plugin
+  (`apps/canvasmind/src/canvasmind/hermes_plugin/canvasmind_telegram`):
+  1. An `.svg` sent as a document (`image/svg+xml`) is routed to the raster image cache, which raises "Refusing to cache
+     non-image data as .jpg"; the file is dropped and the agent only sees "could not be read as an image".
+  2. `send_multiple_images` treats only non-`file://` URLs as animations, so a GIF returned by an MCP tool (cached
+     locally) is sent as a photo in a media group and Telegram shows its first frame only.
+  Also: the gateway resolves the agent home from its session DB, and NemoClaw symlinks `state.db` into
+  `~/.hermes/runtime/`, so a customised `SOUL.md` in `~/.hermes/` is ignored until copied to `runtime/`.
+- **OpenShell inference routing rewrites the model** on every request to the one configured at onboarding, so an agent
+  in the sandbox can't use a second model (e.g. Nemotron VL for images) through `inference.local`. A per-sandbox list of
+  allowed models on the same endpoint would let agents route by task (vision, fast edits) the way our host code does.

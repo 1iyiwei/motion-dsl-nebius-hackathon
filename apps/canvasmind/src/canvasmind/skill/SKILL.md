@@ -43,6 +43,14 @@ Call `recall` with their words ("the sunrise logo from last week", "everything f
 matches with thumbnails; show the thumbnails and give each match's title and filed date. If nothing matches, say so and
 offer `studio_status` to see what's there.
 
+## Animation (SVG only)
+
+- `animate(item_id, brief)`: animates an SVG item in the user's style (20-60 s) and returns the GIF; send it to them.
+  Photos can't be animated; ask for the SVG file or link instead.
+- `tweak(item_id, request)`: a new version of an animation ("slower", "less bounce").
+- `feedback(item_id, "like" | "dislike", why)`: call it whenever they react to an animation; it builds their style
+  profile, which every later `animate` follows. `style_profile()` shows what has been learned and why.
+
 ## Other tools
 
 - `show(item_id)`: one item and its thumbnail.

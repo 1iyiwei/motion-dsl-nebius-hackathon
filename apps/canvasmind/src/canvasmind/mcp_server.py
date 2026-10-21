@@ -29,6 +29,14 @@ UPLOAD_HINT = ("Not a web link. To file an image the user sent in the chat, run 
                '~/.hermes/skills/canvasmind/scripts/cm_upload.py {path} --note "{note}"')
 
 
+def style_brief(prof: dict) -> dict:
+    from .style import summary
+
+    return {"summary": summary(prof) or "no feedback yet", "likes": prof.get("likes", 0), "dislikes": prof.get("dislikes", 0),
+            "verbs": prof.get("verbs", {}), "easings": prof.get("easings", {}), "seconds": prof.get("seconds", {}),
+            "notes": prof.get("notes", [])}
+
+
 def _log(studio: Studio, tool: str, calls, seconds: float) -> None:
     rec = {"t": round(time.time(), 1), "tool": tool, "seconds": round(seconds, 2),
            "calls": [{"purpose": c.purpose, "model": c.model, "seconds": round(c.seconds, 2),
@@ -101,6 +109,56 @@ def create_mcp(studio: Studio, allowed_hosts: list[str]):
         out = studio.scan()
         _log(studio, "scan_studio", [], time.time() - t0)
         return out
+
+    def animated_reply(tool: str, res, t0: float) -> list:
+        _log(studio, tool, res.calls, time.time() - t0)
+        payload = {"animation": res.item.brief(), "valid": res.ok,
+                   "next": "show the GIF, then ask whether they like it (👍/👎) or want a change"}
+        if res.why:
+            payload["style_used"] = res.why
+        if res.note:
+            payload["note"] = res.note
+        return [json.dumps(payload, ensure_ascii=False), Image(data=res.gif, format="gif")]
+
+    @mcp.tool()
+    def animate(item_id: str, brief: str = "", in_my_style: bool = True) -> list:
+        """Animate an SVG item from the library (find its id with recall). brief: what should happen, in the user's
+        words; leave empty to let CanvasMind propose an animation. Returns the new animation item and its GIF.
+        Only SVG artwork can be animated, not photos. Takes 20-60 s."""
+        from .animation import NotAnimatable
+
+        t0 = time.time()
+        try:
+            return animated_reply("animate", studio.animate(item_id, brief, in_my_style), t0)
+        except NotAnimatable as e:
+            return [json.dumps({"animation": None, "message": str(e)})]
+
+    @mcp.tool()
+    def tweak(item_id: str, request: str) -> list:
+        """Change an animation CanvasMind made ("slower", "less bounce", "make the steam rise twice"). Returns a new
+        version with its GIF; the old one stays in the library."""
+        from .animation import NotAnimatable
+
+        t0 = time.time()
+        try:
+            return animated_reply("tweak", studio.tweak(item_id, request), t0)
+        except NotAnimatable as e:
+            return [json.dumps({"animation": None, "message": str(e)})]
+
+    @mcp.tool()
+    def feedback(item_id: str, verdict: str, why: str = "") -> dict:
+        """Record the user's 👍 ("like") or 👎 ("dislike") on an animation, with their reason if they gave one. This is
+        how CanvasMind learns their motion style; call it whenever they react to an animation."""
+        t0 = time.time()
+        prof, calls = studio.feedback(item_id, verdict, why)
+        _log(studio, "feedback", calls, time.time() - t0)
+        return {"recorded": True, "style": style_brief(prof)}
+
+    @mcp.tool()
+    def style_profile() -> dict:
+        """The user's motion style as CanvasMind has learned it, with the evidence (counts of liked/disliked verbs
+        and easings, typical length, notes from their feedback)."""
+        return style_brief(studio.style.profile())
 
     @mcp.tool()
     def upload_part(upload_id: str, index: int, data_b64: str) -> dict:

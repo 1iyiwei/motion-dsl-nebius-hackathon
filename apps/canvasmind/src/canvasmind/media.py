@@ -52,12 +52,17 @@ def _flatten(img: Image.Image) -> Image.Image:
     return img.convert("RGB")
 
 
+def svg_doc_from_imported(imported: dict, canvas: dict) -> dict:
+    """A still MotionLang document showing an imported SVG (empty timeline)."""
+    return {"motion": "0.1", "canvas": dict(canvas, fps=10), "assets": imported["assets"],
+            "actors": imported["actors"], "timeline": {"id": "still", "seq": []}}
+
+
 def _svg_doc(text: str, size: int = 768) -> dict:
     from motionlang.importers import import_svg
 
-    imp = import_svg(text, fit=(size, size), margin=0.06)
-    return {"motion": "0.1", "canvas": dict(imp["canvas"], fps=10, background="#ffffff"),
-            "assets": imp["assets"], "actors": imp["actors"], "timeline": {"id": "still", "seq": []}}
+    return svg_doc_from_imported(import_svg(text, fit=(size, size), margin=0.06),
+                                 {"width": size, "height": size, "background": "#ffffff"})
 
 
 def _render(doc: dict, frames: int) -> list[Image.Image]:
@@ -128,7 +133,7 @@ def motion_facts(doc: dict) -> dict:
         if isinstance(block, dict):
             if "verb" in block:
                 verbs.append(block["verb"])
-                e = block.get("easing") or (block.get("params") or {}).get("easing")
+                e = block.get("ease")
                 if isinstance(e, str):
                     easings.append(e)
             for v in block.values():

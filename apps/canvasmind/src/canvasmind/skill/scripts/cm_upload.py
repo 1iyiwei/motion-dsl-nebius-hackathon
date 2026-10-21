@@ -1,7 +1,7 @@
 """Send a file from the Hermes sandbox to the CanvasMind library on the user's machine.
 
     /opt/hermes/.venv/bin/python cm_upload.py PATH [--note "what the user said"]
-    /opt/hermes/.venv/bin/python cm_upload.py --latest [--note …]   # newest image the chat received (stickers)
+    /opt/hermes/.venv/bin/python cm_upload.py --latest [--note …]   # newest file the chat received (stickers, .svg files)
 
 Runs inside the OpenShell sandbox. It talks to the canvasmind MCP server configured in ~/.hermes/config.yaml, in
 chunks under OpenShell's 128 KB MCP request cap; the bearer token in that config is an OpenShell placeholder that
@@ -24,7 +24,7 @@ import yaml
 
 CHUNK = 90_000  # raw bytes per request; ~120 KB once base64'd into JSON-RPC
 MAX_PX = 1600
-IMAGE_CACHE = Path(os.path.expanduser("~/.hermes/cache/images"))
+CACHE = Path(os.path.expanduser("~/.hermes/cache"))  # images/, documents/ (an .svg sent as a file), …
 LATEST_MAX_AGE = 30 * 60  # seconds; older attachments are probably not the one the user means
 
 
@@ -57,12 +57,12 @@ def shrink(data: bytes, name: str) -> tuple[bytes, str]:
 def latest() -> Path:
     import time
 
-    files = [f for f in IMAGE_CACHE.glob("*") if f.is_file()] if IMAGE_CACHE.is_dir() else []
+    files = [f for f in CACHE.rglob("*") if f.is_file()] if CACHE.is_dir() else []
     if not files:
-        sys.exit("no images have been received in this chat")
+        sys.exit("no files have been received in this chat")
     newest = max(files, key=lambda f: f.stat().st_mtime)
     if time.time() - newest.stat().st_mtime > LATEST_MAX_AGE:
-        sys.exit("no image received in the last 30 minutes; ask the user to send it again")
+        sys.exit("nothing received in the last 30 minutes; ask the user to send it again")
     return newest
 
 
@@ -85,7 +85,7 @@ def call(client: httpx.Client, url: str, headers: dict, tool: str, args: dict) -
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("path", nargs="?")
-    p.add_argument("--latest", action="store_true", help="file the newest image in the chat's image cache")
+    p.add_argument("--latest", action="store_true", help="file the newest file the chat received")
     p.add_argument("--note", default="")
     a = p.parse_args()
     if a.latest:

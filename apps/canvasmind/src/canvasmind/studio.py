@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from collections.abc import Callable
@@ -15,8 +16,15 @@ from motionlang.agent.llm import LLM, Call
 
 from . import media, models
 from .library import Item, Library
+from .style import Style
 
 MAX_BYTES = 20 * 1024 * 1024
+# Super-120B with structured output was the most reliable MotionLang planner we measured (SketchDynamics, Oct 18).
+PLANNER = os.environ.get("CANVASMIND_PLANNER_MODEL", "nvidia/nemotron-3-super-120b-a12b")
+
+
+def default_llm() -> LLM:
+    return LLM(models={"planner": PLANNER})
 UPLOAD_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
 
 
@@ -28,13 +36,14 @@ class Filed:
 
 
 class Studio:
-    def __init__(self, library: Library, llm_factory: Callable[[], LLM] = LLM, watch: list[Path] | None = None,
+    def __init__(self, library: Library, llm_factory: Callable[[], LLM] = default_llm, watch: list[Path] | None = None,
                  fetch: Callable[[str], tuple[bytes, str, str]] | None = None):
         self.lib = library
         self.make_llm = llm_factory
         self.watch = [Path(p).expanduser().resolve() for p in (watch or [])]
         self.fetch = fetch or fetch_url
         self.uploads = self.lib.home / ".uploads"
+        self.style = Style(self.lib.home)
 
     # --- filing -------------------------------------------------------------------------------------------
 
@@ -152,6 +161,24 @@ class Studio:
                 except Exception as e:  # one bad file shouldn't stop the scan
                     errors.append(f"{p.name}: {e}")
         return {"filed": filed, "already_filed": skipped, "errors": errors[:10]}
+
+    # --- animation and style ------------------------------------------------------------------------------
+
+    def animate(self, item_id: str, brief: str = "", in_my_style: bool = True):
+        from . import animation
+
+        return animation.animate(self, item_id, brief, in_my_style=in_my_style)
+
+    def tweak(self, item_id: str, request: str):
+        from . import animation
+
+        return animation.tweak(self, item_id, request)
+
+    def feedback(self, item_id: str, verdict: str, why: str = "") -> tuple[dict, list[Call]]:
+        item = self.lib.get(item_id)
+        if item.kind != "motion":
+            raise ValueError(f"{item_id} is not an animation; feedback is for animations CanvasMind made")
+        return self.style.record(item_id, verdict, why, item.facts, self.make_llm())
 
     # --- recall -------------------------------------------------------------------------------------------
 

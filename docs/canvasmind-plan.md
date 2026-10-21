@@ -194,3 +194,12 @@ The first phone test failed twice; `uv run canvasmind hermes-setup` now applies 
 - **SOUL.md location**: the gateway resolves the agent home from its session DB, and NemoClaw symlinks `state.db` into `~/.hermes/runtime/`, so SOUL.md must also be in `runtime/`.
 - **`mcp restart` regenerates `mcp_servers.<name>`**, so per-server `tools` filters don't stick. canvasmind now hides its upload tools and advertises no resources/prompts server-side.
 - **Cost**: with the smaller toolset a recall turn costs ~23k prompt tokens (was 63–74k).
+
+### Step 3 (Oct 21): animation, tweaks, style
+
+Decided with the user: **only SVG artwork is animated**. A photo can't be split into parts that move, and redrawing photos as vectors was poor: Super from a caption drew wrong parts in the wrong order, and Super-VL was crude. Photos and links stay references; asking to animate one gets "send the SVG".
+
+- `animate(item_id, brief)`: import the SVG (720×720 canvas) → Super-VL names the parts from a numbered render and proposes an idea for an empty brief (~2 s) → Super (structured output) plans with the style summary appended (~25–35 s, at most one repair to stay inside Hermes's 120 s tool timeout) → GIF (480 px, 20 fps, ~200–450 KB) → a new `motion` item linked to its SVG.
+- `tweak(item_id, request)`: pure speed requests ("slower", "a bit faster") rescale every duration, delay and stagger offset with no model (~1 s). Other requests go to motionlang's tweak (Nano edit ops, then a Super rewrite if needed; 25–40 s, since Nano's first edit often fails).
+- `feedback` → `journal.jsonl`; `style.json` counts liked/disliked verbs, easings and durations, and Nano keeps ≤ 8 notes from the user's reasons. The planner gets a one-paragraph summary; replies cite the traits used.
+- Telegram delivery needed a Hermes user plugin (`canvasmind_telegram`, installed by `hermes-setup`): it keeps `.svg` documents (Hermes drops them) and sends local GIFs with `send_animation` (Hermes sent them as photos, i.e. the first frame). Hermes loads the adapter module under two names, so the patch covers both classes.
