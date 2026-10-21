@@ -48,6 +48,34 @@ def load(path: Path) -> dict:
     return data
 
 
+def duration(path: Path) -> float | None:
+    """A source's length in seconds (ffprobe), or None if it can't be read."""
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+                       capture_output=True, text=True)
+    try:
+        return float(r.stdout.strip())
+    except ValueError:
+        return None
+
+
+def check(cfg: dict, base: Path) -> None:
+    """Catch edit-list mistakes before ffmpeg turns them into cryptic filter errors."""
+    lengths = {k: duration(base / f) for k, f in cfg["sources"].items()}
+    problems = []
+    for i, seg in enumerate(cfg["segments"], 1):
+        where = f"segment {i}" + (f" ({seg['note']})" if seg.get("note") else "")
+        if seg["src"] not in lengths:
+            problems.append(f"{where}: unknown source {seg['src']!r} (sources: {', '.join(lengths)})")
+            continue
+        a, b, n = float(seg["in"]), float(seg["out"]), lengths[seg["src"]]
+        if b <= a:
+            problems.append(f"{where}: out ({b:g}) must be after in ({a:g})")
+        if n is not None and b > n + 0.05:
+            problems.append(f"{where}: out ({b:g}) is past the end of {cfg['sources'][seg['src']]} ({n:.1f} s)")
+    if problems:
+        sys.exit("Edit list problems:\n  " + "\n  ".join(problems))
+
+
 def label_png(text: str, out: Path, height: int, corner: bool) -> None:
     """A rounded dark label with white text (Pillow), sized for a 1080p frame."""
     from PIL import Image, ImageDraw, ImageFont
@@ -82,6 +110,7 @@ def main() -> None:
     crops = cfg.get("crops", {})
     order = list(cfg["sources"])
     inputs = [x for k in order for x in ("-i", str(base / cfg["sources"][k]))]
+    check(cfg, base)
     tmp = Path(tempfile.mkdtemp(prefix="render-"))
     parts, labels, total = [], [], 0.0
 
@@ -130,9 +159,12 @@ def main() -> None:
 
     graph = edl.with_suffix(".filtergraph")
     graph.write_text(";".join(parts) + ";" + "".join(labels) + f"concat=n={len(labels)}:v=1:a=1[v][a]")
-    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *inputs, "-/filter_complex", str(graph),
-                    "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "medium", "-crf", "20",
-                    "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out)], check=True)
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *inputs, "-/filter_complex", str(graph),
+                        "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+                        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out)],
+                       stderr=subprocess.PIPE, text=True)
+    if r.returncode != 0:
+        sys.exit(f"ffmpeg failed (exit {r.returncode}); filter graph: {graph}\n" + "\n".join(r.stderr.strip().splitlines()[-8:]))
     print(f"{out}: {total:.1f} s from {len(labels)} segments")
 
 

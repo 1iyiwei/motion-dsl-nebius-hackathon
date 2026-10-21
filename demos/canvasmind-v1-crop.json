@@ -1,0 +1,91 @@
+{
+ "sources": {
+  "W": "canvas-mind.mp4"
+ },
+ "size": [
+  1920,
+  1080
+ ],
+ "fps": 30,
+ "background": "0x0f1115",
+ "segments": [
+  {
+   "src": "W",
+   "in": 0,
+   "out": 75,
+   "note": "start",
+   "crop": "tg"
+  },
+  {
+   "src": "W",
+   "in": 104,
+   "out": 121,
+   "note": "first coffee result",
+   "crop": "tg"
+  },
+  {
+   "src": "W",
+   "in": 155,
+   "out": 171,
+   "note": "sunrise",
+   "crop": "tg"
+  },
+  {
+   "src": "W",
+   "in": 180,
+   "out": 199,
+   "note": "review",
+   "crop": "tg"
+  },
+  {
+   "src": "W",
+   "in": 254,
+   "out": 305,
+   "note": "sunrise animation",
+   "crop": "tg"
+  },
+  {
+   "src": "W",
+   "in": 317,
+   "out": 345,
+   "note": "slow coffee",
+   "crop": "tg"
+  },
+  {
+   "src": "W",
+   "in": 370,
+   "out": 388,
+   "note": "good slow coffee",
+   "crop": "tg"
+  },
+  {
+   "src": "W",
+   "in": 435,
+   "out": 475,
+   "note": "my art style",
+   "crop": "tg"
+  },
+  {
+   "src": "W",
+   "in": 485,
+   "out": 502,
+   "note": "ask for digest",
+   "crop": "tg"
+  },
+  {
+   "src": "W",
+   "in": 565,
+   "out": 625,
+   "note": "digest back",
+   "crop": "tg"
+  }
+ ],
+ "crops": {
+  "tg": [
+   1040,
+   88,
+   872,
+   664
+  ]
+ }
+}
