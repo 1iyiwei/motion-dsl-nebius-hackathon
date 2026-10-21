@@ -1,0 +1,36 @@
+{
+ "sources": {"W": "motion-harness-wobble.mp4", "C": "motion-harness-claude.mp4"},
+ "size": [1920, 1080], "fps": 30, "background": "0x0f1115",
+ "crops": {
+  "ui": [8, 118, 1600, 900],
+  "wide": [0, 118, 1712, 963],
+  "term": [828, 248, 880, 495]
+ },
+ "segments": [
+  {"src": "W", "in": 1.4, "out": 13.3, "crop": "ui", "caption": "MotionHarness: a coding agent that extends MotionLang", "note": "intro; 'this is the user interface'"},
+  {"src": "W", "in": 13.7, "out": 25.5, "crop": "ui", "note": "text box: 'add a new verb like this'"},
+  {"src": "W", "in": 25.9, "out": 35.6, "crop": "ui", "note": "green button: the agent generates and tests"},
+  {"src": "W", "in": 36.3, "out": 46.9, "crop": "ui", "note": "three parallel candidates in separate sandboxes; yellow = running"},
+  {"src": "W", "in": 51.3, "out": 57.2, "crop": "ui", "note": "green = passed, red = failed"},
+  {"src": "W", "in": 59.4, "out": 62.8, "crop": "ui", "note": "'one candidate for evaluation'"},
+  {"src": "W", "in": 62.8, "out": 82.8, "speed": 5, "crop": "ui", "note": "the run finishes (repairs, critique)"},
+  {"src": "W", "in": 82.8, "out": 87.3, "crop": "ui", "note": "'we have a result; test using this new verb'"},
+  {"src": "W", "in": 99.9, "out": 112.3, "crop": "ui", "note": "types: a ball falls from the sky and wobbles on its way"},
+  {"src": "W", "in": 114.8, "out": 126.0, "crop": "ui", "note": "compare with the new verb vs core verbs only"},
+  {"src": "W", "in": 132.9, "out": 144.1, "crop": "ui", "note": "model calls: bigger model plans, lighter models for easier tasks"},
+  {"src": "W", "in": 146.6, "out": 149.8, "crop": "ui", "note": "the agent log"},
+  {"src": "W", "in": 241.0, "out": 263.1, "speed": 4, "crop": "ui", "note": "second scene trial plans both sides (the first trial, 2:30-4:03, is cut)"},
+  {"src": "W", "in": 263.1, "out": 274.9, "crop": "ui", "note": "'the wobble on the left matches the description better'"},
+  {"src": "C", "in": 0.4, "out": 8.6, "crop": "wide", "masks": [[832, 276, 860, 92]], "caption": "Claude Code using MotionHarness as an MCP tool", "note": "'apply this MotionHarness MCP to Claude Code'"},
+  {"src": "C", "in": 11.8, "out": 16.0, "crop": "term", "masks": [[832, 276, 860, 92]], "note": "claude mcp add"},
+  {"src": "C", "in": 21.8, "out": 27.9, "crop": "term", "masks": [[832, 276, 860, 92]], "note": "claude mcp list"},
+  {"src": "C", "in": 58.5, "out": 62.5, "crop": "term", "note": "'motionharness is listed'"},
+  {"src": "C", "in": 63.5, "out": 66.2, "crop": "term", "note": "'now let's run it'"},
+  {"src": "C", "in": 68.8, "out": 72.8, "crop": "term", "note": "start Claude Code"},
+  {"src": "C", "in": 77.4, "out": 87.7, "crop": "term", "note": "types: use the motionharness tool to add a wobble verb"},
+  {"src": "C", "in": 87.7, "out": 201.9, "speed": 16, "crop": "term", "note": "the MCP run"},
+  {"src": "C", "in": 202.0, "out": 204.0, "crop": "term", "note": "'we got the results back'"},
+  {"src": "C", "in": 208.4, "out": 219.0, "crop": "term", "note": "Claude reports the run: tests, critique, plugin path"},
+  {"src": "C", "in": 228.5, "out": 229.6, "crop": "term", "note": "'thank you'"}
+ ]
+}

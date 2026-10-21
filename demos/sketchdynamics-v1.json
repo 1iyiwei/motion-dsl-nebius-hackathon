@@ -1,0 +1,21 @@
+[
+ ["M", 0.0, 12.6, "hook: wind turbine; 'design motion without any keyframes'"],
+ ["M", 13.4, 17.3, "'Let's start with a simple example with an empty canvas.'"],
+ ["M", 24.1, 38.7, "dictation: red ball + blue square"],
+ ["M", 92.5, 96.9, "'here is the resulting motion'"],
+ ["M", 115.4, 134.1, "draw a stroke + dictate 'a ball rolls along the curve…'"],
+ ["M", 143.6, 147.1, "ball rolls; 'That's pretty nice'"],
+ ["M", 353.6, 375.6, "cloud bolt: load, VL groups, ungroup"],
+ ["M", 389.0, 402.2, "add a stroke, modify the prompt"],
+ ["M", 417.3, 419.6, "'Generate the result. Now…'"],
+ ["M", 498.9, 504.8, "'…it's doing a self-repair based on one mistake it found by itself'"],
+ ["M", 576.8, 584.7, "cloud bolt result; 'follows the prompt and the motion path I drew'"],
+ ["S", 1.0, 8.9, "sunrise: import"],
+ ["S", 18.9, 25.3, "reads the suggested prompt"],
+ ["S", 28.2, 43.6, "edits it by voice; generate"],
+ ["S", 63.0, 72.6, "sunrise result"],
+ ["M", 707.5, 716.5, "gallery: heart"],
+ ["M", 719.5, 725.5, "gallery: ant on a drawn path"],
+ ["M", 728.0, 735.0, "gallery: snail"],
+ ["M", 737.3, 748.7, "gallery: LOVE letters; 'Thank you'"]
+]

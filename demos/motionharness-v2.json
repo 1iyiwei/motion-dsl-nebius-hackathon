@@ -1,0 +1,35 @@
+{
+ "sources": {"N": "motion-harness-wobble-nebius-sandbox.mp4", "C": "motion-harness-claude.mp4"},
+ "size": [1920, 1080], "fps": 30, "background": "0x0f1115",
+ "crops": {
+  "ui": [8, 118, 1600, 900],
+  "scene": [362, 620, 856, 482],
+  "term": [828, 248, 880, 495]
+ },
+ "segments": [
+  {"src": "N", "in": 0.9, "out": 10.4, "crop": "ui", "caption": "MotionHarness: a coding agent that extends MotionLang", "note": "intro; 'here is the user interface'"},
+  {"src": "N", "in": 11.4, "out": 25.3, "crop": "ui", "note": "types the task: a wobble verb, like jelly after landing"},
+  {"src": "N", "in": 26.5, "out": 35.7, "crop": "ui", "note": "press the button: agents write and evaluate proposals"},
+  {"src": "N", "in": 37.4, "out": 46.2, "crop": "ui", "caption": "every candidate runs in Nebius Token Factory Sandboxes", "note": "three separate sandboxes"},
+  {"src": "N", "in": 47.5, "out": 49.4, "crop": "ui", "note": "'the yellow boxes are running'"},
+  {"src": "N", "in": 49.4, "out": 73.1, "speed": 8, "crop": "ui", "note": "candidates run"},
+  {"src": "N", "in": 73.1, "out": 75.2, "crop": "ui", "note": "'the green ones are successful'"},
+  {"src": "N", "in": 81.9, "out": 84.3, "crop": "ui", "note": "'the red ones indicate failures'"},
+  {"src": "N", "in": 84.3, "out": 96.9, "speed": 8, "crop": "ui", "note": "repairs and critique"},
+  {"src": "N", "in": 96.9, "out": 112.4, "crop": "ui", "note": "agent log; model calls with latency and tokens"},
+  {"src": "N", "in": 112.4, "out": 135.6, "speed": 8, "crop": "ui", "note": "the run finishes"},
+  {"src": "N", "in": 135.6, "out": 148.2, "crop": "ui", "note": "'c1 looks good, shipped as the final version; now we can give it a try'"},
+  {"src": "N", "in": 154.4, "out": 167.3, "crop": "ui", "note": "types: a ball falls from the sky, hits the ground, and wobbles"},
+  {"src": "N", "in": 171.1, "out": 185.4, "crop": "ui", "note": "'compare the new verb with the core library'"},
+  {"src": "N", "in": 185.9, "out": 222.4, "speed": 8, "crop": "ui", "note": "both sides plan (core-only first, same cast)"},
+  {"src": "N", "in": 222.4, "out": 237.5, "crop": "scene", "note": "'without it the ball doesn't really wobble; the left shows a lively wobble'"},
+  {"src": "C", "in": 0.4, "out": 8.6, "crop": "term", "masks": [[832, 276, 860, 92]], "caption": "Claude Code using MotionHarness as an MCP tool", "note": "'apply this MotionHarness MCP to Claude Code'"},
+  {"src": "C", "in": 11.8, "out": 16.0, "crop": "term", "masks": [[832, 276, 860, 92]], "note": "claude mcp add"},
+  {"src": "C", "in": 68.8, "out": 72.8, "crop": "term", "note": "start Claude Code"},
+  {"src": "C", "in": 77.4, "out": 87.7, "crop": "term", "note": "types: use the motionharness tool to add a wobble verb"},
+  {"src": "C", "in": 87.7, "out": 201.9, "speed": 16, "crop": "term", "note": "the MCP run"},
+  {"src": "C", "in": 202.0, "out": 204.0, "crop": "term", "note": "'we got the results back'"},
+  {"src": "C", "in": 208.4, "out": 219.0, "crop": "term", "note": "Claude reports the run: tests, critique, plugin path"},
+  {"src": "C", "in": 228.5, "out": 229.6, "crop": "term", "note": "'thank you'"}
+ ]
+}

@@ -1,7 +1,7 @@
 """Render an edit list into a demo video.
 
     uv run python demos/render.py demos/motionharness-v1.json demos/motionharness_demo_v1.mp4
-    python3 demos/render.py demos/edit-v1.json demos/sketchdynamics_demo_v1.mp4      # the original list format
+    python3 demos/render.py demos/sketchdynamics-v1.json demos/sketchdynamics_demo_v1.mp4      # the original list format
 
 An edit list is a JSON object (paths are relative to the edit list's folder):
 
