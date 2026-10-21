@@ -34,8 +34,11 @@ NemoClaw only lets a Hermes sandbox reach MCP servers over **HTTPS with a certif
 ### Where it runs
 
 - **Development and the video:** the user's MacBook (M5, 48 GB), Docker Desktop.
-- **Judging (Dec 1–15):** decide around Nov 25: keep the Mac awake and plugged in, or move only the demo sandbox to a Nebius 4 vCPU / 16 GB CPU VM for those two weeks (~$36; hackathon credits cover Token Factory only, not VMs). The demo bot's Telegram handle doesn't change with the host, so the Devpost entry doesn't depend on this.
-- Setup is one script that works on macOS and Linux, so moving to a VM is "run the script, copy `~/CanvasMind/`".
+- **Judging (Dec 1–15):** decide around Nov 25: keep the Mac awake and plugged in, or move to **any cloud Linux VM** for those two weeks. Hackathon credits cover Token Factory only, not VMs, so the provider is picked on price and convenience.
+  - Requirements: root, Docker, a long-running process, outbound HTTPS; ideally 8 GB RAM (4 GB minimum) for Docker plus two OpenShell sandboxes.
+  - Candidates: a Nebius CPU VM (~$72/month for 4 vCPU / 16 GB, about $36 for two weeks; nicest "all on Nebius" story), DreamHost DreamCompute, or any other VPS. DreamHost shared hosting and managed VPS don't qualify (no Docker or root); at most they could host the static studio page.
+  - The demo bot's Telegram handle doesn't change with the host, and the studio page lives on its own host, so the Devpost entry doesn't depend on this.
+- Setup is one script that works on macOS and Linux and assumes nothing provider-specific, so moving is "run the script, copy `~/CanvasMind/`, join the tailnet".
 
 ## Spike (Oct 21 morning, 4 hours)
 
@@ -56,10 +59,29 @@ What it installs (read Oct 20): clones `github.com/NVIDIA/NemoClaw` at ref `lkg`
 
 Outcomes:
 - All pass → full stack.
-- 1–3 pass, 4 fails → host the canvasmind MCP somewhere with a public HTTPS cert (Nebius Serverless endpoint or a small VM), with the bearer token.
+- 1–3 pass, 4 fails → host the canvasmind MCP somewhere with a public HTTPS cert (Nebius Serverless endpoint or any small VM with a domain + Let's Encrypt), with the bearer token.
 - 1–2 fail → **fallback**: plain Hermes Agent on the Mac (Nous installer) pointed at Token Factory, canvasmind MCP over stdio. No OpenShell, so privacy rests on canvasmind's folder allowlist and keeping keys out of the agent. Later dates don't move.
 
 Log every friction point in `docs/token-factory-feedback.md` (NemoClaw/OpenShell entries count too).
+
+### Spike results (Oct 21): all four steps pass → full stack
+
+| # | Result |
+| --- | --- |
+| 1 | NemoClaw v0.0.135 + OpenShell 0.0.116 (Homebrew) installed in 78 s. The installer needs `NEMOCLAW_ACCEPT_THIRD_PARTY_SOFTWARE=1` even with `--defer-onboarding` when there is no TTY. |
+| 2 | Non-interactive onboarding with `NEMOCLAW_PROVIDER=custom`, `NEMOCLAW_ENDPOINT_URL=https://api.tokenfactory.nebius.com/v1`, `NEMOCLAW_MODEL=nvidia/nemotron-3-super-120b-a12b`, `COMPATIBLE_API_KEY` → Hermes Agent v0.21.3 in sandbox `canvasmind`. Hermes ran a terminal tool via Nemotron. Its API is `http://127.0.0.1:8642/v1` (bearer from `nemohermes canvasmind gateway-token --quiet`; `nemohermes canvasmind recover` restores the forward). |
+| 3 | Telegram (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_IDS` from `.env`) round-trips from the phone (bot `@kub1ai_bot`). |
+| 4 | Toy FastMCP server on `127.0.0.1:8770`, `tailscale serve --bg --https=443 http://127.0.0.1:8770` → `https://liyiwei-m5.taileef945.ts.net/mcp`. `nemohermes canvasmind mcp add canvasmind --url … --env CANVASMIND_MCP_TOKEN --trusted-private-host liyiwei-m5.taileef945.ts.net` verified the credential on the wire; Hermes called `ping` and returned its output. |
+
+Gotchas for the real server:
+- The MCP SDK's DNS-rebinding guard rejects the tailnet hostname until it is in `TransportSecuritySettings(allowed_hosts=[…])`.
+- Bearer check as a thin ASGI wrapper around `streamable_http_app()`.
+
+Follow-ups:
+- **Token cost**: a Hermes turn costs 23k prompt tokens, and 35k once the MCP tool list is loaded (Hermes's own system prompt and toolset). Trim Hermes toolsets we don't need, and keep canvasmind's tool descriptions short.
+- **Egress**: onboarding enabled npm, pypi, huggingface and brew presets too; remove them for mitigation 1 (`nemohermes canvasmind policy remove`).
+- **Docker** is flagged as under-provisioned at 8 GB; raise it to 16 GB before adding the demo sandbox.
+- `--deny-tool` the admin tools (`forget`, `export`) on the public demo sandbox.
 
 ## Data, memory and privacy
 
@@ -146,7 +168,7 @@ Channel: Telegram (the only stable NemoClaw channel that strangers can use with 
 | Tue Oct 28 | Submit; tag `canvasmind-submitted` |
 | Wed Oct 29 | Buffer for any project |
 | Thu Oct 30, 10:00 PT | Deadline |
-| ~Nov 25 | Decide the judging host (Mac vs a VM for Dec 1–15) |
+| ~Nov 25 | Decide the judging host (Mac vs a cloud VM for Dec 1–15) |
 
 Cut lines, in order: drop `new_verb` and mitigations 2/3 → drop the studio page → digest becomes a manual `/digest` with no cron. Never cut the video.
 

@@ -82,3 +82,23 @@ Add an entry when something surprises us. Include the date, what happened, and t
   would make this diagnosable.
 - **SDK details**: `run()` returns `uuid` as a `uuid.UUID`, not `str` (it breaks `json.dumps` of saved ids); the
   documented `files.upload_bytes_file` doesn't exist in contree-sdk 0.3.6 (only `files.upload`).
+
+## 2026-10-21 (CanvasMind)
+
+- **Function calling** (OpenAI `tools`): Super-120B, Nano-30B and Ultra-550B each returned a correct `recall({"query": "sunrise logo"})`
+  tool call on the first try, both plain and streamed (tool-call deltas assemble cleanly), in 0.7–2.2 s. That's the main thing an agent
+  framework such as Hermes needs, and it worked out of the box. Function calling isn't featured in the hackathon quick-start; a one-line
+  "tools work on all Nemotron models" note would save agent builders a probe.
+- **NemoClaw + Token Factory**: NemoClaw's "Other OpenAI-compatible endpoint" path (`NEMOCLAW_PROVIDER=custom`, `NEMOCLAW_ENDPOINT_URL`,
+  `NEMOCLAW_MODEL`, `COMPATIBLE_API_KEY`) is how Token Factory plugs in; there is no Token Factory preset in the provider menu. The
+  variable names are documented only in the NemoClaw repo docs (`docs/inference/set-up-openai-compatible-endpoint.mdx`), not on the hosted
+  Hermes pages we found first.
+- **NemoClaw spike (NVIDIA side)**: install + non-interactive Hermes onboarding against Token Factory worked on Apple silicon on
+  the first real try (78 s install; sandbox build a few minutes). Friction points: the installer needs
+  `NEMOCLAW_ACCEPT_THIRD_PARTY_SOFTWARE=1` even with `--defer-onboarding` in a non-TTY; onboarding silently adds npm/pypi/huggingface/brew
+  egress presets that a privacy-focused assistant doesn't need; `nemohermes <name> agent` doesn't work for Hermes (you're told to POST to
+  its OpenAI API on 8642 instead). Hermes turns cost 23–35k prompt tokens on Nemotron Super, because the agent's own system prompt and
+  tool list are large, which makes prompt caching on Token Factory matter for personal agents.
+- **MCP through OpenShell**: a host MCP server must be HTTPS with a publicly trusted certificate (localhost/host.docker.internal are
+  rejected). Tailscale's `serve` (ts.net cert, CGNAT address) + `--trusted-private-host` was a clean way to do that, and OpenShell injects
+  the bearer token at egress, so the sandbox never holds it.
