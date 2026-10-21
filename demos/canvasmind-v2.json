@@ -1,0 +1,173 @@
+{
+ "sources": {
+  "W": "canvas-mind.mp4"
+ },
+ "size": [
+  1920,
+  1080
+ ],
+ "fps": 30,
+ "background": "0x0f1115",
+ "segments": [
+  {
+   "src": "W",
+   "in": 14,
+   "out": 28,
+   "note": "send the logo",
+   "caption": "Drop an SVG into the chat: “file this for our café rebranding”"
+  },
+  {
+   "src": "W",
+   "in": 28,
+   "out": 45,
+   "note": "upload + file",
+   "speed": 4
+  },
+  {
+   "src": "W",
+   "in": 45,
+   "out": 52,
+   "note": "filed",
+   "caption": "Filed in my private library, on my own machine"
+  },
+  {
+   "src": "W",
+   "in": 54,
+   "out": 75,
+   "note": "typing: animate it",
+   "speed": 6
+  },
+  {
+   "src": "W",
+   "in": 75,
+   "out": 107,
+   "note": "animate (planner)",
+   "speed": 8
+  },
+  {
+   "src": "W",
+   "in": 107,
+   "out": 117,
+   "note": "first coffee GIF",
+   "caption": "Animated in my style: “enter + hold, liked in 3 of 5”"
+  },
+  {
+   "src": "W",
+   "in": 160,
+   "out": 175,
+   "note": "typing: the sunrise from earlier + recall",
+   "speed": 5
+  },
+  {
+   "src": "W",
+   "in": 176,
+   "out": 185,
+   "note": "recall",
+   "caption": "Recall: the sunrise animation from last week"
+  },
+  {
+   "src": "W",
+   "in": 186,
+   "out": 266,
+   "note": "make the sunrise a GIF (sped through)",
+   "speed": 16
+  },
+  {
+   "src": "W",
+   "in": 268,
+   "out": 278,
+   "note": "sunrise GIF",
+   "caption": "“draw_on → enter → hold, liked in 4 of 6”"
+  },
+  {
+   "src": "W",
+   "in": 280,
+   "out": 305,
+   "note": "typing: make the coffee as slow as this",
+   "speed": 6
+  },
+  {
+   "src": "W",
+   "in": 305,
+   "out": 324,
+   "note": "tweak",
+   "speed": 6
+  },
+  {
+   "src": "W",
+   "in": 324,
+   "out": 333,
+   "note": "slower coffee"
+  },
+  {
+   "src": "W",
+   "in": 345,
+   "out": 370,
+   "note": "typing: steam only, cup stationary",
+   "speed": 6
+  },
+  {
+   "src": "W",
+   "in": 370,
+   "out": 378,
+   "note": "tweak",
+   "speed": 4
+  },
+  {
+   "src": "W",
+   "in": 378,
+   "out": 388,
+   "note": "steam-only coffee",
+   "caption": "“Only the steam rises; the cup stays still”"
+  },
+  {
+   "src": "W",
+   "in": 390,
+   "out": 428,
+   "note": "typing: best one so far",
+   "speed": 7
+  },
+  {
+   "src": "W",
+   "in": 429,
+   "out": 438,
+   "note": "feedback recorded",
+   "caption": "👍 + reason → my style profile"
+  },
+  {
+   "src": "W",
+   "in": 440,
+   "out": 465,
+   "note": "typing: what is my style?",
+   "speed": 6
+  },
+  {
+   "src": "W",
+   "in": 465,
+   "out": 479,
+   "note": "style answer",
+   "caption": "What it has learned about my motion style"
+  },
+  {
+   "src": "W",
+   "in": 485,
+   "out": 505,
+   "note": "typing: digest",
+   "speed": 5
+  },
+  {
+   "src": "W",
+   "in": 505,
+   "out": 570,
+   "note": "digest (Tavily + Nemotron)",
+   "speed": 10
+  },
+  {
+   "src": "W",
+   "in": 576,
+   "out": 596,
+   "note": "digest + draft",
+   "caption": "Weekly digest: web trends picked for my style, plus a draft animation"
+  }
+ ]
+}
