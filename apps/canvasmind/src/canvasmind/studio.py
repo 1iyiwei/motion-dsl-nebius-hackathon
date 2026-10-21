@@ -40,7 +40,9 @@ class Studio:
                  fetch: Callable[[str], tuple[bytes, str, str]] | None = None):
         self.lib = library
         self.make_llm = llm_factory
-        self.watch = [Path(p).expanduser().resolve() for p in (watch or [])]
+        # a watched path ending in /** is scanned recursively; ~/CanvasMind/inbox is always watched
+        self.watch = [(Path(str(p).removesuffix("/**")).expanduser().resolve(), str(p).endswith("/**")) for p in (watch or [])]
+        self.watch.insert(0, (self.lib.home / "inbox", False))
         self.fetch = fetch or fetch_url
         self.uploads = self.lib.home / ".uploads"
         self.style = Style(self.lib.home)
@@ -145,10 +147,10 @@ class Studio:
     def scan(self, limit: int = 50) -> dict:
         """File new work from the watched folders (CANVASMIND_WATCH). Paths never come from the agent."""
         filed, skipped, errors = [], 0, []
-        for root in self.watch:
+        for root, recursive in self.watch:
             if not root.is_dir():
                 continue
-            for p in sorted(root.rglob("*"), key=lambda q: q.stat().st_mtime if q.is_file() else 0, reverse=True):
+            for p in sorted(root.rglob("*") if recursive else root.glob("*"), key=lambda q: q.stat().st_mtime if q.is_file() else 0, reverse=True):
                 if len(filed) >= limit:
                     break
                 if not p.is_file() or p.name.startswith(".") or not media.kind_of(p.name):
@@ -179,6 +181,31 @@ class Studio:
         if item.kind != "motion":
             raise ValueError(f"{item_id} is not an animation; feedback is for animations CanvasMind made")
         return self.style.record(item_id, verdict, why, item.facts, self.make_llm())
+
+    def digest(self, draft: bool = True):
+        from . import digest
+
+        return digest.make(self, draft=draft)
+
+    # --- your data -----------------------------------------------------------------------------------------
+
+    def forget(self, item_id: str) -> dict:
+        """Delete an item and its files, and its feedback (the style profile is recounted without it)."""
+        item = self.lib.remove(item_id)
+        return {"forgotten": item.brief(), "feedback_removed": self.style.forget(item_id)}
+
+    def export(self) -> Path:
+        """Everything CanvasMind keeps, as one zip under ~/CanvasMind/exports/."""
+        import shutil
+        import tempfile
+
+        out_dir = self.lib.home / "exports"
+        out_dir.mkdir(exist_ok=True)
+        self.lib.db.commit()
+        with tempfile.TemporaryDirectory() as tmp:
+            stage = Path(tmp) / "canvasmind"
+            shutil.copytree(self.lib.home, stage, ignore=shutil.ignore_patterns("exports", ".uploads", "*.sqlite-*"))
+            return Path(shutil.make_archive(str(out_dir / time.strftime("canvasmind-%Y%m%d-%H%M%S")), "zip", tmp))
 
     # --- recall -------------------------------------------------------------------------------------------
 

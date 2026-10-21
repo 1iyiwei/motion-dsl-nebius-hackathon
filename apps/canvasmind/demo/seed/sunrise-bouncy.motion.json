@@ -1,0 +1,400 @@
+{
+ "motion": "0.1",
+ "canvas": {
+  "width": 720,
+  "height": 720,
+  "background": "#ffffff",
+  "fps": 30
+ },
+ "strokes": {},
+ "assets": {
+  "disc": {
+   "kind": "path",
+   "d": "M188.64,432.83 C188.64,338.19 265.36,261.47 360,261.47 C454.64,261.47 531.36,338.19 531.36,432.83 Z",
+   "fill": "#f4a259",
+   "label": "sun disc",
+   "meta": {
+    "source": "disc"
+   },
+   "bbox": [
+    188.64,
+    261.47,
+    342.72,
+    171.36
+   ]
+  },
+  "ray1": {
+   "kind": "path",
+   "d": "M150.66,356.57 L86.4,333.15",
+   "stroke": "#f4a259",
+   "stroke_width": 22.85,
+   "label": "left ray",
+   "meta": {
+    "source": "ray1"
+   },
+   "bbox": [
+    86.4,
+    333.15,
+    64.26,
+    23.42
+   ]
+  },
+  "ray2": {
+   "kind": "path",
+   "d": "M232.34,250.33 L192.93,194.07",
+   "stroke": "#f4a259",
+   "stroke_width": 22.85,
+   "label": "upper left ray",
+   "meta": {
+    "source": "ray2"
+   },
+   "bbox": [
+    192.93,
+    194.07,
+    39.41,
+    56.26
+   ]
+  },
+  "ray3": {
+   "kind": "path",
+   "d": "M360,210.06 L360,141.52",
+   "stroke": "#f4a259",
+   "stroke_width": 22.85,
+   "label": "top ray",
+   "meta": {
+    "source": "ray3"
+   },
+   "bbox": [
+    360.0,
+    141.52,
+    0.0,
+    68.54
+   ]
+  },
+  "ray4": {
+   "kind": "path",
+   "d": "M487.66,250.33 L527.07,194.07",
+   "stroke": "#f4a259",
+   "stroke_width": 22.85,
+   "label": "upper right ray",
+   "meta": {
+    "source": "ray4"
+   },
+   "bbox": [
+    487.66,
+    194.07,
+    39.41,
+    56.26
+   ]
+  },
+  "ray5": {
+   "kind": "path",
+   "d": "M569.34,356.57 L633.6,333.15",
+   "stroke": "#f4a259",
+   "stroke_width": 22.85,
+   "label": "right ray",
+   "meta": {
+    "source": "ray5"
+   },
+   "bbox": [
+    569.34,
+    333.15,
+    64.26,
+    23.42
+   ]
+  },
+  "wave1": {
+   "kind": "path",
+   "d": "M102.96,489.95 Q188.64,449.96 274.32,489.95 Q360,529.93 445.68,489.95 Q531.36,449.96 617.04,489.95",
+   "stroke": "#2e86ab",
+   "stroke_width": 22.85,
+   "label": "top wave",
+   "meta": {
+    "source": "wave1"
+   },
+   "bbox": [
+    102.96,
+    469.95,
+    514.08,
+    39.99
+   ]
+  },
+  "wave2": {
+   "kind": "path",
+   "d": "M160.08,558.49 Q245.76,518.51 331.44,558.49 Q417.12,598.47 502.8,558.49 Q588.48,518.51 588.48,552.78",
+   "stroke": "#2e86ab",
+   "stroke_width": 22.85,
+   "label": "bottom wave",
+   "meta": {
+    "source": "wave2"
+   },
+   "bbox": [
+    160.08,
+    536.96,
+    428.4,
+    41.52
+   ]
+  }
+ },
+ "actors": [
+  {
+   "id": "logo",
+   "shape": {
+    "kind": "group"
+   },
+   "init": {
+    "x": 360.0,
+    "y": 360.0
+   }
+  },
+  {
+   "id": "sun",
+   "shape": {
+    "kind": "group"
+   },
+   "init": {
+    "x": 0.0,
+    "y": -12.85
+   },
+   "parent": "logo"
+  },
+  {
+   "id": "disc",
+   "shape": {
+    "kind": "asset",
+    "ref": "disc"
+   },
+   "style": {
+    "fill": "#f4a259"
+   },
+   "parent": "sun",
+   "z": 0,
+   "init": {
+    "x": 0.0,
+    "y": 0.0
+   }
+  },
+  {
+   "id": "rays",
+   "shape": {
+    "kind": "group"
+   },
+   "init": {
+    "x": 0.0,
+    "y": -110.95
+   },
+   "parent": "logo"
+  },
+  {
+   "id": "ray1",
+   "shape": {
+    "kind": "asset",
+    "ref": "ray1"
+   },
+   "style": {
+    "stroke": "#f4a259",
+    "stroke_width": 4
+   },
+   "parent": "rays",
+   "z": 0,
+   "init": {
+    "x": -241.47,
+    "y": 95.81
+   }
+  },
+  {
+   "id": "ray2",
+   "shape": {
+    "kind": "asset",
+    "ref": "ray2"
+   },
+   "style": {
+    "stroke": "#f4a259",
+    "stroke_width": 4
+   },
+   "parent": "rays",
+   "z": 0,
+   "init": {
+    "x": -147.37,
+    "y": -26.85
+   }
+  },
+  {
+   "id": "ray3",
+   "shape": {
+    "kind": "asset",
+    "ref": "ray3"
+   },
+   "style": {
+    "stroke": "#f4a259",
+    "stroke_width": 4
+   },
+   "parent": "rays",
+   "z": 0,
+   "init": {
+    "x": 0.0,
+    "y": -73.25
+   }
+  },
+  {
+   "id": "ray4",
+   "shape": {
+    "kind": "asset",
+    "ref": "ray4"
+   },
+   "style": {
+    "stroke": "#f4a259",
+    "stroke_width": 4
+   },
+   "parent": "rays",
+   "z": 0,
+   "init": {
+    "x": 147.37,
+    "y": -26.85
+   }
+  },
+  {
+   "id": "ray5",
+   "shape": {
+    "kind": "asset",
+    "ref": "ray5"
+   },
+   "style": {
+    "stroke": "#f4a259",
+    "stroke_width": 4
+   },
+   "parent": "rays",
+   "z": 0,
+   "init": {
+    "x": 241.47,
+    "y": 95.81
+   }
+  },
+  {
+   "id": "sea",
+   "shape": {
+    "kind": "group"
+   },
+   "init": {
+    "x": 0.0,
+    "y": 164.22
+   },
+   "parent": "logo"
+  },
+  {
+   "id": "wave1",
+   "shape": {
+    "kind": "asset",
+    "ref": "wave1"
+   },
+   "style": {
+    "stroke": "#2e86ab",
+    "stroke_width": 4
+   },
+   "parent": "sea",
+   "z": 0,
+   "init": {
+    "x": 0.0,
+    "y": -34.27
+   }
+  },
+  {
+   "id": "wave2",
+   "shape": {
+    "kind": "asset",
+    "ref": "wave2"
+   },
+   "style": {
+    "stroke": "#2e86ab",
+    "stroke_width": 4
+   },
+   "parent": "sea",
+   "z": 0,
+   "init": {
+    "x": 14.28,
+    "y": 33.5
+   }
+  }
+ ],
+ "timeline": {
+  "id": "root",
+  "par": [
+   {
+    "id": "b1",
+    "verb": "enter",
+    "actor": "disc",
+    "from": "bottom",
+    "duration": 0.5
+   },
+   {
+    "id": "b2",
+    "verb": "enter",
+    "actor": "ray1",
+    "from": "bottom",
+    "duration": 0.4
+   },
+   {
+    "id": "b3",
+    "verb": "enter",
+    "actor": "ray2",
+    "from": "bottom",
+    "duration": 0.4
+   },
+   {
+    "id": "b4",
+    "verb": "enter",
+    "actor": "ray3",
+    "from": "bottom",
+    "duration": 0.4
+   },
+   {
+    "id": "b5",
+    "verb": "enter",
+    "actor": "ray4",
+    "from": "bottom",
+    "duration": 0.4
+   },
+   {
+    "id": "b6",
+    "verb": "enter",
+    "actor": "ray5",
+    "from": "bottom",
+    "duration": 0.4
+   },
+   {
+    "id": "b7",
+    "verb": "wiggle",
+    "actor": "wave1",
+    "amplitude": 30,
+    "frequency": 5,
+    "props": [
+     "x",
+     "y"
+    ],
+    "seed": 0
+   },
+   {
+    "id": "b8",
+    "verb": "wiggle",
+    "actor": "wave2",
+    "amplitude": 30,
+    "frequency": 5,
+    "props": [
+     "x",
+     "y"
+    ],
+    "seed": 1
+   }
+  ]
+ },
+ "constraints": [
+  {
+   "type": "in_bounds",
+   "margin": 8
+  }
+ ],
+ "meta": {
+  "intent": "everything bounces in fast: sun drops with overshoot, rays pop with elastic bounce, waves wiggle hard",
+  "title": "Logo Bounce In"
+ }
+}

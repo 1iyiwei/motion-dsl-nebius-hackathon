@@ -152,9 +152,20 @@ def test_scan_files_watched_folders_once(studio, tmp_path):
     w.mkdir()
     (w / "star.png").write_bytes(png_bytes("yellow"))
     (w / "readme.txt").write_text("skip me")
-    studio.watch = [w]
-    assert [f["title"] for f in studio.scan()["filed"]] == ["star artwork"]
+    (w / "deep").mkdir()
+    (w / "deep" / "moon.png").write_bytes(png_bytes("white"))
+    studio.watch = [(w, False)]
+    assert [f["title"] for f in studio.scan()["filed"]] == ["star artwork"]  # not recursive
     assert studio.scan()["already_filed"] == 1
+    studio.watch = [(w, True)]
+    assert [f["title"] for f in studio.scan()["filed"]] == ["moon artwork"]
+
+
+def test_inbox_is_always_watched(tmp_path):
+    s = Studio(Library(tmp_path / "home"), llm_factory=lambda: LLM(FakeBackend()), watch=[str(tmp_path / "x") + "/**"])
+    assert s.watch[0] == (tmp_path / "home" / "inbox", False) and s.watch[1][1] is True
+    (tmp_path / "home" / "inbox" / "leaf.png").write_bytes(png_bytes("green"))
+    assert [f["title"] for f in s.scan()["filed"]] == ["leaf artwork"]
 
 
 def test_item_ids_cannot_escape_the_library(studio):
@@ -197,7 +208,8 @@ def test_mcp_refuses_to_start_without_a_token(studio):
 def test_mcp_tools_and_upload_flow(client, studio):
     _, res = rpc(client, "tools/list")
     names = {t["name"] for t in res["result"]["tools"]}
-    assert names == {"file_link", "recall", "show", "studio_status", "scan_studio", "animate", "tweak", "feedback", "style_profile"}  # upload tools callable but unlisted
+    assert names == {"file_link", "recall", "show", "studio_status", "scan_studio", "animate", "tweak", "feedback",
+                     "style_profile", "digest", "forget", "export"}  # upload tools callable but unlisted
     _, init = rpc(client, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
                                          "clientInfo": {"name": "t", "version": "0"}})
     caps = init["result"]["capabilities"]
@@ -343,3 +355,39 @@ def test_slower_tweak_skips_the_model(astudio):
     n = len(astudio.backend.seen)
     v2 = astudio.tweak(v1.id, "slower").item
     assert len(astudio.backend.seen) == n and v2.facts["seconds"] > v1.facts["seconds"]
+
+
+def test_forget_removes_files_search_and_feedback(astudio):
+    logo = astudio.file_bytes(LOGO.encode(), "sunrise.svg").item
+    anim = astudio.animate(logo.id, "spin the sun").item
+    astudio.feedback(anim.id, "like", "")
+    out = astudio.forget(anim.id)
+    assert out["feedback_removed"] == 1 and astudio.style.profile()["likes"] == 0
+    assert not astudio.lib.dir(anim.id).exists()
+    with pytest.raises(KeyError):
+        astudio.lib.get(anim.id)
+    assert [i.id for i in astudio.lib.search("animation")] == []
+
+
+def test_export_zips_the_library(astudio):
+    import zipfile
+
+    astudio.file_bytes(png_bytes(), "a.png")
+    path = astudio.export()
+    names = zipfile.ZipFile(path).namelist()
+    assert any(n.endswith("library.sqlite") for n in names) and any(n.endswith("original.png") for n in names)
+    assert not any("exports/" in n for n in names)
+
+
+def test_demo_reset_files_fixtures_and_seeds_style(tmp_path):
+    from canvasmind.demo import DEFAULT_FIXTURES, reset
+
+    home = tmp_path / "home"
+    old = Studio(Library(home), llm_factory=lambda: LLM(FakeBackend()))
+    old.file_bytes(png_bytes(), "old.png")
+    out = reset(home, DEFAULT_FIXTURES, lambda h: Studio(Library(h), llm_factory=lambda: LLM(FakeBackend())))
+    assert out["backup"] and (Path(out["backup"]) / "library.sqlite").exists()  # moved aside, not deleted
+    assert len(out["filed"]) == 5 and out["style"]["likes"] == 2 and out["style"]["dislikes"] == 1
+    lib = Library(home)
+    dates = sorted(i.created for i in lib.recent(10))
+    assert dates[0] < dates[-1] - 5 * 86400  # backdated, so "last week" means something

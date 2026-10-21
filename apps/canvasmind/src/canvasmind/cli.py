@@ -28,6 +28,9 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--limit", type=int, default=5)
     sub.add_parser("scan", help="file new work from CANVASMIND_WATCH folders")
     sub.add_parser("status", help="library counts and recent items")
+    d = sub.add_parser("demo-reset", help="move the library aside and file the demo fixtures (seeded style, backdated items)")
+    d.add_argument("--fixtures", type=Path)
+    d.add_argument("--yes", action="store_true", help="required: confirms moving the current library aside")
     h = sub.add_parser("hermes-setup", help="install the canvasmind skill and settings into a NemoClaw Hermes sandbox")
     h.add_argument("--sandbox", default="canvasmind")
     args = p.parse_args(argv)
@@ -66,6 +69,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if items else 1
     if args.cmd == "scan":
         print(json.dumps(studio.scan(), indent=1, ensure_ascii=False))
+        return 0
+    if args.cmd == "demo-reset":
+        from .demo import DEFAULT_FIXTURES, reset
+
+        if not args.yes:
+            print(f"This moves {cfg.home} to {cfg.home.name}.bak-<time> and files the demo fixtures. Rerun with --yes.")
+            return 1
+        studio.lib.db.close()
+        print(json.dumps(reset(cfg.home, args.fixtures or DEFAULT_FIXTURES), indent=1, ensure_ascii=False))
         return 0
     if args.cmd == "hermes-setup":
         from .hermes_setup import setup

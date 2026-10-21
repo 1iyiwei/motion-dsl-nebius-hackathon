@@ -46,6 +46,36 @@ print(json.dumps({"canvasmind_mcp": server is not None, "image_input_mode": "tex
 """
 
 
+DIGEST_PROMPT = ("Run this week's CanvasMind motion digest: call mcp__canvasmind__digest and send me its digest text "
+                 "and the GIF exactly as returned, with no extra commentary.")
+JOB_IDS = r"""
+import json, pathlib
+p = pathlib.Path("/sandbox/.hermes/cron/jobs.json")
+data = json.loads(p.read_text()) if p.exists() else {}
+jobs = data.get("jobs", data) if isinstance(data, dict) else data
+jobs = jobs.values() if isinstance(jobs, dict) else jobs
+print(json.dumps([j.get("id") for j in jobs if isinstance(j, dict) and str(j.get("name", "")).startswith("canvasmind-")]))
+"""
+
+
+def _cron(exec_: list[str], chat_id: str) -> list[str]:
+    """(Re)create the two CanvasMind jobs: the hourly studio scan (a script, no model, silent when nothing is new)
+    and the Monday 9:00 digest (an agent turn that calls the digest tool). Both deliver to the user's Telegram chat."""
+    hermes = exec_ + ["env", "HERMES_HOME=/sandbox/.hermes", "/usr/local/bin/hermes", "cron"]
+    out = _run(exec_ + ["/opt/hermes/.venv/bin/python", "-c", JOB_IDS])
+    for job_id in json.loads(next(line for line in out.splitlines() if line.startswith("["))):
+        _run(hermes + ["remove", job_id], check=False)
+    target = f"telegram:{chat_id}" if chat_id else "telegram"
+    _run(exec_ + ["sh", "-c", f"mkdir -p /sandbox/.hermes/scripts && cp {SKILL_DIR}/scripts/cm_scan.py /sandbox/.hermes/scripts/"])
+    _run(hermes + ["create", "every 1h", "--name", "canvasmind-studio-scan", "--no-agent", "--script", "cm_scan.py",
+                   "--deliver", target, "--failure-deliver", "local"])
+    import time
+
+    hour = (9 - round(-time.timezone / 3600 + (time.localtime().tm_isdst > 0))) % 24  # Hermes schedules in UTC
+    _run(hermes + ["create", f"0 {hour} * * 1", DIGEST_PROMPT, "--name", "canvasmind-digest", "--deliver", target])
+    return ["canvasmind-studio-scan (every 1h)", f"canvasmind-digest (Mon 09:00 local = {hour:02d}:00 UTC)"]
+
+
 def _run(cmd: list[str], *, check: bool = True) -> str:
     r = subprocess.run(cmd, capture_output=True, text=True)
     out = "\n".join(line for line in (r.stdout + r.stderr).splitlines() if "OCSF" not in line)
@@ -83,6 +113,9 @@ def setup(sandbox: str = "canvasmind", nemohermes: str = "nemohermes", openshell
 
     out = _run(exec_ + ["/opt/hermes/.venv/bin/python", "-c", PATCH, json.dumps(TOOLSETS)])
     result = json.loads(next(line for line in out.splitlines() if line.startswith("{")))
+    import os
+
+    result["cron"] = _cron(exec_, (os.environ.get("TELEGRAM_ALLOWED_IDS", "").split(",")[0]).strip())
     _run([nemohermes, sandbox, "gateway", "restart", "--quiet"])
     result["skill"] = SKILL_DIR
     result["plugin"] = PLUGIN_DIR

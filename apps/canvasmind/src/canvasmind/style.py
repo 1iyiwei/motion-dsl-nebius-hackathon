@@ -18,7 +18,9 @@ NOTES_PROMPT = """You keep a motion designer's style notes: short, durable prefe
 reveals, rhythm, length), each phrased as "prefers …" or "avoids …".
 Current notes: {notes}
 New feedback on an animation ({facts}): they {verdict} it{why}.
-Update the notes: add what this feedback teaches, merge duplicates, drop notes it contradicts, keep at most 8.
+Update the notes: add only what the user's own words say (don't infer beyond them: "calm pace" says nothing about
+length), merge duplicates, drop notes it contradicts, keep at most 8. Never add a note about duration or length unless
+their words mention it; durations are already counted separately.
 Reply with JSON only: {{"notes": ["..."]}}"""
 
 
@@ -60,6 +62,15 @@ class Style:
                 pass
         self.path.write_text(json.dumps(prof, indent=1, ensure_ascii=False))
         return prof, calls
+
+    def forget(self, item_id: str) -> int:
+        """Drop an item's feedback from the journal and recount the profile; returns how many entries went."""
+        entries = self.entries()
+        keep = [e for e in entries if e["item"] != item_id]
+        if len(keep) != len(entries):
+            self.journal_path.write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in keep))
+            self.path.write_text(json.dumps(self._rebuild(), indent=1, ensure_ascii=False))
+        return len(entries) - len(keep)
 
     def _rebuild(self) -> dict:
         old = self.profile()

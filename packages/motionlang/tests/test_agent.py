@@ -302,3 +302,24 @@ def test_bare_ops_in_a_patch_round_are_applied(bare):
     assert out.ok and [a.kind for a in out.attempts] == ["generate", "repair-edit"]
     out = tweak(EXAMPLE, "lower bounce", llm=LLM(Scripted(text)))
     assert out.ok and out.path == "edit" and out.doc["timeline"]["seq"][1]["height"] == 80
+
+
+@pytest.mark.parametrize("bad", [
+    {"id": "b2", "verb": "par", "children": [{"id": "x1", "verb": "fade", "actor": "logo", "to": 0.5}]},
+    {"id": "b2", "verb": "par", "par": [{"id": "x1", "verb": "fade", "actor": "logo", "to": 0.5}]},
+])
+def test_container_written_as_a_verb_is_rewritten(bad):
+    d = doc_with()
+    d["timeline"]["seq"].append(bad)
+    out = generate("ball", llm=LLM(Scripted(json.dumps(d))))
+    assert out.ok, out.attempts[-1].problems()
+    assert out.doc["timeline"]["seq"][-1] == {"id": "b2", "par": [{"id": "x1", "verb": "fade", "actor": "logo", "to": 0.5}]}
+
+
+def test_container_as_verb_hint_when_it_cannot_be_rewritten():
+    from motionlang import check
+
+    d = doc_with()
+    d["timeline"]["seq"].append({"id": "b2", "verb": "par"})
+    e = next(e for e in check(d).report.errors if e.block == "b2")
+    assert "par is a container, not a verb" in e.hint and '{"id": "b2", "par": [' in e.hint

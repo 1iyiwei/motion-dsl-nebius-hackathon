@@ -10,8 +10,8 @@ Plan and architecture: [canvasmind-plan.md](canvasmind-plan.md). Status of each 
 2. Start the library server: `uv run canvasmind serve`. `tailscale serve` keeps proxying `https://<mac>.<tailnet>.ts.net` to `127.0.0.1:8770`; check with `tailscale serve status`.
 3. After any NemoClaw rebuild or upgrade: `uv run canvasmind hermes-setup` (skill, persona, Hermes settings).
 4. In the Telegram chat: send `/new`, so earlier test turns don't steer the agent.
-5. Library state for the take: a seeded library (sample logos, SketchDynamics/MotionHarness outputs, a few café references filed "last week"). 🔨 A `canvasmind demo-reset` command that rebuilds it from a fixture folder, so every take starts the same.
-6. Have the props ready: a paper doodle of the café logo (to photograph live), and a link to one reference page.
+5. Library state for the take: `uv run canvasmind demo-reset --yes` (moves the real library to `~/CanvasMind.bak-<time>`), then restart `canvasmind serve`. It files `apps/canvasmind/demo/` per its manifest: the sunrise logo and three sunrise animations rated a week ago (2 👍 calm/hand-made, 1 👎 bouncy), and the café logo filed yesterday. The style line then reads "liked enter, draw_on, inOutSine … avoids bouncy, prefers calm".
+6. Props: `apps/canvasmind/demo/cafe-logo.svg` ("Morning Cup") ready to send from Telegram Desktop or the phone's Files app, one café reference photo, and a link to a reference page.
 
 ## Measured so far (Oct 21)
 
@@ -38,8 +38,8 @@ Hermes's own system prompt and tool schemas dominate the cost of every turn (23�
 | 0:30–0:55 | Animate in my style | "animate it in my style" → GIF + "slow reveal + ease-out-back, since you liked those in 4 of your last 5" | ✅ (seed a few 👍/👎 first so the style line appears) | "It doesn't just store things. It acts on them, in my style." |
 | 0:55–1:15 | Feedback | "slower" → new GIF in ~1 s → 👍. Cut to the Mac: the `style.json` / journal diff | ✅ (phone 👍 still to be checked) | "Every 👍 and 👎 updates a style profile I can read and edit." |
 | 1:15–1:30 | Skill | "I've saved this as a skill: *animate-for-client*" | 🔨 | "Hermes turns what works into reusable skills." |
-| 1:30–1:50 | Recall | "that sunrise logo from last week?" → thumbnail of the SketchDynamics output | ✅ (recall works; seed the "last week" item) | "It remembers across my tools: this came from SketchDynamics." |
-| 1:50–2:20 | Proactive | Monday 9:00: the digest arrives unprompted (Tavily trends filtered by style + one draft animation made overnight) | 🔨 (trigger the cron job manually for the take) | "Always on: it works while I don't." |
+| 1:30–1:50 | Recall | "that sunrise logo from last week?" → thumbnail of the SketchDynamics output | ✅ (demo-reset backdates it) | "It remembers across my tools: this came from SketchDynamics." |
+| 1:50–2:20 | Proactive | Monday 9:00: the digest arrives unprompted (Tavily trends filtered by style + one draft animation) | ✅ (cron job `canvasmind-digest`; for the take run it now: `hermes cron run <id>` in the sandbox, or ask "send me this week's digest") | "Always on: it works while I don't." |
 | 2:20–2:45 | Under the hood | Mac: architecture card (phone → Telegram → Hermes in the OpenShell sandbox → MCP over Tailscale → canvasmind + library), the sandbox policy, and **an unlisted host blocked live**; `calls.jsonl` with model, latency and tokens | 🔨 (find the cleanest way to show a live block: OpenShell's TUI or log) | "The agent runs in an NVIDIA OpenShell sandbox: it can't read my disk, can't hold my keys, and can only reach the hosts I allow. All models are NVIDIA Nemotron on Nebius Token Factory." |
 | 2:45–3:00 | Close | Phone: "try the demo bot" QR / handle; README self-host one-liner; title card | 🔨 | "Run your own, or try ours." |
 
@@ -54,4 +54,6 @@ A separate demo bot in its own sandbox, with a seeded library, per-user limits a
 2. **Token cost per turn** (23–35k prompt tokens of Hermes overhead): trim further if the demo bot's budget needs it.
 3. **The model sometimes reaches for the wrong tool** (web search, local file search, "send me a link"). The CanvasMind persona (`SOUL.md`, installed by `canvasmind hermes-setup`) fixed every case so far. Start each take with `/new`.
 4. **Images can't go to the main model**: Super 120B is text-only and OpenShell routes every call from the sandbox to it, so the agent "sees" images only through canvasmind's VL captions. That's a privacy point worth saying in the video, not a gap to hide.
-5. **Test items in the library** from Oct 21 (a drawn coffee cup, a sticker portrait): clear them before recording (`forget` 🔨, or `demo-reset`).
+5. **Test items in the library** from Oct 21: `demo-reset` before recording.
+6. **The digest's draft animation** can fail on a planner slip (then the digest goes out without it) and takes up to ~90 s in total; record the digest beat once and keep a good take.
+7. **The studio scan** (hourly, silent unless something new is filed) is a nice 5-second insert: drop an SVG into `~/CanvasMind/inbox`, cut to "📥 Filed 1 new item from your studio".

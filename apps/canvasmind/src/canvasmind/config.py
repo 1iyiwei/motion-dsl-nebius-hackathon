@@ -7,8 +7,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
-def _paths(value: str) -> list[Path]:
-    return [Path(p).expanduser() for p in value.split(":") if p.strip()]
+def _paths(value: str) -> list[str]:
+    """Colon-separated folders; a trailing /** means "and everything below it"."""
+    return [p.strip() for p in value.split(":") if p.strip()]
 
 
 @dataclass
@@ -17,7 +18,7 @@ class Config:
     token: str = ""
     public_host: str = ""
     port: int = 8770
-    watch: list[Path] = field(default_factory=list)
+    watch: list[str] = field(default_factory=list)
 
     @classmethod
     def from_env(cls) -> "Config":

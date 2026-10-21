@@ -161,6 +161,30 @@ def create_mcp(studio: Studio, allowed_hosts: list[str]):
         return style_brief(studio.style.profile())
 
     @mcp.tool()
+    def digest(draft: bool = True) -> list:
+        """This week's motion-design digest: 3 finds from the web that fit the user's style (with sources), and with
+        draft=true one of their SVGs animated after a trend. Send the text and the GIF as they are. Takes 30-90 s."""
+        t0 = time.time()
+        d = studio.digest(draft)
+        _log(studio, "digest", d.calls, time.time() - t0)
+        out: list = [json.dumps({"digest": d.text, "draft": d.draft.item.brief() if d.draft else None}, ensure_ascii=False)]
+        if d.draft is not None:
+            out.append(Image(data=d.draft.gif, format="gif"))
+        return out
+
+    @mcp.tool()
+    def forget(item_id: str) -> dict:
+        """Permanently delete an item from the user's library (its files, and any feedback on it). Only when the user
+        asks to delete or forget something; confirm which item first."""
+        return studio.forget(item_id)
+
+    @mcp.tool()
+    def export() -> dict:
+        """Save everything CanvasMind keeps (library, style profile, feedback) as a zip on the user's machine."""
+        path = studio.export()
+        return {"saved_on_your_machine": str(path), "megabytes": round(path.stat().st_size / 1e6, 1)}
+
+    @mcp.tool()
     def upload_part(upload_id: str, index: int, data_b64: str) -> dict:
         """Internal: called by the canvasmind upload script, never by the model."""
         return {"received": studio.upload_part(upload_id, index, base64.b64decode(data_b64, validate=True))}

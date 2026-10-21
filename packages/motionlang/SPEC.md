@@ -200,6 +200,8 @@ Also: `set` on an actor id (`"field": "init.x"`), `set` with a JSON `pointer` fo
 
 **Suggested actors are kept.** When an app passes suggested actors (an imported logo's tree), the agent fills in what the model's document leaves out, by id: missing or `null` `init` keys, `shape`, `parent`. A suggested actor the model dropped entirely is added back on `generate` (not on a tweak's regenerate, where removing it may be the point). Constrained decoding tends to emit `null` for optional fields, and losing a group's offsets breaks the drawn layout. The model only has to state what it changes, such as a part's starting pose.
 
+**Containers written as verbs are rewritten.** A block like `{"id": "b2", "verb": "par", "children": [...]}` (the list may also be under the container's own key, or `blocks`, `items`, `steps`, `body`) becomes `{"id": "b2", "par": [...]}` before validation. When there's no list to move, the `E_REF` hint says the word is a container, with the exact shape to write.
+
 **Repairs use the same ops.** When the planner's document has the right top-level shape and at most 12 problems, the agent asks for edit ops that fix them instead of a rewritten document, because whole-document rewrites drift away from what was already right. A rewrite is requested when the top level is wrong (missing `timeline`, unknown top-level keys), when there are many problems, or once when patching stalls. A stall is the identical problem set (code, block, actor and pointer) surviving a round.
 
 "Slower" → one `set` op from a small model in about 200 ms, instead of regenerating the whole document with the big one. This is the latency and credit-saving story judges want to see.

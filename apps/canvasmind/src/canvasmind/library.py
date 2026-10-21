@@ -87,6 +87,7 @@ class Library:
     def __init__(self, home: Path):
         self.home = Path(home).expanduser()
         (self.home / "items").mkdir(parents=True, exist_ok=True)
+        (self.home / "inbox").mkdir(exist_ok=True)  # drop files here; the studio scan files them
         self.db = sqlite3.connect(self.home / "library.sqlite", check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
@@ -137,6 +138,21 @@ class Library:
     def thumb(self, item_id: str) -> bytes | None:
         p = self.dir(item_id) / "thumb.jpg"
         return p.read_bytes() if p.is_file() else None
+
+    def remove(self, item_id: str) -> Item:
+        """Delete an item: its row, its search entry and its files."""
+        import shutil
+
+        item = self.get(item_id)
+        with self.db:
+            self.db.execute("DELETE FROM items WHERE id = ?", (item_id,))
+            self.db.execute("DELETE FROM items_fts WHERE id = ?", (item_id,))
+        shutil.rmtree(self.dir(item_id), ignore_errors=True)
+        return item
+
+    def backdate(self, item_id: str, created: float) -> None:
+        with self.db:
+            self.db.execute("UPDATE items SET created = ? WHERE id = ?", (created, item_id))
 
     def gif(self, item_id: str) -> bytes | None:
         p = self.dir(item_id) / "animation.gif"

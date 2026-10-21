@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <!-- CanvasMind demo: "Morning Cup" café logo (CC0, drawn for this project) -->
+  <g id="badge">
+    <circle id="ring" cx="200" cy="200" r="180" fill="none" stroke="#6b4226" stroke-width="10"/>
+    <circle id="dot_left" cx="62" cy="200" r="8" fill="#c8553d"/>
+    <circle id="dot_right" cx="338" cy="200" r="8" fill="#c8553d"/>
+  </g>
+  <ellipse id="saucer" cx="200" cy="300" rx="120" ry="22" fill="#6b4226"/>
+  <g id="cup">
+    <path id="handle" d="M262 205 C312 205 312 265 258 268" fill="none" stroke="#6b4226" stroke-width="16" stroke-linecap="round"/>
+    <path id="cup_body" d="M118 185 L282 185 C282 245 255 292 200 292 C145 292 118 245 118 185 Z" fill="#c8553d"/>
+    <ellipse id="coffee" cx="200" cy="185" rx="82" ry="16" fill="#3e2416"/>
+  </g>
+  <g id="steam">
+    <path id="steam_1" d="M165 160 C150 140 180 125 165 100" fill="none" stroke="#b08968" stroke-width="9" stroke-linecap="round"/>
+    <path id="steam_2" d="M200 160 C185 135 215 118 200 88" fill="none" stroke="#b08968" stroke-width="9" stroke-linecap="round"/>
+    <path id="steam_3" d="M235 160 C220 140 250 125 235 100" fill="none" stroke="#b08968" stroke-width="9" stroke-linecap="round"/>
+  </g>
+</svg>

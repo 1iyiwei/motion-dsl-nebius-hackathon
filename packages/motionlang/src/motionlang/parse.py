@@ -207,6 +207,10 @@ def _parse_block(raw: Any, ptr: str, issues: list[Issue], registry: dict[str, Ve
     if verb is None:
         close = difflib.get_close_matches(name, list(registry), n=1, cutoff=0.5)
         hint = (f"did you mean `{close[0]}`? " if close else "") + f"the verbs are: {', '.join(sorted(registry))}"
+        if name in CONTAINERS:
+            body = '{ ...one block... }' if name == "repeat" else '[ ...blocks... ]'
+            hint = (f'{name} is a container, not a verb: write {{"id": "{bid}", "{name}": {body}}} '
+                    f"with the blocks it should run{' together' if name in ('par', 'stagger') else ''} (no \"verb\" key)")
         issues.append(Issue("E_REF", f"unknown verb {name!r}", hint=hint, block=bid, pointer=f"{ptr}/verb"))
         return None
     params_raw = {k: v for k, v in raw.items() if k not in VERB_COMMON}

@@ -101,6 +101,8 @@ def _normalize(
         doc["actors"] = _with_suggested(doc["actors"], suggested, restore_missing)
     if "timeline" not in doc and isinstance(doc.get("animations"), (list, dict)):
         doc["timeline"] = doc.pop("animations")  # a common slip; the content is usually right
+    if isinstance(doc.get("timeline"), dict):
+        doc["timeline"] = _fix_container_verbs(doc["timeline"])
     if isinstance(doc.get("timeline"), list):
         doc["timeline"] = {"id": "root" if not _has_id(doc["timeline"], "root") else "timeline_root", "seq": doc["timeline"]}
     doc["canvas"] = {**canvas, **{k: v for k, v in doc.get("canvas", {}).items() if k == "background"}}
@@ -146,6 +148,31 @@ def _with_suggested(actors: list, suggested: list[dict], restore_missing: bool =
     if restore_missing:
         out += [copy.deepcopy(a) for aid, a in by_id.items() if aid not in seen]
     return out
+
+
+CONTAINER_KEYS = ("seq", "par", "stagger")
+CHILD_KEYS = ("children", "blocks", "items", "steps", "timeline", "body")
+
+
+def _fix_container_verbs(block: Any) -> Any:
+    """{"verb": "par", "children": [...]} → {"par": [...]}: a container written as a verb is a deterministic fix."""
+    if not isinstance(block, dict):
+        return block
+    kind = block.get("verb")
+    if kind in (*CONTAINER_KEYS, "repeat") and not any(k in block for k in (*CONTAINER_KEYS, "repeat") if k != kind or kind == "repeat"):
+        found = next((k for k in (kind, *CHILD_KEYS, "block", "child") if k in block and k != "verb"), None)
+        body = block.get(found) if found else None
+        if kind == "repeat" and isinstance(body, list) and len(body) == 1:
+            body = body[0]
+        if (kind == "repeat" and isinstance(body, dict)) or (kind != "repeat" and isinstance(body, list)):
+            keep = {k: v for k, v in block.items() if k in ("id", "delay", "label", "offset", "count")}
+            block = {**keep, kind: body}
+    for k in CONTAINER_KEYS:
+        if isinstance(block.get(k), list):
+            block[k] = [_fix_container_verbs(c) for c in block[k]]
+    if isinstance(block.get("repeat"), dict):
+        block["repeat"] = _fix_container_verbs(block["repeat"])
+    return block
 
 
 def _has_id(node: Any, bid: str) -> bool:

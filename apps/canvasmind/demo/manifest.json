@@ -1,0 +1,13 @@
+{
+  "about": "Fixture library for the demo video and the judges' demo bot: `canvasmind demo-reset` files these, backdates them, and records the feedback, so recall ('last week') and the style profile work from the first message.",
+  "items": [
+    {"file": "sunrise.svg", "note": "sunrise logo for the bakery pitch", "days_ago": 8},
+    {"file": "seed/sunrise-bouncy.motion.json", "note": "bakery pitch, first try", "days_ago": 8,
+     "feedback": ["dislike", "too bouncy and rushed for a bakery"]},
+    {"file": "seed/sunrise-calm.motion.json", "note": "bakery pitch, second try", "days_ago": 7,
+     "feedback": ["like", "calm, unhurried reveal"]},
+    {"file": "seed/sunrise-drawn.motion.json", "note": "bakery pitch, final", "days_ago": 6,
+     "feedback": ["like", "lines drawing themselves on feels hand-made"]},
+    {"file": "cafe-logo.svg", "note": "café rebrand: Morning Cup logo", "days_ago": 1}
+  ]
+}
