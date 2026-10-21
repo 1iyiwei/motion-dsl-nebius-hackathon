@@ -113,7 +113,7 @@ Allowed platforms: YouTube or Vimeo only.
 Video length: Only the first 3 minutes will be reviewed, so include everything needed to evaluate your project within that time.
 Visibility: Set to public or unlisted with no password.
 
-https://youtu.be/aVp8AO9TWcU
+https://youtu.be/rCx7xYq1lO4
 
 ## Additional info
 For judges and organizers

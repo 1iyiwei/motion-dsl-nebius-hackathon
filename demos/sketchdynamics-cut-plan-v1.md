@@ -7,14 +7,14 @@ Cuts fall between sentences, using a local Whisper transcript with word timings.
 
 | # | Src | In → out | Length | Content |
 | --- | --- | --- | --- | --- |
-| 1 | M | 0:00.0 → 0:12.6 | 12.6 s | hook: wind turbine; 'design motion without any keyframes' |
+| 1 | M | 0:02.0 → 0:12.6 | 10.6 s | hook: wind turbine; 'design motion without any keyframes' |
 | 2 | M | 0:13.4 → 0:17.3 | 3.9 s | 'Let's start with a simple example with an empty canvas.' |
 | 3 | M | 0:24.1 → 0:38.7 | 14.6 s | dictation: red ball + blue square |
 | 4 | M | 1:32.5 → 1:36.9 | 4.4 s | 'here is the resulting motion' |
-| 5 | M | 1:55.4 → 2:14.1 | 18.7 s | draw a stroke + dictate 'a ball rolls along the curve…' |
-| 6 | M | 2:23.6 → 2:27.1 | 3.5 s | ball rolls; 'That's pretty nice' |
+| 5 | M | 1:56.4 → 2:14.1 | 18.7 s | draw a stroke + dictate 'a ball rolls along the curve…' |
+| 6 | M | 2:23.6 → 2:25.1 | 3.5 s | ball rolls; 'That's pretty nice' |
 | 7 | M | 5:53.6 → 6:15.6 | 22.0 s | cloud bolt: load, VL groups, ungroup |
-| 8 | M | 6:29.0 → 6:42.2 | 13.2 s | add a stroke, modify the prompt |
+| 8 | M | 6:29.0 → 6:55.2 | 13.2 s | add a stroke, modify the prompt |
 | 9 | M | 6:57.3 → 6:59.6 | 2.3 s | 'Generate the result. Now…' |
 | 10 | M | 8:18.9 → 8:24.8 | 5.9 s | '…it's doing a self-repair based on one mistake it found by itself' |
 | 11 | M | 9:36.8 → 9:44.7 | 7.9 s | cloud bolt result; 'follows the prompt and the motion path I drew' |
@@ -25,6 +25,6 @@ Cuts fall between sentences, using a local Whisper transcript with word timings.
 | 16 | M | 11:47.5 → 11:56.5 | 9.0 s | gallery: heart |
 | 17 | M | 11:59.5 → 12:05.5 | 6.0 s | gallery: ant on a drawn path |
 | 18 | M | 12:08.0 → 12:15.0 | 7.0 s | gallery: snail |
-| 19 | M | 12:17.3 → 12:28.7 | 11.4 s | gallery: LOVE letters; 'Thank you' |
+| 19 | M | 12:17.3 → 12:22.0 | 11.4 s | gallery: LOVE letters; 'Thank you' |
 
 Cut from M: the repeated ball prompt (0:46–0:55), all model waits, the "moving a bit slower" regeneration (2:30–3:00), the wind turbine run (3:00–5:53), the reading of the cloud's suggested prompt (6:16–6:29), and the failed sunrise run (9:46–11:47, replaced by S).
