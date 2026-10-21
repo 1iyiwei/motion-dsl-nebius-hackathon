@@ -6,7 +6,7 @@ Draft for the Devpost form (fields as in `docs/submission-form.md`). Not submitt
 
 **Project name** (≤60): CanvasMind
 
-**Elevator pitch** (≤200): A private, always-on studio assistant for motion designers. Send it sketches and logos from your phone; it files them on your machine, learns your motion style and animates in it with NVIDIA Nemotron.
+**Elevator pitch** (≤200): A private, always-on studio assistant for motion designers. Send it your works from your phone; it files them on your machine, learns your motion style and animates in it with NVIDIA Nemotron.
 
 ## Project details
 
@@ -87,7 +87,8 @@ JPG, PNG or GIF format, 5 MB max file size. For best results, use a 3:2 ratio. U
 **TODO**: phone screenshots (filing, recall thumbnails, a GIF, the style answer, the digest), the architecture card.
 
 * Demo video URL
-**TODO** (recording Oct 21–27)
+
+https://youtu.be/z8SF8A0VLks
 
 ## Additional info
 For judges and organizers
@@ -144,7 +145,7 @@ Out of the box, with prompt engineering and programs that check the output. Each
 
 * How did Nemotron's performance compare to other models you've used for similar tasks?
 
-**TODO** (one or two sentences from your experience).
+Nemotron works much better than some open-weight models that we ran locally, such as qwen2.5vl:32b.
 
 * Which Nebius platform capabilities were most valuable to your project and how?
 Please include detail on how you leveraged Nebius infrastructure to run Nemotron (e.g., GPU instance types, deployment setup, API access, scaling).

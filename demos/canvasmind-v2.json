@@ -11,7 +11,7 @@
  "segments": [
   {
    "src": "W",
-   "in": 14,
+   "in": 1,
    "out": 28,
    "note": "send the logo",
    "caption": "Drop an SVG into the chat: “file this for our café rebranding”"
@@ -165,7 +165,7 @@
   {
    "src": "W",
    "in": 576,
-   "out": 596,
+   "out": 625,
    "note": "digest + draft",
    "caption": "Weekly digest: web trends picked for my style, plus a draft animation"
   }
