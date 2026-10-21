@@ -23,7 +23,7 @@ splices don't click. Sped-up segments drop their audio and get a small label, so
 `mask_color` defaults to a dark terminal background). Labels are drawn with Pillow (available in this workspace's venv).
 
 The original format, a list of [source, start_s, end_s, note] rows with sources M = sketch_dynamics.mp4 and
-S = runrise.mp4, still renders as before. Needs an ffmpeg that understands -/filter_complex (7.1+).
+S = sunrise.mp4, still renders as before. Needs an ffmpeg that understands -/filter_complex (7.1+).
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-LEGACY_SOURCES = {"M": "sketch_dynamics.mp4", "S": "runrise.mp4"}
+LEGACY_SOURCES = {"M": "sketch_dynamics.mp4", "S": "sunrise.mp4"}
 FADE = 0.04
 
 

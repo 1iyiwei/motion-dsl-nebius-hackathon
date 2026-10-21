@@ -1,6 +1,6 @@
 # SketchDynamics demo: v1 edit (3:02)
 
-Output: `sketchdynamics_demo_v1.mp4` (1920×1080, 30 fps). Sources: M = `sketch_dynamics.mp4`, S = `runrise.mp4`.
+Output: `sketchdynamics_demo_v1.mp4` (1920×1080, 30 fps). Sources: M = `sketch_dynamics.mp4`, S = `sunrise.mp4`.
 Cuts fall between sentences, using a local Whisper transcript with word timings. The edit list is `sketchdynamics-v1.json`; re-render with:
 
     python3 render.py sketchdynamics-v1.json sketchdynamics_demo_v1.mp4
