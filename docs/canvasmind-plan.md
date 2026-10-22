@@ -223,3 +223,52 @@ Decided with the user: **only SVG artwork is animated**. A photo can't be split 
 - The persona adds a `/start` welcome with things to try.
 - Hosting during judging (Dec 1–15): decide by ~Nov 25 (Mac kept awake, or a cloud VM running the same setup).
 - Oct 22: planning from words alone dropped objects ("a blue square … and a red ball" → ball only). After planning, Nano checks that every object the request names is drawn; if not, and there's time, the planner gets one more pass naming them. All planner calls are capped at 6000 tokens (motionlang's new `max_tokens`), because under structured output Super sometimes writes a number that never ends until the cap; motionlang then finishes in JSON mode. Measured: 4/4 valid in 29–48 s. Model calls time out at 60 s, and `animate`/`tweak` answer within 100 s (Hermes's tool timeout is 120 s). Telegram's `/start` is swallowed by Hermes, so the greeting lives in the bot's BotFather description.
+
+## Status (Oct 22)
+
+Submitted to the Personal AI track (video: https://youtu.be/z8SF8A0VLks; demo: https://t.me/CanvasMindBot). Working end to end on a MacBook: filing (photos, stickers, SVGs, links), recall, animation from SVGs and from words, tweaks, the style profile, the digest, the hourly studio scan, forget/export, demo-reset, and the public demo bot with per-user libraries and limits. Setup is reproducible from `apps/canvasmind/README.md`. 34 tests.
+
+## Future work
+
+### Before judging (Dec 1–15)
+
+- **Hosting decision by ~Nov 25**: keep the Mac awake and plugged in (both `canvasmind serve` processes, Docker, Tailscale), or move both sandboxes and servers to a Linux VM with the README's steps. Either way, add a start script / `launchd` (or `systemd`) units for the two servers, so a reboot doesn't take the demo down.
+- A daily check: `nemohermes canvasmind-demo status`, the demo server answering on :8443, Token Factory credit left.
+- Re-run `canvasmind hermes-setup` (both sandboxes) after any NemoClaw/Hermes upgrade; test the bot after.
+- `scripts/export_submission.py` doesn't know canvasmind yet (it flags "canvasmind" as an unreleased project); teach it the app if a per-app public repo is wanted.
+
+### Hardening for a public product
+
+The judges' demo is fine for a handful of trusted users. Before advertising the bot widely (e.g. a LinkedIn post):
+
+1. **A global daily budget** on top of per-user limits (tokens or animations per day across all users), with a "busy today" reply. Token Factory spend is otherwise unbounded in the number of users.
+2. **Lock down the demo sandbox.** A stranger can ask the agent to run terminal commands or read files inside the sandbox: other users' cached Telegram uploads, or calling the library server directly with someone else's `_cm_user`. In demo mode the plugin should allow only the upload command (with a path inside the caller's own attachments), and the file/code/web toolsets should be dropped. `--latest` should not be able to pick another user's file (key the cache by user, or require the path).
+3. **Trim OpenShell egress** in the demo sandbox to Telegram, Token Factory and the library server (onboarding also opened npm, PyPI, Hugging Face and brew).
+4. **Bind the user id server-side**, not only in the plugin: e.g. the plugin signs `_cm_user` with a per-sandbox secret the server checks, so a script in the sandbox can't impersonate another user.
+5. **Upload hygiene**: strangers' files are stored on the host for a day; add a size/type allowlist (already 20 MB, images/SVG/MotionLang only) plus SVG sanitising on intake (the importer drops scripts, but stored originals keep them), and a way to report abuse.
+6. **Run off the laptop**: a VM (or two: agent and library) with backups of the private library, monitoring, and alerts on errors and spend.
+7. **Abuse and safety**: a moderation pass on uploaded images (VL already sees each one) and on prompts; a per-chat cooldown; blocklist.
+8. **Trim Hermes's prompt** (20–35k tokens per turn) and its Telegram command menu (~60 Hermes commands).
+
+### Monetization (ideas, not started)
+
+- **Telegram Stars** for digital goods (required by Telegram for in-bot purchases): a "supporter" pass that lifts daily limits for a month, or packs of extra animations. Needs Hermes to handle `pre_checkout_query` / `successful_payment` (it owns the bot's update stream), so either a Hermes plugin hook or a small payments sidecar with a separate bot. Payouts go through Fragment/TON with a holding period.
+- **Pro features worth paying for**: persistent (non-resetting) hosted libraries, higher-quality renders (MP4/Lottie exports, larger GIFs), brand kits (palettes, logo sets), team libraries with a shared style, scheduled social-media cuts.
+- **Self-hosted stays free and open source**; the hosted bot is the convenience tier.
+- Keep the judged demo free (judging rules).
+
+### Product ideas
+
+- A read-only (later editable) **studio page**: the library, the style profile and the journal, over Tailscale or a hosted link; it was cut from the hackathon scope.
+- **Share the style profile with SketchDynamics**, so the canvas app and the assistant animate with one taste.
+- **New verbs on request via MotionHarness** (the MCP is there), when a user asks for a motion MotionLang can't express; slow (1–5 min) and best as an async job.
+- **More channels**: Discord/Slack (stable in NemoClaw), the Hermes dashboard on the phone over Tailscale as the private channel.
+- **Animate photos**: tracing pen doodles (OpenCV contours + VL part names) gave the best path in our tests; VL/Super redraws of photos were too crude.
+- **Better tweaks**: Nano's first edit for common requests often fails validation; more model-free edits like the tempo retime (bounce height, delays, colours), or a fine-tuned editor.
+
+### Known issues
+
+- Harder words-only scenes (a word plus several objects) sometimes come back as a "closest playable" animation; the missing-object check names what may be missing.
+- Non-speed tweaks take 25–40 s.
+- The digest's draft animation adds 20–70 s; a digest with a draft takes up to ~90 s.
+- Hermes ignores `/start`; the greeting lives in the BotFather description.
