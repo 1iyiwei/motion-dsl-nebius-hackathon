@@ -6,12 +6,17 @@
 2. Local GIFs. `send_multiple_images` only treats non-`file://` URLs as animations, so a GIF returned by a tool (cached
    locally) goes out as a photo and Telegram shows its first frame. We send local .gif files with `send_animation`.
 
+3. Demo mode (only when ~/.hermes/canvasmind_demo.json exists, written by `canvasmind hermes-setup --demo`): every
+   canvasmind tool call gets the caller's Telegram user id (so each user has their own demo library), per-user daily
+   limits are enforced, and the tools that touch the host (forget, export, scan) are off.
+
 Hermes's plugin rules ask plugins not to touch core; these are narrow wrappers that fall through to the original code
 for everything else, and they are reported upstream.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import secrets
@@ -97,6 +102,65 @@ def _wrap(original):
     return send_multiple_images
 
 
+DEMO_CONFIG = os.path.expanduser("~/.hermes/canvasmind_demo.json")
+USAGE = os.path.expanduser("~/.hermes/canvasmind_usage.json")
+_usage_lock = None
+
+
+def _demo() -> dict | None:
+    try:
+        with open(DEMO_CONFIG) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _count(user: str, kind: str, limit: int) -> bool:
+    """Count one use of `kind` today (UTC) for `user`; False when it would go over `limit`."""
+    import threading
+    import time
+
+    global _usage_lock
+    _usage_lock = _usage_lock or threading.Lock()
+    day = time.strftime("%Y-%m-%d", time.gmtime())
+    with _usage_lock:
+        try:
+            with open(USAGE) as f:
+                usage = json.load(f)
+        except (OSError, ValueError):
+            usage = {}
+        usage = {k: v for k, v in usage.items() if k == day}  # yesterday's counts go
+        n = usage.setdefault(day, {}).setdefault(user, {}).get(kind, 0)
+        if n >= limit:
+            return False
+        usage[day][user][kind] = n + 1
+        with open(USAGE, "w") as f:
+            json.dump(usage, f)
+    return True
+
+
+def _pre_tool_call(tool_name="", args=None, **kwargs):
+    cfg = _demo()
+    if cfg is None:
+        return None
+    from gateway.session_context import get_session_env
+
+    user = get_session_env("HERMES_SESSION_USER_ID", "") or "anonymous"
+    args = args if isinstance(args, dict) else {}
+    if tool_name == "terminal" and "cm_upload.py" in str(args.get("command", "")):
+        if not _count(user, "file", cfg["limits"].get("file", 15)):
+            return {"action": "block", "message": cfg["limit_message"]}
+        return {"action": "modify", "args": {"command": f"{args['command']} --user {user}"}}
+    if not tool_name.startswith("mcp__canvasmind__"):
+        return None
+    tool = tool_name.removeprefix("mcp__canvasmind__")
+    if tool in cfg.get("blocked", []):
+        return {"action": "block", "message": cfg["blocked_message"]}
+    if tool in cfg["limits"] and not _count(user, tool, cfg["limits"][tool]):
+        return {"action": "block", "message": cfg["limit_message"]}
+    return {"action": "modify", "args": {"_cm_user": user}}
+
+
 def _pre_llm_call(**kwargs):
     try:
         _patch_gif_send()
@@ -113,3 +177,4 @@ def register(ctx):
         except Exception as e:  # never break the gateway over this
             logger.warning("canvasmind_telegram: %s not installed: %s", patch.__name__, e)
     ctx.register_hook("pre_llm_call", _pre_llm_call)
+    ctx.register_hook("pre_tool_call", _pre_tool_call)

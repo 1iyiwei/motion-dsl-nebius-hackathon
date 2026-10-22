@@ -96,7 +96,19 @@ def _upload(exec_: list[str], openshell: str, sandbox: str, package_dir: str, de
     _run(exec_ + ["sh", "-c", f"if [ -d {dest}/{name} ]; then mv {dest}/{name}/* {dest}/ && rmdir {dest}/{name}; fi"])
 
 
-def setup(sandbox: str = "canvasmind", nemohermes: str = "nemohermes", openshell: str = "openshell") -> dict:
+DEMO = {
+    "limits": {"animate": 8, "tweak": 15, "digest": 2, "file": 15, "file_link": 10, "recall": 40, "feedback": 40},
+    "blocked": ["forget", "export", "scan_studio"],
+    "limit_message": ("You've reached today's demo limit for this (it resets at 00:00 UTC). CanvasMind is open source, "
+                      "so you can run your own without limits: "
+                      "https://github.com/1iyiwei/motion-dsl-nebius-hackathon/tree/main/apps/canvasmind"),
+    "blocked_message": "That isn't available in the public demo (it would touch the host machine's files).",
+}
+
+
+def setup(sandbox: str = "canvasmind", nemohermes: str = "nemohermes", openshell: str = "openshell",
+          demo: bool = False) -> dict:
+    """demo=True: the public demo bot (open to every Telegram user, per-user libraries and limits, no cron jobs)."""
     for tool in (nemohermes, openshell):
         if not shutil.which(tool):
             raise RuntimeError(f"{tool} not found on PATH; install NemoClaw first (see README)")
@@ -107,6 +119,8 @@ def setup(sandbox: str = "canvasmind", nemohermes: str = "nemohermes", openshell
     # the persona tells the model the library is its memory of the user's work
     _run(exec_ + ["sh", "-c", f"[ -f /sandbox/.hermes/SOUL.md.hermes ] || cp /sandbox/.hermes/SOUL.md /sandbox/.hermes/SOUL.md.hermes; "
                               f"mv {SKILL_DIR}/SOUL.md /sandbox/.hermes/SOUL.md; "
+                              + (f"cat {SKILL_DIR}/SOUL_demo.md >> /sandbox/.hermes/SOUL.md; " if demo else "")
+                              + f"rm -f {SKILL_DIR}/SOUL_demo.md; "
                               # the gateway resolves the agent's home from its session DB, which NemoClaw keeps in
                               # runtime/ (state.db is a symlink there), so Hermes reads SOUL.md from runtime/ too
                               f"cp /sandbox/.hermes/SOUL.md /sandbox/.hermes/runtime/SOUL.md"])
@@ -115,7 +129,16 @@ def setup(sandbox: str = "canvasmind", nemohermes: str = "nemohermes", openshell
     result = json.loads(next(line for line in out.splitlines() if line.startswith("{")))
     import os
 
-    result["cron"] = _cron(exec_, (os.environ.get("TELEGRAM_ALLOWED_IDS", "").split(",")[0]).strip())
+    if demo:
+        demo_json = json.dumps(DEMO)
+        _run(exec_ + ["sh", "-c", f"cat > /sandbox/.hermes/canvasmind_demo.json <<'EOF'\n{demo_json}\nEOF\n"
+                                  # Hermes: answer every Telegram user, not just an allowlist
+                                  "grep -q '^TELEGRAM_ALLOW_ALL_USERS=' /sandbox/.hermes/.env || "
+                                  "echo 'TELEGRAM_ALLOW_ALL_USERS=true' >> /sandbox/.hermes/.env"])
+        result["demo"] = DEMO["limits"]
+    else:
+        _run(exec_ + ["rm", "-f", "/sandbox/.hermes/canvasmind_demo.json"])
+        result["cron"] = _cron(exec_, (os.environ.get("TELEGRAM_ALLOWED_IDS", "").split(",")[0]).strip())
     _run([nemohermes, sandbox, "gateway", "restart", "--quiet"])
     result["skill"] = SKILL_DIR
     result["plugin"] = PLUGIN_DIR

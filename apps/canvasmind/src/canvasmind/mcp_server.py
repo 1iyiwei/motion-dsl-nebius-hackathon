@@ -37,7 +37,7 @@ def style_brief(prof: dict) -> dict:
             "notes": prof.get("notes", [])}
 
 
-def _log(studio: Studio, tool: str, calls, seconds: float) -> None:
+def _log(studio, tool: str, calls, seconds: float) -> None:
     rec = {"t": round(time.time(), 1), "tool": tool, "seconds": round(seconds, 2),
            "calls": [{"purpose": c.purpose, "model": c.model, "seconds": round(c.seconds, 2),
                       "prompt_tokens": c.prompt_tokens, "completion_tokens": c.completion_tokens} for c in calls]}
@@ -45,7 +45,8 @@ def _log(studio: Studio, tool: str, calls, seconds: float) -> None:
         f.write(json.dumps(rec) + "\n")
 
 
-def create_mcp(studio: Studio, allowed_hosts: list[str]):
+def create_mcp(studio, allowed_hosts: list[str]):
+    """`studio`: a Studio, or a CurrentStudio that resolves to the calling user's library."""
     from mcp.server.fastmcp import FastMCP, Image
     from mcp.server.transport_security import TransportSecuritySettings
 
@@ -121,10 +122,11 @@ def create_mcp(studio: Studio, allowed_hosts: list[str]):
         return [json.dumps(payload, ensure_ascii=False), Image(data=res.gif, format="gif")]
 
     @mcp.tool()
-    def animate(item_id: str, brief: str = "", in_my_style: bool = True) -> list:
-        """Animate an SVG item from the library (find its id with recall). brief: what should happen, in the user's
-        words; leave empty to let CanvasMind propose an animation. Returns the new animation item and its GIF.
-        Only SVG artwork can be animated, not photos. Takes 20-60 s."""
+    def animate(item_id: str = "", brief: str = "", in_my_style: bool = True) -> list:
+        """Animate an SVG item from the library (find its id with recall), or, with no item_id, animate from the brief
+        alone (basic shapes and text). brief: what should happen, in the user's words; with an item it may be empty and
+        CanvasMind proposes an animation. Returns the new animation item and its GIF. Photos can't be animated, only
+        SVG artwork. Takes 20-60 s."""
         from .animation import NotAnimatable
 
         t0 = time.time()
@@ -214,14 +216,17 @@ def _hide(mcp) -> None:
         mcp._mcp_server.request_handlers.pop(req, None)
 
 
-def create_app(studio: Studio, token: str, public_host: str = "", port: int = 8770):
-    """The ASGI app: bearer-token check in front of the MCP endpoint at /mcp."""
+def create_app(studio: Studio, token: str, public_host: str = "", port: int = 8770, tenants=None):
+    """The ASGI app: bearer-token check in front of the MCP endpoint at /mcp. With `tenants` (the public demo),
+    each tool call runs against the calling user's own demo library."""
     from starlette.responses import JSONResponse
+
+    from .tenants import CurrentStudio, with_user
 
     if not token:
         raise RuntimeError("CANVASMIND_MCP_TOKEN is not set; the MCP server never runs without a token")
     hosts = [f"127.0.0.1:{port}", f"localhost:{port}"] + ([public_host] if public_host else [])
-    inner = create_mcp(studio, hosts).streamable_http_app()
+    inner = with_user(create_mcp(CurrentStudio(studio, tenants), hosts).streamable_http_app())
     expected = f"Bearer {token}".encode()
 
     async def app(scope, receive, send):

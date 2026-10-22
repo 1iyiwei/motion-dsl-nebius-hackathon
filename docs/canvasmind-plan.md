@@ -212,3 +212,13 @@ Decided with the user: **only SVG artwork is animated**. A photo can't be split 
   - `canvasmind-digest`, Monday 09:00 local (Hermes schedules in UTC; the setup converts): an agent turn that calls `digest` and forwards the text and GIF.
 - `forget(item_id)` deletes an item's row, search entry, files and feedback (the style is recounted); `export()` zips everything to `~/CanvasMind/exports/`.
 - `canvasmind demo-reset --yes`: moves the library to `~/CanvasMind.bak-<time>` (never deleted) and files `apps/canvasmind/demo/` per `manifest.json`: our sunrise logo, three sunrise animations with 2 👍 / 1 👎 and reasons (backdated a week), and the "Morning Cup" café logo SVG drawn for the demo. Style notes from Nano now stick to the user's words (no invented "short duration").
+
+### Public demo bot (Oct 22): https://t.me/CanvasMindBot
+
+- A second NemoClaw sandbox, `canvasmind-demo`, for @CanvasMindBot, with Hermes open to every Telegram user (`TELEGRAM_ALLOW_ALL_USERS=true`, set by `canvasmind hermes-setup --sandbox canvasmind-demo --demo`). Your private bot and library are unchanged.
+- A second library server: `canvasmind serve --port 8771 --per-user` with `CANVASMIND_HOME=~/CanvasMindDemo` and its own token (`CANVASMIND_DEMO_MCP_TOKEN`), reached at `https://<mac>.<tailnet>.ts.net:8443/mcp` (`tailscale serve --bg --https=8443 http://127.0.0.1:8771`); registered with `--deny-tool forget --deny-tool export --deny-tool scan_studio`.
+- Per-user libraries: the Hermes plugin adds the caller's Telegram user id as a reserved `_cm_user` argument to every canvasmind call (and `--user` to the upload script); the server strips it and runs the call against `~/CanvasMindDemo/users/<id>/`, copied from a template library (the demo fixtures, captioned once a day) on first use and reset after a day. So each judge's 👍/👎 shapes their own style profile, and nobody sees another's uploads.
+- Limits per user per UTC day, enforced in the plugin's `pre_tool_call`: animate 8, tweak 15, digest 2, uploads 15, links 10, recall 40, feedback 40; over the limit the call is blocked with a friendly message pointing to the self-host README. No payments (Telegram Stars is possible later).
+- Prompt-only animation (`animate` with no item): the planner draws basic shapes and text itself.
+- The persona adds a `/start` welcome with things to try.
+- Hosting during judging (Dec 1–15): decide by ~Nov 25 (Mac kept awake, or a cloud VM running the same setup).

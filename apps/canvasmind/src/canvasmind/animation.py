@@ -107,9 +107,12 @@ def _store(studio, doc: dict, *, title: str, brief: str, source: str, parent: st
 
 
 def animate(studio, item_id: str, brief: str = "", *, in_my_style: bool = True) -> Animated:
-    from motionlang.agent.loop import generate
     from motionlang.importers import import_svg
 
+    if not item_id:  # from words alone: the planner draws basic shapes and text itself
+        if not brief.strip():
+            raise NotAnimatable("say what should happen, or give an SVG item to animate")
+        return _animate(studio, brief.strip(), {}, None, title=brief.strip()[:40], parent=None, in_my_style=in_my_style)
     src = studio.lib.get(item_id)
     if src.kind == "motion":
         raise NotAnimatable(f"{item_id} is already an animation; use tweak to change it")
@@ -128,15 +131,26 @@ def animate(studio, item_id: str, brief: str = "", *, in_my_style: bool = True) 
     except Exception:  # labels help the planner; ids alone still work
         idea = ""
     brief = brief.strip() or idea or "its parts arrive one by one and settle into the finished artwork"
+    return _animate(studio, brief, imported, llm, title=f"{src.title} animation", parent=item_id, in_my_style=in_my_style,
+                    calls=calls)
+
+
+def _animate(studio, brief: str, imported: dict, llm, *, title: str, parent: str | None, in_my_style: bool,
+             calls: list | None = None) -> Animated:
+    from motionlang.agent.loop import generate
+
+    llm = llm or studio.make_llm()
+    calls = list(calls or [])
     prof = studio.style.profile()
     hint = style.summary(prof) if in_my_style else ""
     intent = brief + (f"\n\nThe user's motion style (follow it unless the request says otherwise): {hint}" if hint else "")
-    out = generate(intent, canvas=CANVAS, assets=imported["assets"], suggested_actors=imported["actors"], llm=llm, max_repairs=1)  # Hermes times a tool out at 120 s; Super plans in ~35 s, repairs in ~20 s
+    out = generate(intent, canvas=CANVAS, assets=imported.get("assets"), suggested_actors=imported.get("actors"), llm=llm,
+                   max_repairs=1)  # Hermes times a tool out at 120 s; Super plans in ~35 s, repairs in ~20 s
     calls += [a.call for a in out.attempts]
     best = out.doc if out.ok else (out.best.doc if out.best else None)
     if best is None or _no_bake(best):
         raise RuntimeError("the planner couldn't produce a playable animation; " + "; ".join(out.final.problems()[:2] if out.final else []))
-    item = _store(studio, best, title=f"{src.title} animation", brief=brief, source="animate", parent=item_id, version=1)
+    item = _store(studio, best, title=title, brief=brief, source="animate", parent=parent, version=1)
     return Animated(item, studio.lib.gif(item.id), out.ok, why=style.explain(item.facts, prof) if hint else "",
                     note="" if out.ok else "closest playable attempt; the validator still flags: " + "; ".join(out.final.problems()[:2]),
                     calls=calls)

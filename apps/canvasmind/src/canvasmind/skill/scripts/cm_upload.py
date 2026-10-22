@@ -66,7 +66,11 @@ def latest() -> Path:
     return newest
 
 
+USER: dict = {}
+
+
 def call(client: httpx.Client, url: str, headers: dict, tool: str, args: dict) -> dict:
+    args = {**args, **USER}
     body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool, "arguments": args}}
     r = client.post(url, json=body, headers={**headers, "Accept": "application/json, text/event-stream"})
     r.raise_for_status()
@@ -87,6 +91,7 @@ def main() -> None:
     p.add_argument("path", nargs="?")
     p.add_argument("--latest", action="store_true", help="file the newest file the chat received")
     p.add_argument("--note", default="")
+    p.add_argument("--user", default="", help=argparse.SUPPRESS)  # added by the demo plugin: whose library
     a = p.parse_args()
     if a.latest:
         path = latest()
@@ -95,6 +100,8 @@ def main() -> None:
     else:
         sys.exit("give a path or --latest")
     data, name = shrink(path.read_bytes(), path.name)
+    if a.user:
+        USER["_cm_user"] = a.user
     url, headers = server()
     upload_id = "upl_" + secrets.token_hex(8)
     parts = [data[i:i + CHUNK] for i in range(0, len(data), CHUNK)] or [b""]

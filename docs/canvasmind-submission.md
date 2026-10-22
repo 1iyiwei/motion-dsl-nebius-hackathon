@@ -127,7 +127,9 @@ https://github.com/1iyiwei/motion-dsl-nebius-hackathon/tree/main/apps/canvasmind
 Provide a URL to a working demo, hosted application, or test build of your Project.
 Not required for Physical AI submissions
 
-**TODO**: the judges' demo bot (Telegram handle) and the read-only studio page, per the plan. Until then, the README's self-host steps.
+https://t.me/CanvasMindBot
+
+<!-- For judges: open the link in Telegram and press Start. Each person gets their own demo library (a café logo, a sunrise logo, and a style profile from last week's ratings) that resets daily, with daily limits. Try "animate the café logo in my style", "a red ball drops in and bounces three times", 👍/👎 with a reason, "what's my style?", "what's new in motion design?". Running Dec 1–15. -->
 
 * Which model(s) did you use, and why did you choose that size/variant?
 e.g., Nemotron-4 340B, Nemotron-Mini, etc.

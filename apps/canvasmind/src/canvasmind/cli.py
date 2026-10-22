@@ -20,6 +20,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("serve", help="run the MCP server on 127.0.0.1 (put `tailscale serve` in front of it)")
     s.add_argument("--port", type=int)
+    s.add_argument("--per-user", action="store_true", help="public demo: a separate seeded library per user")
     f = sub.add_parser("file", help="file local files or links into the library")
     f.add_argument("paths", nargs="+")
     f.add_argument("--note", default="")
@@ -33,6 +34,7 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--yes", action="store_true", help="required: confirms moving the current library aside")
     h = sub.add_parser("hermes-setup", help="install the canvasmind skill and settings into a NemoClaw Hermes sandbox")
     h.add_argument("--sandbox", default="canvasmind")
+    h.add_argument("--demo", action="store_true", help="the public demo bot: open to all, per-user limits, no cron")
     args = p.parse_args(argv)
 
     cfg = Config.from_env()
@@ -44,7 +46,13 @@ def main(argv: list[str] | None = None) -> int:
         from .mcp_server import create_app
 
         port = args.port or cfg.port
-        app = create_app(studio, cfg.token, cfg.public_host, port)
+        tenants = None
+        if args.per_user:  # the public demo bot: one seeded library per Telegram user
+            from .demo import DEFAULT_FIXTURES
+            from .tenants import Tenants
+
+            tenants = Tenants(cfg.home, DEFAULT_FIXTURES)
+        app = create_app(studio, cfg.token, cfg.public_host, port, tenants)
         print(f"canvasmind MCP on http://127.0.0.1:{port}/mcp (library: {cfg.home})", file=sys.stderr)
         uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
         return 0
@@ -82,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "hermes-setup":
         from .hermes_setup import setup
 
-        print(json.dumps(setup(args.sandbox), indent=1))
+        print(json.dumps(setup(args.sandbox, demo=args.demo), indent=1))
         return 0
     if args.cmd == "status":
         print(json.dumps({"home": str(cfg.home), "counts": studio.lib.count(),

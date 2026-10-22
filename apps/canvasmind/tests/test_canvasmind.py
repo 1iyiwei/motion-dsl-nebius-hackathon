@@ -245,8 +245,13 @@ LOGO = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
 
 
 def _plan(intent_text: str) -> dict:
+    # with artwork the loop merges the SVG's actors in; from words alone the plan draws its own shapes
+    actors = [] if "artwork" in intent_text else [
+        {"id": "sun", "shape": {"kind": "group"}, "init": {"x": 360, "y": 360}},
+        {"id": "disc", "shape": {"kind": "ellipse", "rx": 60, "ry": 60}, "style": {"fill": "#f4a259"}, "parent": "sun",
+         "init": {"x": 0, "y": 0}}]
     return {"motion": "0.1", "canvas": {"width": 720, "height": 720, "fps": 30, "background": "#ffffff"},
-            "actors": [], "timeline": {"id": "t", "seq": [
+            "actors": actors, "timeline": {"id": "t", "seq": [
                 {"id": "b1", "verb": "scale", "actor": "disc", "to": 1.4, "duration": 0.8, "ease": "outBack"},
                 {"id": "b2", "verb": "rotate", "actor": "sun", "by": 90, "duration": 1.2, "ease": "inOutSine"}]}}
 
@@ -407,3 +412,40 @@ def test_library_survives_demo_reset_while_running(tmp_path):
     running.file_bytes(png_bytes("blue"), "new.png")  # and can write to it
     shutil.rmtree(home)
     assert running.lib.recent(5) == []  # even a deleted library comes back empty, not broken
+
+
+def test_prompt_only_animation(astudio):
+    res = astudio.animate("", "a ball bounces in")
+    assert res.ok and res.item.facts["parent"] is None and res.item.title == "a ball bounces in"
+    from canvasmind.animation import NotAnimatable
+
+    with pytest.raises(NotAnimatable):
+        astudio.animate("", "")
+
+
+def test_per_user_libraries_via_reserved_argument(tmp_path):
+    from starlette.testclient import TestClient
+
+    from canvasmind.demo import DEFAULT_FIXTURES
+    from canvasmind.mcp_server import create_app
+    from canvasmind.tenants import Tenants
+
+    make = lambda h: Studio(Library(h), llm_factory=lambda: LLM(FakeBackend()))  # noqa: E731
+    default = make(tmp_path / "home")
+    tenants = Tenants(tmp_path / "home", DEFAULT_FIXTURES, make)
+    with TestClient(create_app(default, "t0k", "", 8770, tenants), base_url="http://127.0.0.1:8770") as c:
+        _, a = rpc(c, "tools/call", {"name": "studio_status", "arguments": {"_cm_user": "111"}})
+        counts = json.loads(a["result"]["content"][0]["text"])["counts"]
+        assert sum(counts.values()) == 5  # seeded from the fixtures on first use
+        rpc(c, "tools/call", {"name": "upload_part", "arguments": {"_cm_user": "111", "upload_id": "upl_tenant01", "index": 0,
+                                                                   "data_b64": base64.b64encode(png_bytes()).decode()}})
+        rpc(c, "tools/call", {"name": "upload_finish", "arguments": {"_cm_user": "111", "upload_id": "upl_tenant01",
+                                                                     "filename": "mine.png", "parts": 1}})
+        _, b = rpc(c, "tools/call", {"name": "studio_status", "arguments": {"_cm_user": "222"}})
+        assert sum(json.loads(b["result"]["content"][0]["text"])["counts"].values()) == 5  # user 222 doesn't see 111's upload
+        _, a = rpc(c, "tools/call", {"name": "studio_status", "arguments": {"_cm_user": "111"}})
+        assert sum(json.loads(a["result"]["content"][0]["text"])["counts"].values()) == 6
+        _, d = rpc(c, "tools/call", {"name": "studio_status", "arguments": {}})
+        assert json.loads(d["result"]["content"][0]["text"])["counts"] == {}  # no user: the default library
+    assert (tmp_path / "home" / "users" / "111" / ".seeded").is_file()
+    assert (tmp_path / "home" / "template" / ".seeded").is_file()  # seeded once, then copied per user

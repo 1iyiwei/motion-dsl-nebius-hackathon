@@ -1,8 +1,9 @@
 name: canvasmind_telegram
-version: "0.2.0"
-description: "CanvasMind fixes for Hermes's Telegram adapter: keep .svg files sent as documents, and send local GIFs as animations"
+version: "0.3.0"
+description: "CanvasMind fixes for Hermes's Telegram adapter: keep .svg files sent as documents, send local GIFs as animations, and per-user limits for the public demo"
 author: "CanvasMind"
 manifest_version: 1
 
 provides_hooks:
   - pre_llm_call
+  - pre_tool_call
