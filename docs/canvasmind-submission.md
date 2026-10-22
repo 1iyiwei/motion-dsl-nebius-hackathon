@@ -1,6 +1,6 @@
 # CanvasMind: submission draft (Personal AI)
 
-Draft for the Devpost form (fields as in `docs/submission-form.md`). Not submitted yet. Open items are marked **TODO**.
+Draft for the Devpost form (fields as in `docs/submission-form.md`). Open items are marked **TODO**.
 
 ## General info
 
