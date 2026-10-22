@@ -113,3 +113,20 @@ Add an entry when something surprises us. Include the date, what happened, and t
 - **OpenShell inference routing rewrites the model** on every request to the one configured at onboarding, so an agent
   in the sandbox can't use a second model (e.g. Nemotron VL for images) through `inference.local`. A per-sandbox list of
   allowed models on the same endpoint would let agents route by task (vision, fast edits) the way our host code does.
+
+## 2026-10-22 (CanvasMind)
+
+- **Structured output can run away on numbers.** With `response_format: json_schema` (the MotionLang schema), Super-120B
+  about half the time wrote `"by": 360.000000000000060083022889379446411132812500000000…` and kept emitting zeros until
+  `max_tokens` (16k): 63–79 s and an unparseable document. The grammar allows numbers of any length, so nothing stops it.
+  JSON mode without the schema didn't do this (one run instead ended in an unterminated string after 136 s). Capping the
+  digits of numbers in the grammar, or an option for it, would make constrained decoding safe for documents full of
+  numbers. A per-request reasoning/answer budget would also turn these hangs into fast failures.
+- **Hermes ignores Telegram's `/start`** ("Acknowledge platform start pings without a reply"), so a bot's greeting has to
+  live in BotFather's description. Hermes also registers ~60 of its own commands in the bot's Telegram menu, which a
+  product built on it can't trim without patching.
+- **Runaway numbers under structured output (Super-120B, Oct 22, reported by CanvasMind)**: with `json_schema`,
+  about half of the prompt-only scenes produced a number that never terminates (`"by": 360.0000000000000600830228893794...000`),
+  emitting zeros until `max_tokens` (16k): 63–79 s, then unparseable JSON. Plain `json_object` mode didn't do this.
+  A grammar-level cap on number length (or `maxLength`-style support for numbers) would prevent it. Client-side, we cap
+  `max_tokens` and fall back to JSON mode after an unparseable structured reply.

@@ -24,6 +24,9 @@ INSTRUCTIONS = (
 # Tools only the sandbox's upload script calls; hide them from the model with
 # mcp_servers.canvasmind.tools.exclude in the Hermes config.
 HIDDEN_TOOLS = ("upload_part", "upload_finish")
+DEADLINE = 100  # seconds; Hermes gives up on a tool after 120
+SLOW = ("This one is taking too long (the planner is struggling with it). Try a simpler request, fewer objects, "
+        "or start from an SVG logo.")
 UPLOAD_HINT = ("Not a web link. To file an image the user sent in the chat, run this terminal command (it uploads the "
                "file to their library and prints what CanvasMind saw): /opt/hermes/.venv/bin/python "
                '~/.hermes/skills/canvasmind/scripts/cm_upload.py {path} --note "{note}"')
@@ -111,6 +114,17 @@ def create_mcp(studio, allowed_hosts: list[str]):
         _log(studio, "scan_studio", [], time.time() - t0)
         return out
 
+    def within_deadline(fn, *args):
+        """Run a slow model job, answering before Hermes's tool timeout; a job past the deadline keeps running and
+        its result still lands in the library."""
+        import concurrent.futures as cf
+
+        pool = cf.ThreadPoolExecutor(max_workers=1)
+        try:
+            return pool.submit(fn, *args).result(timeout=DEADLINE)
+        finally:
+            pool.shutdown(wait=False)
+
     def animated_reply(tool: str, res, t0: float) -> list:
         _log(studio, tool, res.calls, time.time() - t0)
         payload = {"animation": res.item.brief(), "valid": res.ok,
@@ -129,11 +143,16 @@ def create_mcp(studio, allowed_hosts: list[str]):
         SVG artwork. Takes 20-60 s."""
         from .animation import NotAnimatable
 
+        import concurrent.futures as cf
+
         t0 = time.time()
+        target = studio.resolve() if hasattr(studio, "resolve") else studio  # bind the caller's library before threading
         try:
-            return animated_reply("animate", studio.animate(item_id, brief, in_my_style), t0)
+            return animated_reply("animate", within_deadline(target.animate, item_id, brief, in_my_style), t0)
         except NotAnimatable as e:
             return [json.dumps({"animation": None, "message": str(e)})]
+        except cf.TimeoutError:
+            return [json.dumps({"animation": None, "message": SLOW})]
 
     @mcp.tool()
     def tweak(item_id: str, request: str) -> list:
@@ -141,11 +160,16 @@ def create_mcp(studio, allowed_hosts: list[str]):
         version with its GIF; the old one stays in the library."""
         from .animation import NotAnimatable
 
+        import concurrent.futures as cf
+
         t0 = time.time()
+        target = studio.resolve() if hasattr(studio, "resolve") else studio
         try:
-            return animated_reply("tweak", studio.tweak(item_id, request), t0)
+            return animated_reply("tweak", within_deadline(target.tweak, item_id, request), t0)
         except NotAnimatable as e:
             return [json.dumps({"animation": None, "message": str(e)})]
+        except cf.TimeoutError:
+            return [json.dumps({"animation": None, "message": SLOW})]
 
     @mcp.tool()
     def feedback(item_id: str, verdict: str, why: str = "") -> dict:

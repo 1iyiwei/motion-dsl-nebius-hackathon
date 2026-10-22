@@ -14,12 +14,13 @@ from dataclasses import dataclass, field
 from motionlang.agent.llm import LLM, Call, extract_json_text
 from PIL import ImageDraw, ImageFont
 
-from . import media, style
+from . import media, models, style
 from .library import Item
 
 CANVAS = {"width": 720, "height": 720, "fps": 30, "background": "#ffffff"}  # square: logos, and phones
 GIF_WIDTH = 480
 GIF_FPS = 20
+PLAN_TOKENS = 6000  # cap per planner call (see _animate)
 
 LABEL_PROMPT = """Image 1 is a vector artwork a motion designer wants to animate; image 2 is the same artwork with each part
 numbered. Parts: {parts}.
@@ -141,19 +142,40 @@ def _animate(studio, brief: str, imported: dict, llm, *, title: str, parent: str
 
     llm = llm or studio.make_llm()
     calls = list(calls or [])
+    t0 = time.time()
     prof = studio.style.profile()
     hint = style.summary(prof) if in_my_style else ""
     intent = brief + (f"\n\nThe user's motion style (follow it unless the request says otherwise): {hint}" if hint else "")
+    # Structured output (Super's default) with a 6000-token cap: under the schema grammar Super sometimes writes a
+    # number that never ends ("by": 360.0000000000000600830…); the cap stops it after ~30 s and motionlang finishes in
+    # JSON mode. Valid Super documents use 2-5k tokens. Measured Oct 22: 4/4 valid in 29-48 s (JSON mode alone: 2/4).
     out = generate(intent, canvas=CANVAS, assets=imported.get("assets"), suggested_actors=imported.get("actors"), llm=llm,
-                   max_repairs=1)  # Hermes times a tool out at 120 s; Super plans in ~35 s, repairs in ~20 s
+                   max_repairs=2, max_tokens=PLAN_TOKENS)
     calls += [a.call for a in out.attempts]
     best = out.doc if out.ok else (out.best.doc if out.best else None)
+    if best is not None and not imported.get("assets"):  # from words alone: check the planner drew everything that was asked for
+        try:
+            missing, call = models.missing_objects(llm, brief, best)
+            calls.append(call)
+        except Exception:
+            missing = []
+        if missing and time.time() - t0 < 45:  # one more plan only while it fits in Hermes's 120 s tool timeout
+            again = generate(intent + "\n\nThe animation must show every object the request names, including: "
+                             + "; ".join(missing) + ".", canvas=CANVAS, llm=llm, max_repairs=0, max_tokens=PLAN_TOKENS)
+            calls += [a.call for a in again.attempts]
+            if again.ok:
+                out, best, missing = again, again.doc, []
+        missed = missing
+    else:
+        missed = []
     if best is None or _no_bake(best):
         raise RuntimeError("the planner couldn't produce a playable animation; " + "; ".join(out.final.problems()[:2] if out.final else []))
     item = _store(studio, best, title=title, brief=brief, source="animate", parent=parent, version=1)
+    note = "" if out.ok else "closest playable attempt; the validator still flags: " + "; ".join(out.final.problems()[:2])
+    if missed:
+        note = (note + "; " if note else "") + "this may be missing: " + ", ".join(missed) + " (offer to add it with tweak)"
     return Animated(item, studio.lib.gif(item.id), out.ok, why=style.explain(item.facts, prof) if hint else "",
-                    note="" if out.ok else "closest playable attempt; the validator still flags: " + "; ".join(out.final.problems()[:2]),
-                    calls=calls)
+                    note=note, calls=calls)
 
 
 _TEMPO = re.compile(r"^\s*(?:(?:make|play)\s+(?:it|this)\s+)?(?P<amount>a (?:bit|little)|slightly|much|way|a lot)?\s*"
@@ -205,7 +227,7 @@ def tweak(studio, item_id: str, request: str) -> Animated:
         if check(copy.deepcopy(retimed)).report.ok:
             new = retimed
     if new is None:
-        out = ml_tweak(doc, request, llm=studio.make_llm(), max_repairs=1)
+        out = ml_tweak(doc, request, llm=studio.make_llm(), max_repairs=1, max_tokens=PLAN_TOKENS)
         calls = [a.call for a in out.attempts]
         if not out.ok or out.doc is None:
             raise RuntimeError("couldn't apply that change: " + "; ".join(out.final.problems()[:2] if out.final else []))

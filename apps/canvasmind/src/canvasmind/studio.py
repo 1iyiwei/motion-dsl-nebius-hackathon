@@ -24,7 +24,11 @@ PLANNER = os.environ.get("CANVASMIND_PLANNER_MODEL", "nvidia/nemotron-3-super-12
 
 
 def default_llm() -> LLM:
-    return LLM(models={"planner": PLANNER})
+    from motionlang.agent.llm import TokenFactory
+
+    # 60 s per call (default 300): a runaway reply (an endless number or string) is cut off instead of running to the
+    # 16k-token cap, so a request fails fast enough to answer within Hermes's 120 s tool timeout.
+    return LLM(TokenFactory(timeout=60), models={"planner": PLANNER})
 UPLOAD_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
 
 

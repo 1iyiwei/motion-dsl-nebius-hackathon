@@ -323,3 +323,12 @@ def test_container_as_verb_hint_when_it_cannot_be_rewritten():
     d["timeline"]["seq"].append({"id": "b2", "verb": "par"})
     e = next(e for e in check(d).report.errors if e.block == "b2")
     assert "par is a container, not a verb" in e.hint and '{"id": "b2", "par": [' in e.hint
+
+
+def test_max_tokens_reaches_the_planner_and_a_runaway_structured_reply_falls_back_to_json_mode():
+    runaway = '{"motion": "0.1", "timeline": {"id": "root", "seq": [{"id": "s", "verb": "rotate", "actor": "logo", "by": 360.0000000000000600830' + "0" * 200
+    fake = Scripted(runaway, json.dumps(EXAMPLE))
+    out = generate("ball", llm=LLM(fake), structured=True, max_tokens=6000)
+    assert out.ok and [a.kind for a in out.attempts] == ["generate", "repair"]
+    assert [r["max_tokens"] for r in fake.requests] == [6000, 6000]
+    assert [r["response_format"]["type"] for r in fake.requests] == ["json_schema", "json_object"]

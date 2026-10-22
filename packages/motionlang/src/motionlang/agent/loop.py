@@ -213,6 +213,7 @@ def _parse_reply(text: str) -> tuple[dict | None, str | None]:
     return doc, None
 
 
+DOC_MAX_TOKENS = 16000  # completion tokens per planner call, reasoning included (Ultra's long plans reach ~9k)
 OPS_REPAIR_MAX = 12  # a parseable document with at most this many problems is patched with edit ops
 DOC_KINDS = ("generate", "repair", "repair-edit", "regenerate")
 
@@ -221,6 +222,7 @@ def _document_rounds(
     llm: LLM, messages: list[dict], first_kind: str, canvas: dict, intent: str | None, strokes: dict | None,
     max_repairs: int, out: Outcome, assets: dict | None = None, on_attempt: "OnAttempt | None" = None,
     structured: bool = False, suggested: list[dict] | None = None, restore_missing: bool = True,
+    max_tokens: int = DOC_MAX_TOKENS,
 ) -> None:
     """Planner writes a document, then repairs it. A near-valid document is repaired with edit ops on
     that document (whole-document rewrites drift); otherwise, or if patching stalls, it is rewritten."""
@@ -229,8 +231,12 @@ def _document_rounds(
     rewrote_after_stall = False
     for _ in range(max_repairs + 1):
         schema = decoding_schema() if structured and kind != "repair-edit" else None
-        text, call = llm.json("planner", kind, messages, schema=schema)
+        text, call = llm.json("planner", kind, messages, schema=schema, max_tokens=max_tokens)
         reply, err = _parse_reply(text)
+        if err and schema is not None:
+            # Under constrained decoding, Super-120B sometimes writes a number that never ends
+            # (360.0000000000000600830...) until the token cap; plain JSON mode doesn't do that.
+            structured = False
         att = Attempt(kind, call, error=err, raw=text)  # type: ignore[arg-type]
         applied = False
         if reply is not None and kind == "repair" and "ops" in reply and "timeline" not in reply and base is not None:
@@ -312,8 +318,13 @@ def generate(
     max_repairs: int = 3,
     on_attempt: OnAttempt | None = None,
     structured: bool | None = None,
+    max_tokens: int = DOC_MAX_TOKENS,
 ) -> Outcome:
     """`on_attempt` is called right after each attempt is checked (for live progress UIs).
+
+    `max_tokens` caps each planner call's completion (reasoning included): a lower cap (e.g. 6000 for Super)
+    turns a runaway reply into a quick failure the repair loop can handle. If a structured reply comes
+    back unparseable, later rounds use plain JSON mode.
 
     `structured=True` constrains the planner's documents to the MotionLang JSON Schema (Token Factory
     structured output), which removes format slips. None (default) turns it on exactly when the planner
@@ -330,14 +341,18 @@ def generate(
         {"role": "user", "content": prompts.generation_user(intent, canvas, strokes, assets, suggested_actors)},
     ]
     out = Outcome(path="generate")
-    _document_rounds(llm, messages, "generate", canvas, intent, strokes, max_repairs, out, assets, on_attempt, structured, suggested_actors)
+    _document_rounds(llm, messages, "generate", canvas, intent, strokes, max_repairs, out, assets, on_attempt, structured, suggested_actors,
+                     max_tokens=max_tokens)
     return out
 
 
 def tweak(
     doc: dict[str, Any], instruction: str, *, llm: LLM | None = None, max_repairs: int = 2, on_attempt: OnAttempt | None = None,
+    max_tokens: int = DOC_MAX_TOKENS,
 ) -> Outcome:
     """Small change via edit ops from the fast editor model; escalate to the planner if needed.
+
+    `max_tokens` caps the planner's calls if the edit escalates to a regenerate (edit calls use 4000).
 
     `on_attempt` is called right after each attempt is checked (for live progress UIs)."""
     llm = llm or LLM()
@@ -381,5 +396,5 @@ def tweak(
         {"role": "user", "content": prompts.regenerate_user(doc, instruction)},
     ]
     _document_rounds(llm, messages, "regenerate", canvas, None, None, max_repairs, out, doc.get("assets"), on_attempt,
-                     prefers_structured(llm.model_for("planner")), doc.get("actors"), restore_missing=False)
+                     prefers_structured(llm.model_for("planner")), doc.get("actors"), restore_missing=False, max_tokens=max_tokens)
     return out

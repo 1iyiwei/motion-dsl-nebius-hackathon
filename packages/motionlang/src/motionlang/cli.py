@@ -68,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--assets", help="JSON file from `motionlang import-svg` (assets + suggested actors)")
     g.add_argument("--size", help="canvas WxH (default: the --assets canvas, else 1280x720)")
     g.add_argument("--repairs", type=int, default=3)
+    g.add_argument("--max-tokens", type=int, default=16000, help="cap on each planner call's completion tokens (reasoning included)")
     g.add_argument("--structured", action=argparse.BooleanOptionalAction, default=None,
                    help="constrain the planner to the JSON Schema (default: on for Super planners, off for Ultra)")
 
@@ -182,6 +183,7 @@ def _agent(args: argparse.Namespace) -> int:
             args.intent, canvas={"width": w, "height": h}, strokes=strokes, max_repairs=args.repairs,
             assets=imported.get("assets"), suggested_actors=imported.get("actors"),
             structured=args.structured,
+            max_tokens=args.max_tokens,
         )
     else:
         print(f"tweaking: {args.instruction!r}", file=sys.stderr)

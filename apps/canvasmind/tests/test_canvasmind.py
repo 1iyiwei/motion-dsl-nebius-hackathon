@@ -259,8 +259,14 @@ def _plan(intent_text: str) -> dict:
 class AnimBackend(FakeBackend):
     """Adds the planner (one fixed valid plan), part labels and edit ops to the fake model."""
 
+    missing_once: list = []
+
     def complete(self, model, messages, **kw):
         content = messages[-1]["content"]
+        if isinstance(content, str) and "Which objects named in the request" in content:
+            self.seen.append((model, messages))
+            missing, self.missing_once = self.missing_once, []
+            return json.dumps({"missing": missing}), {}
         if isinstance(content, list) and any("numbered" in p.get("text", "") for p in content if p["type"] == "text"):
             self.seen.append((model, messages))
             return json.dumps({"labels": {"1": "sun disc", "sea": "sea"}, "idea": "the sun rises and spins"}), {}
@@ -414,6 +420,15 @@ def test_library_survives_demo_reset_while_running(tmp_path):
     assert running.lib.recent(5) == []  # even a deleted library comes back empty, not broken
 
 
+def test_prompt_only_animation_replans_when_an_object_is_missing(astudio):
+    astudio.backend.missing_once = ["blue square"]
+    res = astudio.animate("", "a blue square spins while a red ball bounces")
+    assert res.ok
+    plans = [m for _, m in astudio.backend.seen if m[0]["role"] == "system"]
+    assert len(plans) == 2 and "including: blue square" in plans[-1][-1]["content"]
+    assert any(c.purpose == "missing objects" for c in res.calls)
+
+
 def test_prompt_only_animation(astudio):
     res = astudio.animate("", "a ball bounces in")
     assert res.ok and res.item.facts["parent"] is None and res.item.title == "a ball bounces in"
@@ -449,3 +464,17 @@ def test_per_user_libraries_via_reserved_argument(tmp_path):
         assert json.loads(d["result"]["content"][0]["text"])["counts"] == {}  # no user: the default library
     assert (tmp_path / "home" / "users" / "111" / ".seeded").is_file()
     assert (tmp_path / "home" / "template" / ".seeded").is_file()  # seeded once, then copied per user
+
+
+def test_slow_animation_answers_before_hermes_times_out(astudio, monkeypatch):
+    import time as _time
+
+    from starlette.testclient import TestClient
+
+    from canvasmind import mcp_server
+
+    monkeypatch.setattr(mcp_server, "DEADLINE", 0.2)
+    monkeypatch.setattr(astudio, "animate", lambda *a: _time.sleep(1))
+    with TestClient(mcp_server.create_app(astudio, "t0k", "", 8770), base_url="http://127.0.0.1:8770") as c:
+        _, res = rpc(c, "tools/call", {"name": "animate", "arguments": {"brief": "a ball"}})
+    assert "taking too long" in json.loads(res["result"]["content"][0]["text"])["message"]
