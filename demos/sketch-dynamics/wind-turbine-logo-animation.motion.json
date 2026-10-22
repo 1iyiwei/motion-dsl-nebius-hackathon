@@ -9,77 +9,25 @@
   "actors": [
     {
       "id": "logo",
+      "label": "the whole logo",
       "shape": {
         "kind": "group"
       },
       "init": {
         "x": 640,
         "y": 360
-      },
-      "label": "the whole logo"
+      }
     },
     {
-      "id": "motion_lines",
+      "id": "wind_turbine_blades_and",
+      "label": "wind turbine blades and hub (turns about path5)",
       "shape": {
         "kind": "group"
       },
       "parent": "logo",
-      "label": "motion lines",
       "init": {
-        "x": -34.98,
-        "y": -245.95,
-        "opacity": 0
-      }
-    },
-    {
-      "id": "path4_6",
-      "shape": {
-        "kind": "asset",
-        "ref": "path4_6"
-      },
-      "parent": "motion_lines",
-      "label": "top motion arc",
-      "init": {
-        "x": 41.1,
-        "y": -11.23
-      }
-    },
-    {
-      "id": "path4_7",
-      "shape": {
-        "kind": "asset",
-        "ref": "path4_7"
-      },
-      "parent": "motion_lines",
-      "label": "middle motion arc",
-      "init": {
-        "x": -31.62,
-        "y": 27.12
-      }
-    },
-    {
-      "id": "path4_8",
-      "shape": {
-        "kind": "asset",
-        "ref": "path4_8"
-      },
-      "parent": "motion_lines",
-      "label": "left motion arc",
-      "init": {
-        "x": -113.89,
-        "y": -11.15
-      }
-    },
-    {
-      "id": "blade_assembly",
-      "shape": {
-        "kind": "group"
-      },
-      "parent": "logo",
-      "label": "blade_assembly",
-      "init": {
-        "x": 0,
-        "y": 7.42
+        "x": -45.06,
+        "y": -29.52
       }
     },
     {
@@ -88,12 +36,12 @@
         "kind": "asset",
         "ref": "path3_1"
       },
-      "parent": "blade_assembly",
-      "label": "right blade fill",
+      "parent": "wind_turbine_blades_and",
       "init": {
-        "x": 125.78,
-        "y": -126.21
-      }
+        "x": 170.83,
+        "y": -89.27
+      },
+      "label": "right blade fill"
     },
     {
       "id": "path3_2",
@@ -101,12 +49,12 @@
         "kind": "asset",
         "ref": "path3_2"
       },
-      "parent": "blade_assembly",
-      "label": "bottom blade fill",
+      "parent": "wind_turbine_blades_and",
       "init": {
-        "x": -33.82,
-        "y": 141.21
-      }
+        "x": 11.23,
+        "y": 178.15
+      },
+      "label": "bottom blade fill"
     },
     {
       "id": "path3_3",
@@ -114,12 +62,12 @@
         "kind": "asset",
         "ref": "path3_3"
       },
-      "parent": "blade_assembly",
-      "label": "left blade fill",
+      "parent": "wind_turbine_blades_and",
       "init": {
-        "x": -176.52,
-        "y": -146.4
-      }
+        "x": -131.47,
+        "y": -109.46
+      },
+      "label": "left blade fill"
     },
     {
       "id": "path4_1",
@@ -127,12 +75,12 @@
         "kind": "asset",
         "ref": "path4_1"
       },
-      "parent": "blade_assembly",
-      "label": "left blade frame",
+      "parent": "wind_turbine_blades_and",
       "init": {
-        "x": -177.78,
-        "y": -154.11
-      }
+        "x": -132.73,
+        "y": -117.17
+      },
+      "label": "left blade outline"
     },
     {
       "id": "path4_2",
@@ -140,12 +88,12 @@
         "kind": "asset",
         "ref": "path4_2"
       },
-      "parent": "blade_assembly",
-      "label": "bottom blade frame",
+      "parent": "wind_turbine_blades_and",
       "init": {
-        "x": -37.85,
-        "y": 142.82
-      }
+        "x": 7.21,
+        "y": 179.76
+      },
+      "label": "bottom support leg"
     },
     {
       "id": "path4_3",
@@ -153,77 +101,12 @@
         "kind": "asset",
         "ref": "path4_3"
       },
-      "parent": "blade_assembly",
-      "label": "right blade frame",
+      "parent": "wind_turbine_blades_and",
       "init": {
-        "x": 128.85,
-        "y": -127.86
-      }
-    },
-    {
-      "id": "path7_1",
-      "shape": {
-        "kind": "asset",
-        "ref": "path7_1"
+        "x": 173.9,
+        "y": -90.92
       },
-      "parent": "blade_assembly",
-      "label": "left blade highlight",
-      "init": {
-        "x": -177.15,
-        "y": -125.68
-      }
-    },
-    {
-      "id": "path9",
-      "shape": {
-        "kind": "asset",
-        "ref": "path9"
-      },
-      "parent": "blade_assembly",
-      "label": "hub center dot",
-      "init": {
-        "x": -44.93,
-        "y": -36.94
-      }
-    },
-    {
-      "id": "path7_3",
-      "shape": {
-        "kind": "asset",
-        "ref": "path7_3"
-      },
-      "parent": "blade_assembly",
-      "label": "bottom blade highlight",
-      "init": {
-        "x": -23.97,
-        "y": 136.01
-      }
-    },
-    {
-      "id": "path7_2",
-      "shape": {
-        "kind": "asset",
-        "ref": "path7_2"
-      },
-      "parent": "blade_assembly",
-      "label": "right blade highlight",
-      "init": {
-        "x": 57.1,
-        "y": -132.45
-      }
-    },
-    {
-      "id": "path6",
-      "shape": {
-        "kind": "asset",
-        "ref": "path6"
-      },
-      "parent": "blade_assembly",
-      "label": "hub inner circle",
-      "init": {
-        "x": -44.92,
-        "y": -36.94
-      }
+      "label": "right blade outline"
     },
     {
       "id": "path5",
@@ -231,11 +114,88 @@
         "kind": "asset",
         "ref": "path5"
       },
-      "parent": "blade_assembly",
-      "label": "hub outline",
+      "parent": "wind_turbine_blades_and",
       "init": {
-        "x": -45.06,
-        "y": -36.94
+        "x": 0,
+        "y": 0
+      },
+      "label": "central hub ring"
+    },
+    {
+      "id": "path6",
+      "shape": {
+        "kind": "asset",
+        "ref": "path6"
+      },
+      "parent": "wind_turbine_blades_and",
+      "init": {
+        "x": 0.13,
+        "y": 0
+      },
+      "label": "inner hub circle"
+    },
+    {
+      "id": "path7_1",
+      "shape": {
+        "kind": "asset",
+        "ref": "path7_1"
+      },
+      "parent": "wind_turbine_blades_and",
+      "init": {
+        "x": -132.09,
+        "y": -88.75
+      },
+      "label": "left blade highlight"
+    },
+    {
+      "id": "path7_2",
+      "shape": {
+        "kind": "asset",
+        "ref": "path7_2"
+      },
+      "parent": "wind_turbine_blades_and",
+      "init": {
+        "x": 102.15,
+        "y": -95.52
+      },
+      "label": "right blade highlight"
+    },
+    {
+      "id": "path7_3",
+      "shape": {
+        "kind": "asset",
+        "ref": "path7_3"
+      },
+      "parent": "wind_turbine_blades_and",
+      "init": {
+        "x": 21.09,
+        "y": 172.94
+      },
+      "label": "bottom blade highlight"
+    },
+    {
+      "id": "path9",
+      "shape": {
+        "kind": "asset",
+        "ref": "path9"
+      },
+      "parent": "wind_turbine_blades_and",
+      "init": {
+        "x": 0.12,
+        "y": 0
+      },
+      "label": "hub center dot"
+    },
+    {
+      "id": "turbine_base_structure",
+      "label": "turbine base structure",
+      "shape": {
+        "kind": "group"
+      },
+      "parent": "logo",
+      "init": {
+        "x": -45.04,
+        "y": 120.01
       }
     },
     {
@@ -244,12 +204,12 @@
         "kind": "asset",
         "ref": "path1_1"
       },
-      "parent": "logo",
-      "label": "left blade outline",
+      "parent": "turbine_base_structure",
       "init": {
-        "x": -132.4,
-        "y": 63.94
-      }
+        "x": -87.36,
+        "y": -56.08
+      },
+      "label": "left base frame"
     },
     {
       "id": "path1_2",
@@ -257,12 +217,12 @@
         "kind": "asset",
         "ref": "path1_2"
       },
-      "parent": "logo",
-      "label": "right blade outline",
+      "parent": "turbine_base_structure",
       "init": {
-        "x": 41.81,
-        "y": 63.26
-      }
+        "x": 86.85,
+        "y": -56.75
+      },
+      "label": "right base frame"
     },
     {
       "id": "path2",
@@ -270,12 +230,12 @@
         "kind": "asset",
         "ref": "path2"
       },
-      "parent": "logo",
-      "label": "base outline",
+      "parent": "turbine_base_structure",
       "init": {
-        "x": -45.04,
-        "y": 184.96
-      }
+        "x": 0,
+        "y": 64.95
+      },
+      "label": "bottom base bar"
     },
     {
       "id": "path4_4",
@@ -283,12 +243,12 @@
         "kind": "asset",
         "ref": "path4_4"
       },
-      "parent": "logo",
-      "label": "base inner line",
+      "parent": "turbine_base_structure",
       "init": {
-        "x": -152.25,
-        "y": 159.13
-      }
+        "x": -107.21,
+        "y": 39.12
+      },
+      "label": "left base inner line"
     },
     {
       "id": "path4_5",
@@ -296,12 +256,12 @@
         "kind": "asset",
         "ref": "path4_5"
       },
-      "parent": "logo",
-      "label": "base inner line",
+      "parent": "turbine_base_structure",
       "init": {
-        "x": 44.42,
-        "y": 201.18
-      }
+        "x": 89.47,
+        "y": 81.16
+      },
+      "label": "right base inner line"
     },
     {
       "id": "path8",
@@ -309,53 +269,130 @@
         "kind": "asset",
         "ref": "path8"
       },
-      "parent": "logo",
-      "label": "base inner line",
+      "parent": "turbine_base_structure",
       "init": {
-        "x": 66.42,
-        "y": 159.12
+        "x": 111.46,
+        "y": 39.11
+      },
+      "label": "right base inner line"
+    },
+    {
+      "id": "sound_effect_arcs",
+      "label": "sound effect arcs",
+      "shape": {
+        "kind": "group"
+      },
+      "parent": "logo",
+      "init": {
+        "x": -34.98,
+        "y": -245.95
       }
+    },
+    {
+      "id": "path4_6",
+      "shape": {
+        "kind": "asset",
+        "ref": "path4_6"
+      },
+      "parent": "sound_effect_arcs",
+      "init": {
+        "x": 41.1,
+        "y": -11.23,
+        "opacity": 0
+      },
+      "label": "top right sound arc"
+    },
+    {
+      "id": "path4_7",
+      "shape": {
+        "kind": "asset",
+        "ref": "path4_7"
+      },
+      "parent": "sound_effect_arcs",
+      "init": {
+        "x": -31.62,
+        "y": 27.12,
+        "opacity": 0
+      },
+      "label": "top middle sound arc"
+    },
+    {
+      "id": "path4_8",
+      "shape": {
+        "kind": "asset",
+        "ref": "path4_8"
+      },
+      "parent": "sound_effect_arcs",
+      "init": {
+        "x": -113.89,
+        "y": -11.15,
+        "opacity": 0
+      },
+      "label": "top left sound arc"
     }
   ],
   "timeline": {
     "id": "root",
     "seq": [
       {
-        "id": "par1",
+        "id": "main_anim",
         "par": [
           {
-            "id": "spin",
+            "id": "rotate_blades",
             "verb": "rotate",
-            "actor": "blade_assembly",
-            "by": 720.0000000000001
+            "actor": "wind_turbine_blades_and",
+            "by": 360,
+            "duration": 2,
+            "ease": "outQuad"
           },
           {
-            "id": "fade",
-            "verb": "fade",
-            "actor": "motion_lines",
-            "to": 1
+            "id": "fade_arcs",
+            "stagger": [
+              {
+                "id": "fade_arc1",
+                "verb": "fade",
+                "actor": "path4_6",
+                "to": 1,
+                "duration": 0.5
+              },
+              {
+                "id": "fade_arc2",
+                "verb": "fade",
+                "actor": "path4_7",
+                "to": 1,
+                "duration": 0.5
+              },
+              {
+                "id": "fade_arc3",
+                "verb": "fade",
+                "actor": "path4_8",
+                "to": 1,
+                "duration": 0.5
+              }
+            ],
+            "offset": 0.3
           }
         ]
-      },
-      {
-        "id": "hold",
-        "verb": "hold",
-        "duration": 0.5
       }
     ]
   },
   "constraints": [
     {
       "type": "in_bounds",
+      "actors": "*",
       "margin": 8,
       "ignore": [
-        "spin"
+        "rotate_blades"
       ]
+    },
+    {
+      "type": "total_duration",
+      "max": 3
     }
   ],
   "meta": {
-    "title": "Logo Assembly Spin",
-    "intent": "The blade assembly spins clockwise while the motion lines fade in, then everything settles."
+    "intent": "The blades and hub rotate clockwise while the sound arcs fade in one by one, then everything settles into the finished logo.",
+    "title": "Wind Turbine Logo Animation"
   },
   "assets": {
     "path1_1": {
@@ -371,7 +408,7 @@
         89.2,
         156.82
       ],
-      "label": "left blade outline"
+      "label": "left base frame"
     },
     "path1_2": {
       "kind": "path",
@@ -386,7 +423,7 @@
         86.15,
         158.18
       ],
-      "label": "right blade outline"
+      "label": "right base frame"
     },
     "path2": {
       "kind": "path",
@@ -401,7 +438,7 @@
         295.83,
         141.8
       ],
-      "label": "base outline"
+      "label": "bottom base bar"
     },
     "path3_1": {
       "kind": "path",
@@ -461,7 +498,7 @@
         205.23,
         252.96
       ],
-      "label": "left blade frame"
+      "label": "left blade outline"
     },
     "path4_2": {
       "kind": "path",
@@ -476,7 +513,7 @@
         200.76,
         275.52
       ],
-      "label": "bottom blade frame"
+      "label": "bottom support leg"
     },
     "path4_3": {
       "kind": "path",
@@ -491,7 +528,7 @@
         303.11,
         168.76
       ],
-      "label": "right blade frame"
+      "label": "right blade outline"
     },
     "path4_4": {
       "kind": "path",
@@ -506,7 +543,7 @@
         68.99,
         13.06
       ],
-      "label": "base inner line"
+      "label": "left base inner line"
     },
     "path4_5": {
       "kind": "path",
@@ -521,7 +558,7 @@
         108.09,
         13.95
       ],
-      "label": "base inner line"
+      "label": "right base inner line"
     },
     "path4_6": {
       "kind": "path",
@@ -536,7 +573,7 @@
         202.83,
         61.63
       ],
-      "label": "top motion arc"
+      "label": "top right sound arc"
     },
     "path4_7": {
       "kind": "path",
@@ -551,7 +588,7 @@
         127.62,
         29.86
       ],
-      "label": "middle motion arc"
+      "label": "top middle sound arc"
     },
     "path4_8": {
       "kind": "path",
@@ -566,7 +603,7 @@
         57.25,
         33.95
       ],
-      "label": "left motion arc"
+      "label": "top left sound arc"
     },
     "path5": {
       "kind": "path",
@@ -581,7 +618,7 @@
         155.83,
         155.84
       ],
-      "label": "hub outline"
+      "label": "central hub ring"
     },
     "path6": {
       "kind": "path",
@@ -596,7 +633,7 @@
         69.19,
         69.2
       ],
-      "label": "hub inner circle"
+      "label": "inner hub circle"
     },
     "path7_1": {
       "kind": "path",
@@ -656,7 +693,7 @@
         49.62,
         13.94
       ],
-      "label": "base inner line"
+      "label": "right base inner line"
     },
     "path9": {
       "kind": "path",
