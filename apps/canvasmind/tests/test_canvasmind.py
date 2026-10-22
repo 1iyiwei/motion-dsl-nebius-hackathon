@@ -478,3 +478,27 @@ def test_slow_animation_answers_before_hermes_times_out(astudio, monkeypatch):
     with TestClient(mcp_server.create_app(astudio, "t0k", "", 8770), base_url="http://127.0.0.1:8770") as c:
         _, res = rpc(c, "tools/call", {"name": "animate", "arguments": {"brief": "a ball"}})
     assert "taking too long" in json.loads(res["result"]["content"][0]["text"])["message"]
+
+
+def test_demo_env_and_service_files(monkeypatch, tmp_path):
+    import plistlib
+
+    from canvasmind import ops
+
+    monkeypatch.setenv("CANVASMIND_DEMO_MCP_TOKEN", "demo-token")
+    monkeypatch.setenv("CANVASMIND_MCP_TOKEN", "private-token")
+    monkeypatch.setenv("CANVASMIND_PUBLIC_HOST", "box.tail1.ts.net")
+    monkeypatch.setenv("CANVASMIND_WATCH", "~/Sketches")
+    monkeypatch.delenv("CANVASMIND_DEMO_HOME", raising=False)
+    for k in ("CANVASMIND_HOME", "CANVASMIND_PORT"):
+        monkeypatch.delenv(k, raising=False)
+    ops.apply_demo_env()
+    import os
+
+    assert os.environ["CANVASMIND_MCP_TOKEN"] == "demo-token"
+    assert os.environ["CANVASMIND_PUBLIC_HOST"] == "box.tail1.ts.net:8443"
+    assert os.environ["CANVASMIND_WATCH"] == "" and os.environ["CANVASMIND_PORT"] == "8771"
+    demo = ops.SERVERS[1]
+    plist = plistlib.loads(ops.launchd_plist(demo, tmp_path).encode())
+    assert plist["ProgramArguments"][-2:] == ["serve", "--demo"] and plist["WorkingDirectory"] == str(tmp_path)
+    assert "token" not in ops.launchd_plist(demo, tmp_path) and "token" not in ops.systemd_unit(demo, tmp_path)

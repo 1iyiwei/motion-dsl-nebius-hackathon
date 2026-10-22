@@ -15,12 +15,18 @@ from .studio import Studio
 
 
 def main(argv: list[str] | None = None) -> int:
-    load_env()
+    env_file = load_env()
     p = argparse.ArgumentParser(prog="canvasmind", description="CanvasMind studio library and MCP server")
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("serve", help="run the MCP server on 127.0.0.1 (put `tailscale serve` in front of it)")
     s.add_argument("--port", type=int)
     s.add_argument("--per-user", action="store_true", help="public demo: a separate seeded library per user")
+    s.add_argument("--demo", action="store_true", help="the public demo server: --per-user on 8771, ~/CanvasMindDemo, "
+                   "CANVASMIND_DEMO_MCP_TOKEN, CANVASMIND_PUBLIC_HOST:8443, no watch folders")
+    sub.add_parser("serve-all", help="start the private and demo servers unless already listening (via their services if installed)")
+    sub.add_parser("doctor", help="health check: Docker, both servers through Tailscale, both sandboxes")
+    sv = sub.add_parser("service", help="launchd (macOS) or systemd (Linux) user services for both servers")
+    sv.add_argument("action", choices=["install", "uninstall", "print"])
     f = sub.add_parser("file", help="file local files or links into the library")
     f.add_argument("paths", nargs="+")
     f.add_argument("--note", default="")
@@ -37,6 +43,13 @@ def main(argv: list[str] | None = None) -> int:
     h.add_argument("--demo", action="store_true", help="the public demo bot: open to all, per-user limits, no cron")
     args = p.parse_args(argv)
 
+    if args.cmd in ("serve-all", "doctor", "service"):
+        return _ops(args, env_file.parent if env_file else Path.cwd())
+    if args.cmd == "serve" and args.demo:
+        from .ops import apply_demo_env
+
+        apply_demo_env()
+        args.per_user = True
     cfg = Config.from_env()
     studio = Studio(Library(cfg.home), watch=cfg.watch)
 
@@ -97,6 +110,26 @@ def main(argv: list[str] | None = None) -> int:
                           "recent": [i.brief() for i in studio.lib.recent(5)]}, indent=1, ensure_ascii=False))
         return 0
     return 2
+
+
+def _ops(args: argparse.Namespace, root: Path) -> int:
+    from . import ops
+
+    if args.cmd == "serve-all":
+        lines = ops.serve_all(root)
+        print("\n".join(lines))
+        return 1 if any("NOT listening" in ln for ln in lines) else 0
+    if args.cmd == "doctor":
+        checks = ops.doctor()
+        for ok, name, detail in checks:
+            print(f"{'PASS' if ok else 'FAIL'}  {name:24} {detail}")
+        return 0 if all(ok for ok, _, _ in checks) else 1
+    if args.action == "print":
+        for path, text in ops.service_files(root).items():
+            print(f"# {path}\n{text}")
+        return 0
+    print("\n".join(ops.service_install(root) if args.action == "install" else ops.service_uninstall()))
+    return 0
 
 
 if __name__ == "__main__":

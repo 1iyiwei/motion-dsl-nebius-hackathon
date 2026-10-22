@@ -70,6 +70,24 @@ python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
 2. Message [@userinfobot](https://t.me/userinfobot) to get your numeric Telegram user id, and put it in `.env` as `TELEGRAM_ALLOWED_IDS` so that only you can use the bot.
 3. Optional: `/setdescription` and `/setabouttext` in BotFather. Hermes ignores Telegram's `/start`, so the description (shown before someone presses Start) is where a greeting goes.
 
+Example for `/setdescription`:
+```
+I'm CanvasMind, a studio assistant that animates in your motion style (NVIDIA Nemotron on Nebius Token Factory, running in a private sandbox).
+
+Try:
+• animate the café logo in my style
+• a red ball drops in and bounces three times
+• send an .svg file, then: animate it
+• slower / less bounce, or 👍 👎 with a reason
+• what's my style?
+• what's new in motion design?
+```
+
+Example for `/setabouttext`:
+```
+Animates your logos and ideas in your motion style. NVIDIA Nemotron on Nebius, in a private sandbox. Demo resets daily.
+```
+
 ### 3. NemoClaw + Hermes (NVIDIA's installer, with OpenShell)
 
 Start Docker, then install NemoClaw without onboarding. It clones `NVIDIA/NemoClaw`, builds the `nemoclaw`/`nemohermes` CLIs, installs the OpenShell gateway (Homebrew on macOS) and adds a PATH line to your shell profile. `NEMOCLAW_ACCEPT_THIRD_PARTY_SOFTWARE=1` accepts NemoClaw's third-party software terms; read them first.
@@ -136,7 +154,7 @@ Send `/new`, then a photo or an `.svg` with "file this for the café rebrand"; "
 uv run canvasmind demo-reset --yes      # moves ~/CanvasMind to ~/CanvasMind.bak-<time> first; never deletes
 ```
 
-To keep it always on, keep the machine awake and `canvasmind serve` running (a `launchd`/`systemd` service, or a cloud VM with the same steps).
+To keep it always on, see [Keep it running](#keep-it-running).
 
 ### Troubleshooting
 
@@ -165,10 +183,7 @@ The public demo ([@CanvasMindBot](https://t.me/CanvasMindBot)) is a second sandb
  nemohermes onboard --non-interactive)
 
 tailscale serve --bg --https=8443 http://127.0.0.1:8771
-(set -a; . ./.env; set +a
- CANVASMIND_HOME=$HOME/CanvasMindDemo CANVASMIND_MCP_TOKEN="$CANVASMIND_DEMO_MCP_TOKEN" \
- CANVASMIND_PUBLIC_HOST="$CANVASMIND_PUBLIC_HOST:8443" CANVASMIND_WATCH= \
- uv run canvasmind serve --port 8771 --per-user)
+uv run canvasmind serve --demo          # --per-user on 8771, ~/CanvasMindDemo, CANVASMIND_DEMO_MCP_TOKEN, no watch folders
 
 # in another terminal
 (set -a; . ./.env; set +a
@@ -177,6 +192,8 @@ tailscale serve --bg --https=8443 http://127.0.0.1:8771
    --deny-tool forget --deny-tool export --deny-tool scan_studio)
 uv run canvasmind hermes-setup --sandbox canvasmind-demo --demo
 ```
+
+`serve --demo` is short for `CANVASMIND_HOME=~/CanvasMindDemo CANVASMIND_MCP_TOKEN=$CANVASMIND_DEMO_MCP_TOKEN CANVASMIND_PUBLIC_HOST=$CANVASMIND_PUBLIC_HOST:8443 CANVASMIND_WATCH= canvasmind serve --port 8771 --per-user` (`CANVASMIND_DEMO_HOME` moves the library).
 
 What `--per-user` and `--demo` change:
 
@@ -188,10 +205,35 @@ What `--per-user` and `--demo` change:
 
 A public bot spends your Token Factory credits and stores strangers' uploads on the host for a day. See the hardening list in the development repo's plan before advertising one widely.
 
+## Keep it running
+
+The bots live in their sandboxes; what has to stay up on the host is Docker, Tailscale (its `tailscale serve` settings persist across restarts) and the two library servers. One command starts whichever server is down, and one checks everything:
+
+```bash
+uv run canvasmind serve-all     # starts the private (8770) and demo (8771) servers unless already listening; logs in ~/Library/Logs/CanvasMind/
+uv run canvasmind doctor        # PASS/FAIL: Docker, each server locally and via tools/list through its Tailscale URL, each sandbox Ready
+```
+
+`serve-all` starts the servers as detached processes, or through their services when those are installed. To start them at login and restart them on a crash, install them as `launchd` user agents (macOS):
+
+```bash
+uv run canvasmind service print       # show the two plists first
+uv run canvasmind service install     # writes ~/Library/LaunchAgents/org.canvasmind.serve{,-demo}.plist and loads them
+uv run canvasmind service uninstall   # unloads and removes them
+```
+
+Stop servers started by hand before installing (the agents retry every 10 s until they can bind the port). The plists hold no secrets: they run the repo's `.venv/bin/canvasmind serve [--demo]` in the repo root, which reads `.env`. User agents start at login, so after a reboot the Mac must log in (turn on automatic login, which FileVault disallows, or log in once), and Docker Desktop should be set to start at login; then `nemohermes canvasmind status` and `nemohermes canvasmind-demo status` should come back Ready (`nemohermes <sandbox> recover` if not). `launchctl kickstart -k gui/$(id -u)/org.canvasmind.serve-demo` restarts one server after an upgrade.
+
+On a Linux VM the same `service install` writes systemd user units (`~/.config/systemd/user/org.canvasmind.serve{,-demo}.service`, `Restart=always`) and runs `systemctl --user enable --now`; add `sudo loginctl enable-linger $USER` so they start at boot without a login. Check them with `systemctl --user status org.canvasmind.serve-demo`.
+
 ## CLI
 
 ```bash
 uv run canvasmind serve [--port 8770] [--per-user]   # the MCP server (bearer token required)
+uv run canvasmind serve --demo                       # the public demo's server (see above)
+uv run canvasmind serve-all                          # both servers, unless already running
+uv run canvasmind doctor                             # health check
+uv run canvasmind service install|uninstall|print    # launchd (macOS) / systemd (Linux) user services
 uv run canvasmind file PATH_OR_URL... [--note "…"]   # file things from the terminal
 uv run canvasmind recall "the sunrise logo from last week"
 uv run canvasmind scan                               # file new work from ~/CanvasMind/inbox and CANVASMIND_WATCH
@@ -234,13 +276,14 @@ Things we had to learn or work around (all applied by `hermes-setup`):
 uv run pytest apps/canvasmind -q
 ```
 
-34 tests run against a scripted fake model (no tokens spent): filing (images, SVGs, MotionLang files, links, stickers without a path), duplicates, recall, chunked upload, the MCP server (auth, hidden tools, GIF content, per-user libraries, the deadline), animation from SVGs and from words (with the missing-object replan), tweaks (including the model-free retime), the style profile, forget/export, the studio scan and the demo fixtures.
+35 tests run against a scripted fake model (no tokens spent): filing (images, SVGs, MotionLang files, links, stickers without a path), duplicates, recall, chunked upload, the MCP server (auth, hidden tools, GIF content, per-user libraries, the deadline), animation from SVGs and from words (with the missing-object replan), tweaks (including the model-free retime), the style profile, forget/export, the studio scan, the demo fixtures and the service files.
 
 ## Layout
 
 ```text
 src/canvasmind/
-  cli.py            serve · file · recall · scan · status · demo-reset · hermes-setup
+  cli.py            serve · serve-all · doctor · service · file · recall · scan · status · demo-reset · hermes-setup
+  ops.py            serve --demo settings, serve-all, doctor, launchd/systemd service files
   mcp_server.py     the MCP tools, bearer auth, host guard, hidden tools, 100 s deadline
   studio.py         filing (bytes, paths, links, chunked uploads), recall, scan, forget/export
   library.py        files on disk + SQLite/FTS5; reopens if the database is replaced underneath
