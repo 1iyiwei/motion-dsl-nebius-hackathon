@@ -86,7 +86,9 @@ https://github.com/1iyiwei/motion-dsl-nebius-hackathon/tree/main/apps/canvasmind
 Image gallery
 JPG, PNG or GIF format, 5 MB max file size. For best results, use a 3:2 ratio. Up to 15 images.
 
+<!--
 **TODO**: phone screenshots (filing, recall thumbnails, a GIF, the style answer, the digest), the architecture card.
+-->
 
 * Demo video URL
 
