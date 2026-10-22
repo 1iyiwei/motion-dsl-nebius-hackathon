@@ -68,7 +68,9 @@ Mood-board apps keep your references on someone else's server and never act on t
 
 ### What's next
 
+<!--
 - A hosted demo studio for judges (separate sandbox, seeded library, per-user limits) and a read-only studio page.
+-->
 - Running on any Linux VM (Nebius, or any other provider) for true always-on use; the setup is the same script.
 - Feeding the style profile back into SketchDynamics, so the canvas app and the assistant share one taste.
 
@@ -121,8 +123,6 @@ New
 Must include: approved OSI license, README with setup instructions, highlight how you’ve used NVIDIA Nemotron or other NVIDIA open source models and where Token Factory accelerated your workflow and any other Nebius Tools or Services used.
 
 https://github.com/1iyiwei/motion-dsl-nebius-hackathon/tree/main/apps/canvasmind
-
-**TODO**: the app README is still a stub (setup with NemoClaw + Tailscale, how Nemotron/Token Factory is used, privacy model, feedback). Scheduled Oct 26.
 
 Provide a URL to a working demo, hosted application, or test build of your Project.
 Not required for Physical AI submissions
