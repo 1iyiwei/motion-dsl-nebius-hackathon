@@ -211,7 +211,7 @@ The bots live in their sandboxes; what has to stay up on the host is Docker, Tai
 
 ```bash
 uv run canvasmind serve-all     # starts the private (8770) and demo (8771) servers unless already listening; logs in ~/Library/Logs/CanvasMind/
-uv run canvasmind doctor        # PASS/FAIL: Docker, each server locally and via tools/list through its Tailscale URL, each sandbox Ready
+uv run canvasmind doctor        # PASS/WARN/FAIL: Docker, each server (and whether its service holds the port), tools/list through each Tailscale URL, each sandbox Ready
 ```
 
 `serve-all` starts the servers as detached processes, or through their services when those are installed. To start them at login and restart them on a crash, install them as `launchd` user agents (macOS):
@@ -219,10 +219,11 @@ uv run canvasmind doctor        # PASS/FAIL: Docker, each server locally and via
 ```bash
 uv run canvasmind service print       # show the two plists first
 uv run canvasmind service install     # writes ~/Library/LaunchAgents/org.canvasmind.serve{,-demo}.plist and loads them
+                                      #   (asks to stop hand-started servers holding the ports; --replace does it unasked)
 uv run canvasmind service uninstall   # unloads and removes them
 ```
 
-Stop servers started by hand before installing (the agents retry every 10 s until they can bind the port). The plists hold no secrets: they run the repo's `.venv/bin/canvasmind serve [--demo]` in the repo root, which reads `.env`. User agents start at login, so after a reboot the Mac must log in (turn on automatic login, which FileVault disallows, or log in once), and Docker Desktop should be set to start at login; then `nemohermes canvasmind status` and `nemohermes canvasmind-demo status` should come back Ready (`nemohermes <sandbox> recover` if not). `launchctl kickstart -k gui/$(id -u)/org.canvasmind.serve-demo` restarts one server after an upgrade.
+A server started by hand keeps its port, and the agent retries every 10 s until it can bind; `doctor` warns when the port is held by a process other than the service, and fails when the service is loaded but not running (with its last exit code). The plists hold no secrets: they run the repo's `.venv/bin/canvasmind serve [--demo]` in the repo root, which reads `.env`. User agents start at login, so after a reboot the Mac must log in (turn on automatic login, which FileVault disallows, or log in once), and Docker Desktop should be set to start at login; then `nemohermes canvasmind status` and `nemohermes canvasmind-demo status` should come back Ready (`nemohermes <sandbox> recover` if not). `launchctl kickstart -k gui/$(id -u)/org.canvasmind.serve-demo` restarts one server after an upgrade.
 
 On a Linux VM the same `service install` writes systemd user units (`~/.config/systemd/user/org.canvasmind.serve{,-demo}.service`, `Restart=always`) and runs `systemctl --user enable --now`; add `sudo loginctl enable-linger $USER` so they start at boot without a login. Check them with `systemctl --user status org.canvasmind.serve-demo`.
 
@@ -233,7 +234,7 @@ uv run canvasmind serve [--port 8770] [--per-user]   # the MCP server (bearer to
 uv run canvasmind serve --demo                       # the public demo's server (see above)
 uv run canvasmind serve-all                          # both servers, unless already running
 uv run canvasmind doctor                             # health check
-uv run canvasmind service install|uninstall|print    # launchd (macOS) / systemd (Linux) user services
+uv run canvasmind service install [--replace]|uninstall|print   # launchd (macOS) / systemd (Linux) user services
 uv run canvasmind file PATH_OR_URL... [--note "…"]   # file things from the terminal
 uv run canvasmind recall "the sunrise logo from last week"
 uv run canvasmind scan                               # file new work from ~/CanvasMind/inbox and CANVASMIND_WATCH
@@ -276,7 +277,7 @@ Things we had to learn or work around (all applied by `hermes-setup`):
 uv run pytest apps/canvasmind -q
 ```
 
-35 tests run against a scripted fake model (no tokens spent): filing (images, SVGs, MotionLang files, links, stickers without a path), duplicates, recall, chunked upload, the MCP server (auth, hidden tools, GIF content, per-user libraries, the deadline), animation from SVGs and from words (with the missing-object replan), tweaks (including the model-free retime), the style profile, forget/export, the studio scan, the demo fixtures and the service files.
+40 tests run against a scripted fake model (no tokens spent): filing (images, SVGs, MotionLang files, links, stickers without a path), duplicates, recall, chunked upload, the MCP server (auth, hidden tools, GIF content, per-user libraries, the deadline), animation from SVGs and from words (with the missing-object replan), tweaks (including the model-free retime), the style profile, forget/export, the studio scan, the demo fixtures and the service files.
 
 ## Layout
 

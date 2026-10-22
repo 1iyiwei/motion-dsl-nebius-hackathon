@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -81,13 +83,85 @@ def _launchd_target(label: str) -> str:
 
 
 def service_loaded(label: str) -> bool:
+    return service_state(label)[0]
+
+
+def service_state(label: str) -> tuple[bool, int | None, int | None]:
+    """(loaded, running pid, last exit code) of a server's launchd agent or systemd unit."""
     if sys.platform == "darwin":
-        r = subprocess.run(["launchctl", "print", _launchd_target(label)], capture_output=True)
-    elif shutil.which("systemctl"):
-        r = subprocess.run(["systemctl", "--user", "is-enabled", f"{label}.service"], capture_output=True)
-    else:
-        return False
-    return r.returncode == 0
+        r = subprocess.run(["launchctl", "list", label], capture_output=True, text=True)
+        if r.returncode != 0:
+            return False, None, None
+        fields = dict(re.findall(r'"(\w+)" = (-?\d+);', r.stdout))
+        status = int(fields["LastExitStatus"]) if "LastExitStatus" in fields else None
+        code = status >> 8 if status and status > 255 else status  # a wait status: the exit code is the high byte
+        return True, int(fields["PID"]) if "PID" in fields else None, code
+    if not shutil.which("systemctl"):
+        return False, None, None
+    r = subprocess.run(["systemctl", "--user", "show", f"{label}.service", "-p", "LoadState,MainPID,ExecMainStatus"],
+                       capture_output=True, text=True)
+    fields = dict(ln.split("=", 1) for ln in r.stdout.splitlines() if "=" in ln)
+    if fields.get("LoadState") != "loaded":
+        return False, None, None
+    pid = int(fields.get("MainPID") or 0)
+    return True, pid or None, int(fields.get("ExecMainStatus") or 0)
+
+
+def listener_pid(port: int) -> int | None:
+    """The pid holding 127.0.0.1:<port>, if lsof can see it."""
+    try:
+        r = subprocess.run(["lsof", "-t", f"-iTCP:{port}", "-sTCP:LISTEN"], capture_output=True, text=True)
+    except OSError:
+        return None
+    pids = [int(x) for x in r.stdout.split()]
+    return pids[0] if pids else None
+
+
+def _command(pid: int) -> str:
+    return subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+
+
+def server_state(srv: Server) -> tuple[str, str]:
+    """("PASS"|"WARN"|"FAIL", detail) for one server's port and service."""
+    loaded, svc_pid, last_exit = service_state(srv.label)
+    pid = listener_pid(srv.port) if listening(srv.port) else None
+    if pid is None and listening(srv.port):
+        return "PASS", "listening"
+    if pid is None:
+        if loaded and svc_pid is None:
+            return "FAIL", f"not listening; service loaded but not running (last exit {last_exit})"
+        return "FAIL", "not listening" + (" (service starting?)" if loaded else "")
+    if not loaded:
+        return "PASS", f"listening (pid {pid}, no service)"
+    if svc_pid == pid:
+        return "PASS", f"listening (service, pid {pid})"
+    why = "not running" if svc_pid is None else f"pid {svc_pid}"
+    return "WARN", f"listening, but not the service: pid {pid} holds the port (service {why}, last exit {last_exit})"
+
+
+def outside_listeners() -> list[tuple[Server, int, str]]:
+    """Servers whose port is held by a process that isn't their service."""
+    found = []
+    for srv in SERVERS:
+        pid = listener_pid(srv.port)
+        if pid is not None and pid != service_state(srv.label)[1]:
+            found.append((srv, pid, _command(pid)))
+    return found
+
+
+def stop_outside(found: list[tuple[Server, int, str]], wait: float = 10.0) -> list[str]:
+    """SIGTERM hand-started canvasmind servers (never anything else) and wait for their ports to free up."""
+    out = []
+    for srv, pid, cmd in found:
+        if "canvasmind" not in cmd or " serve" not in cmd:
+            out.append(f"{srv.name}: pid {pid} on {srv.port} is not a canvasmind server ({cmd or '?'}); left alone")
+            continue
+        os.kill(pid, signal.SIGTERM)
+        deadline = time.monotonic() + wait
+        while listener_pid(srv.port) == pid and time.monotonic() < deadline:
+            time.sleep(0.3)
+        out.append(f"{srv.name}: stopped pid {pid}" + ("" if listener_pid(srv.port) != pid else " (still running!)"))
+    return out
 
 
 def serve_all(root: Path, wait: float = 30.0) -> list[str]:
@@ -149,24 +223,28 @@ def _run(cmd: list[str], timeout: float = 60) -> tuple[int, str]:
     return r.returncode, r.stdout + r.stderr
 
 
-def doctor() -> list[tuple[bool, str, str]]:
-    """(ok, check, detail) for Docker, both servers (locally and through Tailscale), and both sandboxes."""
-    checks: list[tuple[bool, str, str]] = []
+def doctor() -> list[tuple[str, str, str]]:
+    """(PASS|WARN|FAIL, check, detail) for Docker, both servers (locally, as services, and through Tailscale),
+    and both sandboxes."""
+    checks: list[tuple[str, str, str]] = []
+
+    def add(ok: bool, name: str, detail: str) -> None:
+        checks.append(("PASS" if ok else "FAIL", name, detail))
+
     code, out = _run(["docker", "info", "--format", "{{.ServerVersion}}"], 20)
-    checks.append((code == 0, "docker", out.strip().splitlines()[-1] if out.strip() else "no output"))
+    add(code == 0, "docker", out.strip().splitlines()[-1] if out.strip() else "no output")
     for srv in SERVERS:
-        up = listening(srv.port)
-        svc = " (service)" if service_loaded(srv.label) else ""
-        checks.append((up, f"{srv.name} server :{srv.port}", ("listening" if up else "not listening") + svc))
+        status, detail = server_state(srv)
+        checks.append((status, f"{srv.name} server :{srv.port}", detail))
         token, url = os.environ.get(srv.token_var, ""), srv.url()
         if not token or not url:
-            checks.append((False, f"{srv.name} tools/list", f"{srv.token_var} or CANVASMIND_PUBLIC_HOST missing from .env"))
+            add(False, f"{srv.name} tools/list", f"{srv.token_var} or CANVASMIND_PUBLIC_HOST missing from .env")
         else:
             ok, detail = _tools_list(url, token)
-            checks.append((ok, f"{srv.name} tools/list", f"{url.split('://')[1].split('/')[0]}: {detail}"))
+            add(ok, f"{srv.name} tools/list", f"{url.split('://')[1].split('/')[0]}: {detail}")
         code, out = _run(["nemohermes", srv.sandbox, "status"], 90)
         phase = next((ln.split(":", 1)[1].strip() for ln in out.splitlines() if ln.strip().startswith("Phase:")), "")
-        checks.append((code == 0 and phase == "Ready", f"sandbox {srv.sandbox}", phase or out.strip()[-120:] or "no output"))
+        add(code == 0 and phase == "Ready", f"sandbox {srv.sandbox}", phase or out.strip()[-120:] or "no output")
     return checks
 
 
@@ -235,12 +313,16 @@ def service_files(root: Path) -> dict[Path, str]:
     return {SYSTEMD_USER / f"{s.label}.service": systemd_unit(s, root) for s in SERVERS}
 
 
-def service_install(root: Path) -> list[str]:
+def service_install(root: Path, replace: bool = False) -> list[str]:
+    """Write and load both services. With `replace`, first stop hand-started canvasmind servers holding the ports."""
     out = []
-    for srv in SERVERS:
-        if listening(srv.port) and not service_loaded(srv.label):
-            out.append(f"warning: port {srv.port} is held by a process outside the service; stop it, "
-                       f"or the {srv.name} service retries every 10 s until it can bind")
+    found = outside_listeners()
+    if found and replace:
+        out += stop_outside(found)
+    else:
+        for srv, pid, _ in found:
+            out.append(f"warning: pid {pid} holds port {srv.port}; the {srv.name} service retries every 10 s until "
+                       f"it can bind (rerun with --replace to stop it)")
     for path, text in service_files(root).items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)

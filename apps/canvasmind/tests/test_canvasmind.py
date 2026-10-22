@@ -502,3 +502,20 @@ def test_demo_env_and_service_files(monkeypatch, tmp_path):
     plist = plistlib.loads(ops.launchd_plist(demo, tmp_path).encode())
     assert plist["ProgramArguments"][-2:] == ["serve", "--demo"] and plist["WorkingDirectory"] == str(tmp_path)
     assert "token" not in ops.launchd_plist(demo, tmp_path) and "token" not in ops.systemd_unit(demo, tmp_path)
+
+
+@pytest.mark.parametrize("held_by, service, expect", [
+    (100, (True, 100, 0), ("PASS", "service, pid 100")),
+    (200, (True, None, 3), ("WARN", "not the service: pid 200")),
+    (200, (True, 100, 0), ("WARN", "not the service: pid 200")),
+    (None, (True, None, 3), ("FAIL", "not running (last exit 3)")),
+    (300, (False, None, None), ("PASS", "no service")),
+])
+def test_server_state_compares_pids(monkeypatch, held_by, service, expect):
+    from canvasmind import ops
+
+    monkeypatch.setattr(ops, "listening", lambda port: held_by is not None)
+    monkeypatch.setattr(ops, "listener_pid", lambda port: held_by)
+    monkeypatch.setattr(ops, "service_state", lambda label: service)
+    status, detail = ops.server_state(ops.SERVERS[0])
+    assert status == expect[0] and expect[1] in detail

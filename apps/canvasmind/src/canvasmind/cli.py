@@ -27,6 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("doctor", help="health check: Docker, both servers through Tailscale, both sandboxes")
     sv = sub.add_parser("service", help="launchd (macOS) or systemd (Linux) user services for both servers")
     sv.add_argument("action", choices=["install", "uninstall", "print"])
+    sv.add_argument("--replace", action="store_true", help="install: stop hand-started servers holding the ports first")
     f = sub.add_parser("file", help="file local files or links into the library")
     f.add_argument("paths", nargs="+")
     f.add_argument("--note", default="")
@@ -121,14 +122,23 @@ def _ops(args: argparse.Namespace, root: Path) -> int:
         return 1 if any("NOT listening" in ln for ln in lines) else 0
     if args.cmd == "doctor":
         checks = ops.doctor()
-        for ok, name, detail in checks:
-            print(f"{'PASS' if ok else 'FAIL'}  {name:24} {detail}")
-        return 0 if all(ok for ok, _, _ in checks) else 1
+        for status, name, detail in checks:
+            print(f"{status}  {name:24} {detail}")
+        return 1 if any(status == "FAIL" for status, _, _ in checks) else 0
     if args.action == "print":
         for path, text in ops.service_files(root).items():
             print(f"# {path}\n{text}")
         return 0
-    print("\n".join(ops.service_install(root) if args.action == "install" else ops.service_uninstall()))
+    if args.action == "uninstall":
+        print("\n".join(ops.service_uninstall()))
+        return 0
+    replace = args.replace
+    found = ops.outside_listeners()
+    if found and not replace and sys.stdin.isatty():
+        for srv, pid, cmd in found:
+            print(f"port {srv.port} ({srv.name}) is held by pid {pid}: {cmd}")
+        replace = input("Stop these so the services can take over? [y/N] ").strip().lower() == "y"
+    print("\n".join(ops.service_install(root, replace=replace)))
     return 0
 
 

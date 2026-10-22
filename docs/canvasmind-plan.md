@@ -233,7 +233,7 @@ Submitted to the Personal AI track (video: https://youtu.be/z8SF8A0VLks; demo: h
 ### Before judging (Dec 1–15)
 
 - **Hosting decision by ~Nov 25**: keep the Mac awake and plugged in (both `canvasmind serve` processes, Docker, Tailscale), or move both sandboxes and servers to a Linux VM with the README's steps.
-- **Servers survive reboots**: done in code (README "Keep it running"): `canvasmind serve-all` starts whichever server is down; `canvasmind service install` adds `launchd` user agents (systemd user units on Linux) that start at login and restart on crash. Still to do on the Mac: run `service install` (stop the hand-started servers first), turn on automatic login and Docker Desktop at login, then reboot once and check `canvasmind doctor`.
+- **Servers survive reboots**: done in code (README "Keep it running"): `canvasmind serve-all` starts whichever server is down; `canvasmind service install` adds `launchd` user agents (systemd user units on Linux) that start at login and restart on crash. The agents are installed (Oct 22). Still to do on the Mac: turn on automatic login and Docker Desktop at login, then reboot once and check `canvasmind doctor`.
 - A daily check: `uv run canvasmind doctor` (Docker, both servers through Tailscale, both sandboxes Ready), plus Token Factory credit left.
 - Re-run `canvasmind hermes-setup` (both sandboxes) after any NemoClaw/Hermes upgrade; test the bot after.
 - `scripts/export_submission.py` doesn't know canvasmind yet (it flags "canvasmind" as an unreleased project); teach it the app if a per-app public repo is wanted.
