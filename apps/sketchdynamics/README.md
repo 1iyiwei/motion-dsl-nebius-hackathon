@@ -4,7 +4,7 @@ License: Apache-2.0 · Nebius x NVIDIA Global AI Hackathon, **Best Apps & Agents
 
 Draw rough strokes or drop in your own SVG logo, type what should happen, and get a playable animation. Then refine it by typing short changes: "slower", "more bounce", "make it blue".
 
-<a href="https://youtu.be/rCx7xYq1lO4"><img src="https://img.youtube.com/vi/rCx7xYq1lO4/mqdefault.jpg" width="50%" alt="SketchDynamics demo video"></a>
+<a href="https://youtu.be/rCx7xYq1lO4"><img src="https://img.youtube.com/vi/rCx7xYq1lO4/mqdefault.jpg" width="320" alt="SketchDynamics demo video"></a>
 
 Under the hood the app writes a program in **MotionLang** ([`motionlang`](../../packages/motionlang)), a declarative motion language built for LLMs. NVIDIA Nemotron models on Nebius Token Factory write and edit it, and a deterministic validator checks it. The validator's errors carry hints, and those go back to the model until the animation is valid. The side panel shows every model call as it happens.
 

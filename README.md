@@ -6,8 +6,8 @@ Development workspace for three hackathon projects built on **MotionLang**, a de
 | --- | --- |
 | [`packages/motionlang`](packages/motionlang) | The MotionLang DSL: [spec](packages/motionlang/SPEC.md), validator, baker, edits, schema, preview player |
 | [`apps/sketchdynamics`](apps/sketchdynamics) | Sketch + talk → animation (Best Apps & Agents): `uv run sketchdynamics` |
-| `apps/motionharness` (planned) | Coding agent that writes and tests MotionLang verbs in Token Factory Sandboxes (Coding & Agentic Engineering) |
-| `apps/canvasmind` (planned) | Private creative-memory assistant (Personal AI) |
+| [`apps/motionharness`](apps/motionharness)  | Coding agent that writes and tests MotionLang verbs in Token Factory Sandboxes (Coding & Agentic Engineering) |
+| [`apps/canvasmind`](apps/canvasmind/) | Private creative-memory assistant (Personal AI) |
 
 ```bash
 uv sync

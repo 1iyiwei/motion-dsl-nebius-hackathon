@@ -2,7 +2,7 @@
 
 License: Apache-2.0 · Nebius x NVIDIA Global AI Hackathon, **Personal AI** track
 
-<a href="https://youtu.be/z8SF8A0VLks"><img src="https://img.youtube.com/vi/z8SF8A0VLks/mqdefault.jpg" width="50%" alt="CanvasMind demo video"></a>
+<a href="https://youtu.be/z8SF8A0VLks"><img src="https://img.youtube.com/vi/z8SF8A0VLks/mqdefault.jpg" width="320" alt="CanvasMind demo video"></a>
 
 **Try it:** [t.me/CanvasMindBot](https://t.me/CanvasMindBot) (a public demo: your own library, reset daily, with daily limits).
 

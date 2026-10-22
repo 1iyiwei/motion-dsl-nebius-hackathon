@@ -2,7 +2,7 @@
 
 License: Apache-2.0 · Nebius x NVIDIA Global AI Hackathon, **Coding & Agentic Engineering** track
 
-<a href="https://youtu.be/-WKw1R56PpE"><img src="https://img.youtube.com/vi/-WKw1R56PpE/mqdefault.jpg" width="50%" alt="MotionHarness demo video"></a>
+<a href="https://youtu.be/-WKw1R56PpE"><img src="https://img.youtube.com/vi/-WKw1R56PpE/mqdefault.jpg" width="320" alt="MotionHarness demo video"></a>
 
 A coding agent for technical artists and graphics developers who extend **MotionLang** ([`motionlang`](../../packages/motionlang)), a declarative 2D motion language built for LLMs. Describe a new motion verb in one sentence, for example "add a `spring_follow` verb: the actor chases a target with spring physics". NVIDIA Nemotron models on Nebius Token Factory write several candidate implementations, each with its own tests and a demo scene. Every candidate runs in a sandbox branched from one prepared checkpoint, against MotionLang's fixed plugin contract suite and its own tests. Nemotron VL then looks at the rendered motion and critiques it. The agent repairs what fails and ships the winner as a ready-to-install plugin package, with a diff, a test report and a preview.
 
