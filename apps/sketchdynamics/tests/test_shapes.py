@@ -113,6 +113,13 @@ def test_needed_keeps_only_objects_the_request_names(tmp_path):
     assert c.post("/shapes/needed", json={"intent": "two green frogs jump onto a lily pad"}).json()["objects"] == ["frogs"]
 
 
+def test_needed_skips_parts_already_on_the_canvas(tmp_path):
+    c, _ = client(json.dumps({"objects": ["blade", "wind turbine", "bird"]}), tmp_path=tmp_path)
+    out = c.post("/shapes/needed", json={"intent": "the blades of the wind turbine spin while a bird flies by",
+                                         "have": ["wind turbine blades and hub", "tower"]}).json()
+    assert out["objects"] == ["bird"]
+
+
 def test_find_prefers_the_library(tmp_path):
     fetched = []
     c, _ = client(tmp_path=tmp_path, web=fake_web(fetched))

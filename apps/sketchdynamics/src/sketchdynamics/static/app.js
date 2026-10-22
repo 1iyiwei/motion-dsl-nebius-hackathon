@@ -791,10 +791,13 @@ let picker = null; // {name, cands, resolve, log}
 const decided = new Set(); // object names used or skipped this session: don't ask twice
 const checked = new Set(); // requests already checked for missing shapes (e.g. Generate again, Retry with Ultra)
 
+// Everything the artwork already shows, in words: parts, groups, the file name ("wind-energy") and VL's description.
 const canvasNames = () => !state.logo ? [] : [...new Set([
   ...Object.entries(state.logo.assets).map(([id, a]) => a.label || id),
   ...state.logo.groups.map((g) => g.label),
-])];
+  state.logo.name.replace(/\.svg$/i, "").replace(/[-_]+/g, " "),
+  ...(state.logo.description ? [state.logo.description] : []),
+].filter(Boolean))];
 
 // A model call shown as a card in the side panel, like generate/tweak calls.
 async function modelStep(log, model, purpose, url, body, verdict) {

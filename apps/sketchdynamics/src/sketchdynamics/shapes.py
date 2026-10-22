@@ -357,6 +357,13 @@ def parse_objects(text: str, intent: str = "") -> list[str]:
                               and (said is None or _words(n) <= said)))[:3]
 
 
+def covered(name: str, have: list[str]) -> bool:
+    """Whether something on the canvas already is this object: all its words (singular or plural) appear in one
+    of the canvas's names, e.g. "blade" in "wind turbine blades and hub". Models often miss that a part is there."""
+    want = _words(name)
+    return bool(want) and any(want <= _words(h) for h in have)
+
+
 def parse_scores(text: str, count: int) -> list[dict[str, Any]]:
     reply = json.loads(text)
     items = reply.get("scores", []) if isinstance(reply, dict) else []

@@ -41,7 +41,7 @@ from motionlang.preview import player_js_path, preview_html
 
 from .guard import Guard
 from .grouping import ROOT, build_actors, groups_from_actors, normalize_groups, part_opacity, split_part
-from .shapes import Candidate, Library, WebSearch, clean_svg, draw_messages, judge_messages, needed_messages, parse_objects, parse_scores, placed_parts
+from .shapes import Candidate, Library, WebSearch, clean_svg, covered, draw_messages, judge_messages, needed_messages, parse_objects, parse_scores, placed_parts
 
 EDITOR_KINDS = {"edit", "edit-repair"}  # every other attempt kind (generate, repair, repair-edit, regenerate) is the planner's
 
@@ -532,8 +532,7 @@ def create_app(
             objects = parse_objects(extract_json_text(text), req.intent)
         except ValueError:
             objects = []
-        have = {h.lower() for h in req.have}
-        return {"objects": [o for o in objects if o not in have], "call": call_json(call)}
+        return {"objects": [o for o in objects if not covered(o, req.have)], "call": call_json(call)}
 
     @app.post("/shapes/find")
     def post_shapes_find(req: FindRequest, request: Request):
