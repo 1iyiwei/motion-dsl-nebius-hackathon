@@ -38,6 +38,7 @@ class Run:
     worst: tuple[float, int, int, float] | None  # (t, i, j, d) closest near miss
     battery_left: float  # worst drone, fraction of endurance
     ok: bool
+    toward_crowd: float = 0.0  # largest drift off the show plane toward the spectators (−y), m
 
 
 def _direction(seed: int) -> float:
@@ -55,7 +56,7 @@ def run_one(args: tuple) -> Run:
     left = float(1 - r.battery_used.max())
     ok = bool(r.err.max() <= limits["max_tracking_error"] and not pairs and left >= limits["battery_reserve"])
     return Run(wind, seed, d, float(r.err.max()), i, float(times[f]), float(r.saturated.mean()), float(r.min_dist.min()),
-               len(pairs), worst, left, ok)
+               len(pairs), worst, left, ok, float(max(0.0, -r.pos[..., 1].min())))
 
 
 @dataclass
@@ -63,6 +64,7 @@ class Sweep:
     runs: list[Run]
     design_wind: float
     certified_wind: float | None  # highest tested wind with every seed passing at it and below
+    crowd_setback: float = 30.0
 
     def by_wind(self) -> dict[float, dict]:
         out = {}
@@ -83,6 +85,7 @@ class Sweep:
             "worst_separation": round(min(r.min_sep for r in ok_runs), 2) if ok_runs else None,
             "max_tracking_error": round(max(r.max_err for r in ok_runs), 2) if ok_runs else None,
             "battery_left": round(min(r.battery_left for r in ok_runs), 3) if ok_runs else None,
+            "closest_to_crowd": round(self.crowd_setback - max(r.toward_crowd for r in ok_runs), 2) if ok_runs else None,
             "note": "simulation-based planning aid, not a regulatory approval",
         }
 
@@ -107,7 +110,7 @@ def sweep(show: Show, comp: Compiled, baked, winds=WINDS, seeds: int = SEEDS, wo
             cert = w
         else:
             break
-    return Sweep(runs, show.limits.design_wind, cert)
+    return Sweep(runs, show.limits.design_wind, cert, show.limits.crowd_setback)
 
 
 def _slowdown(sp: Span, times, plan, wind: float, gust: float, af: Airframe) -> float | None:

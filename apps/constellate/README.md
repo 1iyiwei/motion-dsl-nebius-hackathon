@@ -14,9 +14,11 @@ cp apps/constellate/.env.example .env   # fill in the keys; never commit them
 ## Try it
 
 ```bash
-# Nemotron Ultra writes a show script from a request (needs NEBIUS_API_KEY)
+# Site briefing: Tavily searches the venue's drone rules and typical wind; Nemotron reads them into cited limits (needs TAVILY_API_KEY)
+uv run constellate brief "Marina Green, San Francisco" --date "October 31 2026, 9 pm" -o out/constellate/brief.json
+# Nemotron Ultra writes a show script from a request (needs NEBIUS_API_KEY); --brief applies the briefing's limits
 uv run constellate plan "The swarm rises into a red heart that slowly spins, then morphs into our logo, and ends by spelling THANK YOU in gold" \
-    --svg orbit=apps/constellate/src/constellate/samples/orbit-mark.svg -o out/constellate/planned.show.json
+    --svg orbit=apps/constellate/src/constellate/samples/orbit-mark.svg --brief out/constellate/brief.json -o out/constellate/planned.show.json
 # Repair loop: flight check → Nemotron edit ops → wind sweep → more ops, until certified; then the night-sky video
 uv run constellate fly out/constellate/planned.show.json --design-wind 8 --save out/constellate/flyable.show.json --mp4 out/constellate/show.mp4
 # No model calls: check and sweep a script yourself
@@ -39,6 +41,8 @@ How it works: a **show script** (formations + steps; what Nemotron will write) i
 **Repair loop**: problems from the flight checker and the sweep carry hints with computed numbers (the duration that fits, the size that keeps clear of the edge). Nemotron Nano (reasoning off) turns them into JSON-pointer edit ops on the show script in 1–2 s; if the same problems survive a round, Nemotron Ultra takes over with reasoning on. The model can't edit `limits` (the site's and the user's safety envelope), so it can't make a show pass by loosening it.
 
 The night-sky MP4 is drawn from the *simulated* positions, seen from the ground, so wind drift shows on screen.
+
+**Site briefing (Tavily)**: Nemotron Nano writes four searches for the venue and date (altitude limit, crowd setback, nearby airspace, typical wind for the month), Tavily runs them, and Nemotron Super reads the results into numbers, each with its source URL and a verbatim quote. The app checks that every quote really appears in the cited result. A verified number sets the limit (the ceiling sets the airspace height above a 10 m floor; typical wind × 1.3 sets the design wind the sweep must certify; the setback is reported in the certificate as the closest approach to the crowd). An unverified number is used only if it is *more* conservative than the default, so a misread page can tighten the limits but never loosen them. Airspace notes (for example "controlled airspace needs LAANC authorization") are shown with their sources, not acted on.
 
 ## Nebius Serverless Jobs (optional)
 

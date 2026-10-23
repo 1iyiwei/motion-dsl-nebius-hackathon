@@ -31,6 +31,7 @@ class Limits(Strict):
     design_wind: float = Field(6.0, ge=0, description="mean wind the show must be certified for in simulation, m/s")
     near_miss: float = Field(1.0, gt=0, description="simulated distance between drones that counts as a near miss, m")
     max_tracking_error: float = Field(1.0, gt=0, description="largest simulated drift from the planned path, m")
+    crowd_setback: float = Field(30.0, gt=0, description="distance from the show plane to the nearest spectators, m")
 
     @property
     def show_time_budget(self) -> float:

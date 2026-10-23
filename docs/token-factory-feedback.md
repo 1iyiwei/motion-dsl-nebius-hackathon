@@ -155,3 +155,10 @@ Add an entry when something surprises us. Include the date, what happened, and t
 - **Keeping the model away from the safety envelope is the app's job.** The repair prompt says `limits` are off-limits, and
   the op applier enforces it. Without enforcement, "lower the design wind" is the easiest way for a model to make a check pass.
   A per-request "read-only JSON paths" option in structured output would make this a platform guarantee.
+- **Tavily + Super for the site briefing worked on the first live run.** 4 basic searches returned 15 distinct sources;
+  Super (reasoning off, JSON mode) read 4.2k tokens of snippets into cited numbers in 3.3 s, with quotes that matched the
+  source text verbatim. Asking for a verbatim quote and checking it with a substring match is a cheap hallucination guard;
+  Tavily's `content` snippets are short enough (≤ ~900 chars) that the whole result set fits one prompt.
+- **Units are where extraction goes wrong.** The wind quote was in mph ("7.3 miles per hour") and the model converted it to
+  3.2 m/s correctly, but only because the prompt listed conversion factors. A tool-call "unit convert" helper on the platform
+  side would be nice for extraction tasks.

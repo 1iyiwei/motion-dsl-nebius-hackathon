@@ -1,5 +1,6 @@
 """constellate: sketch or say a drone light show, then make it flyable.
 
+    constellate brief "Marina Green, San Francisco" --date "Oct 31 2026, 9 pm" -o brief.json   # Tavily → cited limits
     constellate plan "a heart that spins, then our logo" --svg logo=logo.svg -o show.json   # Nemotron writes the script
     constellate fly show.json --design-wind 8 --mp4 show.mp4   # repair loop + wind sweep + certificate + night-sky video
     constellate compile SHOW.json -o show.motion.json --preview show.html   # compile + flight check only
@@ -69,8 +70,8 @@ def cmd_plan(args: argparse.Namespace) -> int:
     from motionlang.agent.llm import LLM
 
     llm = LLM()
-    show = agent.plan(args.intent, _base(args), llm, emit=_print_event)
-    raw = show.model_dump(mode="json", exclude={"limits"})
+    show = agent.plan(args.intent, _with_limits(_base(args), args), llm, emit=_print_event)
+    raw = show.model_dump(mode="json", exclude={"limits"} if not args.brief else None)
     raw["title"] = raw.get("title") or args.intent[:60]
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(raw, indent=2))
@@ -105,15 +106,42 @@ def _print_cert(cert: dict | None) -> None:
     if cert:
         print(f"certificate: {'FLYABLE' if cert['flyable'] else 'not certified'} up to {cert['certified_wind']} m/s "
               f"(design wind {cert['design_wind']} m/s, {cert['runs']} runs, worst separation {cert['worst_separation']} m, "
-              f"max drift {cert['max_tracking_error']} m, battery left {cert['battery_left']:.0%}); {cert['note']}")
+              f"max drift {cert['max_tracking_error']} m, battery left {cert['battery_left']:.0%}, "
+              f"≥ {cert.get('closest_to_crowd')} m from the crowd); {cert['note']}")
 
 
 def _with_limits(show: Show, args) -> Show:
-    if args.design_wind is None:
-        return show
     d = show.model_dump(mode="json")
-    d["limits"]["design_wind"] = args.design_wind
+    if getattr(args, "brief", None):
+        d["limits"].update(json.loads(args.brief.read_text())["limits"])
+    if getattr(args, "design_wind", None) is not None:
+        d["limits"]["design_wind"] = args.design_wind
     return Show.model_validate(d)
+
+
+def cmd_brief(args: argparse.Namespace) -> int:
+    from motionlang.agent.llm import LLM
+
+    from .briefing import brief
+
+    llm = LLM()
+    b = brief(args.venue, args.date, llm, emit=_print_event)
+    for f in b.findings:
+        src = f" — {f.source['title']} <{f.source['url']}>" if f.source else ""
+        mark = "✓" if f.verified else "?"
+        val = f"{f.value:g} {f.unit}" if f.value is not None else "not found"
+        print(f"  {mark} {f.topic}: {val}{' (applied)' if f.applied else ''}; {f.note}{src}")
+        if f.quote:
+            print(f"      “{f.quote}”")
+    for a in b.airspace:
+        print(f"  ! {a['note']}" + (f" — <{a['source']['url']}>" if a.get("source") else ""))
+    print(f"  limits: {json.dumps(b.limits)}")
+    if b.summary:
+        print(f"  {b.summary}")
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(b.to_dict(), indent=2))
+    print(f"wrote {args.out}")
+    return 0
 
 
 def cmd_fly(args: argparse.Namespace) -> int:
@@ -170,7 +198,13 @@ def main(argv: list[str] | None = None) -> int:
     load_env()
     ap = argparse.ArgumentParser(prog="constellate", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
+    bc = sub.add_parser("brief", help="Tavily site briefing: venue + date → cited limits")
+    bc.add_argument("venue")
+    bc.add_argument("--date", required=True, help='e.g. "Oct 31 2026, 9 pm"')
+    bc.add_argument("-o", "--out", type=Path, required=True)
+    bc.set_defaults(func=cmd_brief)
     pc = sub.add_parser("plan", help="Nemotron writes a show script from a request")
+    pc.add_argument("--brief", type=Path, help="apply a site briefing's limits")
     pc.add_argument("intent")
     pc.add_argument("--svg", action="append", help="ID=PATH artwork the show may use (repeatable)")
     pc.add_argument("--drones", type=int, default=100)
@@ -181,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
         fc = sub.add_parser(name, help=hlp)
         fc.add_argument("show", type=Path)
         fc.add_argument("--design-wind", type=float, help="m/s the show must be certified for (default 6)")
+        fc.add_argument("--brief", type=Path, help="apply a site briefing's limits (before --design-wind)")
         fc.add_argument("--mp4", type=Path, help="night-sky video of the simulated flight at the design wind")
         fc.add_argument("--report", type=Path, help="JSON report (flight check, sweep, certificate)")
         if name == "fly":
