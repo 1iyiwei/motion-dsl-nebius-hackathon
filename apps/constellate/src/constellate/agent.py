@@ -247,7 +247,11 @@ def make_flyable(show: Show, llm: LLM, emit: Emit = _noop, max_rounds: int = 6, 
         if not issues and simulate:
             emit({"type": "sim_start", "msg": "wind sweep"})
             kw = {k: v for k, v in (("winds", winds), ("seeds", seeds)) if v is not None}
-            sw = sweep(show, checked.compiled, checked.baked, **kw)
+
+            def progress(done: int, total: int) -> None:
+                if done == total or done % 4 == 0:
+                    emit({"type": "sim_progress", "msg": f"simulated {done}/{total} flights", "done": done, "total": total})
+            sw = sweep(show, checked.compiled, checked.baked, on_progress=progress, **kw)
             issues = sim_issues(show, checked.compiled, checked.baked, sw)
             stage = "sim"
             emit({"type": "sim", "msg": "wind sweep: " + ("certified" if not issues else f"{len(issues)} problems"),

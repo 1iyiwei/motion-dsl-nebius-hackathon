@@ -75,3 +75,23 @@ def test_video_renders_in_the_background(tmp_path):
         time.sleep(0.5)
     assert s["status"] == "done", s
     assert c.get(s["url"]).status_code == 200
+
+
+def test_long_streams_send_keepalive_pings(tmp_path, monkeypatch):
+    import time
+
+    from constellate import server
+
+    monkeypatch.setattr(server, "HEARTBEAT", 0.05)
+    resp = server.streamed(lambda emit: (time.sleep(0.3), {"ok": True})[1])
+    body = b"".join(resp.body_iterator if isinstance(resp.body_iterator, list) else _drain(resp.body_iterator))
+    evs = [json.loads(x) for x in body.decode().splitlines()]
+    assert any(e["type"] == "ping" for e in evs) and evs[-1] == {"type": "result", "ok": True}
+
+
+def _drain(it):
+    import asyncio
+
+    async def go():
+        return [c if isinstance(c, bytes) else c.encode() async for c in it]
+    return asyncio.run(go())

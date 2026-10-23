@@ -128,3 +128,9 @@ def test_tweak_may_change_the_drone_count_but_repairs_may_not():
     assert new.drones == 150 and new.limits == show.limits
     with pytest.raises(ValueError, match="not editable"):
         agent.apply_ops(show.model_dump(mode="json"), [{"op": "set", "path": "/drones", "value": 150}])
+
+
+def test_sweep_reports_progress(flyable):
+    seen = []
+    sweep(flyable.show, flyable.compiled, flyable.baked, winds=(0.0,), seeds=3, workers=1, on_progress=lambda d, t: seen.append((d, t)))
+    assert seen == [(1, 3), (2, 3), (3, 3)]

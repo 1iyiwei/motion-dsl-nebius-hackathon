@@ -80,3 +80,5 @@ services:
         value: "1"
       - key: CONSTELLATE_SWEEP_WORKERS  # 1 = the sweep runs in the server process; each extra worker costs ~220 MB
         value: "1"
+      - key: CONSTELLATE_SWEEP_SEEDS  # gust seeds per wind speed (7 speeds): 6 → 42 flights, half the default's time
+        value: "6"

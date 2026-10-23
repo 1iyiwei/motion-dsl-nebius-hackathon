@@ -10,6 +10,7 @@ import math
 import os
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass
+from typing import Callable
 
 import numpy as np
 
@@ -21,7 +22,7 @@ from .show import Show
 from .sim import G, Airframe, Wind, simulate
 
 WINDS = (0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0)
-SEEDS = 12
+SEEDS = int(os.environ.get("CONSTELLATE_SWEEP_SEEDS") or 12)  # gust seeds per wind speed; fewer on slow hosts
 
 
 @dataclass
@@ -94,17 +95,24 @@ class Sweep:
                 "runs": [asdict(r) for r in self.runs]}
 
 
-def sweep(show: Show, comp: Compiled, baked, winds=WINDS, seeds: int = SEEDS, workers: int | None = None) -> Sweep:
+def sweep(show: Show, comp: Compiled, baked, winds=WINDS, seeds: int = SEEDS, workers: int | None = None,
+          on_progress: Callable[[int, int], None] | None = None) -> Sweep:
     times, plan = tracks_m(baked, show)
     lim = show.limits.model_dump()
     jobs = [(times, plan, lim, w, s) for w in winds for s in range(seeds)]
     # CONSTELLATE_SWEEP_WORKERS caps the pool on small hosts, where os.cpu_count() reports the machine, not the container.
     workers = workers or int(os.environ.get("CONSTELLATE_SWEEP_WORKERS") or 0) or min(len(jobs), max(1, (os.cpu_count() or 2) - 1))
+    runs: list[Run] = []
+    tick = on_progress or (lambda done, total: None)
     if workers == 1:
-        runs = [run_one(j) for j in jobs]
+        for j in jobs:
+            runs.append(run_one(j))
+            tick(len(runs), len(jobs))
     else:
         with ProcessPoolExecutor(workers) as ex:
-            runs = list(ex.map(run_one, jobs, chunksize=2))
+            for r in ex.map(run_one, jobs, chunksize=2):
+                runs.append(r)
+                tick(len(runs), len(jobs))
     cert = None
     for w in sorted(winds):
         if all(r.ok for r in runs if r.wind == w):

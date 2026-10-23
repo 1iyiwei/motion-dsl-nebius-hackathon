@@ -224,8 +224,10 @@ function setStatus(text, bad = false) { $("status").textContent = text; $("statu
 
 // ---------- agent log ----------
 function onEvent(ev) {
+  if (ev.type === "ping") return; // keep-alive from the server
+  if (ev.type === "sim_progress") { $("busy-text").textContent = `Simulating flights in wind: ${ev.done}/${ev.total}…`; return; }
   if (ev.type === "call_start") { $("busy-text").textContent = ev.msg + "…"; return; }
-  if (ev.type === "sim_start") { $("busy-text").textContent = "Simulating 84 flights in wind…"; }
+  if (ev.type === "sim_start") { $("busy-text").textContent = "Simulating flights in wind…"; }
   if (ev.type === "search") $("busy-text").textContent = ev.msg;
   if (ev.type === "flight" && ev.issues) renderFlight({ issues: ev.issues, stats: ev.stats, ok: !ev.issues.some((i) => (i.severity || "error") === "error") });
   if (ev.type === "sim") renderSweepEvent(ev);
@@ -308,7 +310,7 @@ function renderFlight(f) {
     b.className = "badge " + (bad ? "bad" : hits.length ? "warn" : "ok");
     let v = val(f.stats || {});
     if (name === "Wind" && state.sweep) v = state.sweep.certificate.flyable ? `≤ ${state.sweep.certificate.certified_wind} m/s` : `fails at ${state.sweep.certificate.design_wind} m/s`;
-    if (name === "Wind" && !state.sweep && !hits.length) { b.className = "badge"; b.title = "Make flyable runs the 84-flight wind sweep; live mode always simulates wind"; }
+    if (name === "Wind" && !state.sweep && !hits.length) { b.className = "badge"; b.title = "Make flyable runs the wind sweep; live mode always simulates wind"; }
     b.innerHTML = `<b>${name}</b>${hits.length ? `${hits.length} issue${hits.length > 1 ? "s" : ""}` : v}`;
     box.appendChild(b);
   }

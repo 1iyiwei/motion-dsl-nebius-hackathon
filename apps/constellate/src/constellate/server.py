@@ -36,6 +36,7 @@ STATIC = Path(__file__).parent / "static"
 EXAMPLES = Path(__file__).parent / "examples"
 SAMPLES = Path(__file__).parent / "samples"
 PORT = 8780
+HEARTBEAT = 10.0  # s between keep-alive events on a streamed response
 
 
 class ShowReq(BaseModel):
@@ -111,6 +112,7 @@ def sweep_json(sw) -> dict:
 def streamed(job: Callable[[Callable[[dict], None]], dict], finish: Callable[[], None] | None = None) -> StreamingResponse:
     """Run `job(emit)` in a thread; stream its events and then its result as NDJSON. `finish` runs afterwards."""
     q: queue.Queue[dict | None] = queue.Queue()
+    done = threading.Event()
 
     def worker() -> None:
         try:
@@ -118,11 +120,18 @@ def streamed(job: Callable[[Callable[[dict], None]], dict], finish: Callable[[],
         except Exception as e:  # shown in the page's log
             q.put({"type": "error", "msg": f"{type(e).__name__}: {e}"})
         finally:
+            done.set()
             if finish:
                 finish()
         q.put(None)
 
+    def heartbeat() -> None:
+        # Hosting proxies may drop a response that stays silent (a sweep on a small CPU can take minutes).
+        while not done.wait(HEARTBEAT):
+            q.put({"type": "ping"})
+
     threading.Thread(target=worker, daemon=True).start()
+    threading.Thread(target=heartbeat, daemon=True).start()
 
     def events() -> Iterator[str]:
         while (ev := q.get()) is not None:
