@@ -81,7 +81,7 @@ class Briefing:
 
 
 def tavily_search(query: str, max_results: int = 4) -> list[dict]:
-    # Copied from apps/canvasmind digest.py (apps can't import each other); moves to motionlang after judging.
+    # Copied from another app in this repo (apps never import each other); moves into motionlang later.
     import httpx
 
     key = os.environ.get("TAVILY_API_KEY")

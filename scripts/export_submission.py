@@ -38,7 +38,8 @@ PRIVATE_PATTERNS = [
     (r"(?i)motionharness|canvasmind", "mentions an unreleased project"),
 ]
 # How each app starts, for the export's root README (default: `uv run <app>` on port 8765).
-APP_RUN = {"motionharness": ("uv run motionharness serve", "opens http://127.0.0.1:8766/")}
+APP_RUN = {"motionharness": ("uv run motionharness serve", "opens http://127.0.0.1:8766/"),
+           "constellate": ("uv run constellate serve", "opens http://127.0.0.1:8780/")}
 APP_EXTRAS = {"motionharness": "[sandboxes]"}  # optional extras the export installs
 
 

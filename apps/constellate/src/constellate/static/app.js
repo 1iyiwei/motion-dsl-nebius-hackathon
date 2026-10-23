@@ -206,7 +206,7 @@ function setBusy(on, text = "Working…") {
   state.busy = on;
   $("busy").hidden = !on; $("busy-text").textContent = text;
   for (const id of ["plan", "tweak", "fly", "brief", "video"]) if (on) $(id).disabled = true;
-  if (!on) { $("plan").disabled = $("brief").disabled = false; $("tweak").disabled = $("fly").disabled = !state.show; $("video").disabled = !state.show; }
+  if (!on) { $("plan").disabled = $("brief").disabled = false; $("tweak").disabled = $("fly").disabled = !state.show; $("video").disabled = $("live-start").disabled = !state.show; }
 }
 function setStatus(text, bad = false) { $("status").textContent = text; $("status").classList.toggle("bad", bad); }
 
@@ -245,6 +245,7 @@ function renderTotals() {
 
 // ---------- results ----------
 function applyResult(r) {
+  if (live.code) stopLive();
   state.res = r;
   state.show = r.show;
   $("drones").value = r.show.drones;
@@ -279,7 +280,7 @@ const BADGES = [
   ["Acceleration", ["E_ACCEL"], (s) => `${s.peak_accel} m/s² peak`],
   ["Airspace", ["E_GEOFENCE"], () => "in bounds"],
   ["Battery", ["E_FLIGHT_TIME", "E_SIM_BATTERY"], (s) => `${Math.round((s.battery_used || 0) * 100)}% used`],
-  ["Wind", ["E_SIM_TRACKING", "E_SIM_NEAR_MISS"], () => "not simulated"],
+  ["Wind", ["E_SIM_TRACKING", "E_SIM_NEAR_MISS"], () => "sweep not run yet"],
 ];
 function renderFlight(f) {
   const box = $("badges"), list = $("issues");
@@ -294,7 +295,7 @@ function renderFlight(f) {
     b.className = "badge " + (bad ? "bad" : hits.length ? "warn" : "ok");
     let v = val(f.stats || {});
     if (name === "Wind" && state.sweep) v = state.sweep.certificate.flyable ? `≤ ${state.sweep.certificate.certified_wind} m/s` : `fails at ${state.sweep.certificate.design_wind} m/s`;
-    if (name === "Wind" && !state.sweep && !hits.length) b.className = "badge";
+    if (name === "Wind" && !state.sweep && !hits.length) { b.className = "badge"; b.title = "Make flyable runs the 84-flight wind sweep; live mode always simulates wind"; }
     b.innerHTML = `<b>${name}</b>${hits.length ? `${hits.length} issue${hits.length > 1 ? "s" : ""}` : v}`;
     box.appendChild(b);
   }
@@ -511,6 +512,110 @@ $("video").onclick = async () => {
   } catch (err) { setStatus(String(err.message || err), true); }
   finally { $("video").textContent = "Render night-sky video"; $("video").disabled = !state.show; }
 };
+
+// ---------- live wind: real-time sim, the phone (or the sliders) is the wind ----------
+const live = { ws: null, code: null, dots: [], nearTotal: 0 };
+function fillAt(a, k) { const f = a.tracks.fill; return Array.isArray(f) ? f[Math.min(k, f.length - 1)] : f || "#ffffff"; }
+function stopLive() {
+  if (live.code) api(`/api/live/${live.code}/stop`, {}).catch(() => {});
+  if (live.ws) { live.ws.onclose = null; live.ws.close(); }
+  live.ws = live.code = null;
+  for (const id of ["live", "ghosts", "streaks"]) $(id).replaceChildren();
+  hl.replaceChildren(); $("wind-label").textContent = "";
+  $("anim").style.display = "";
+  $("live-on").hidden = true; $("live-idle").hidden = false;
+  for (const id of ["plan", "tweak", "fly", "play"]) $(id).disabled = state.busy || (id !== "plan" && !state.show);
+}
+$("live-start").onclick = async () => {
+  if (!state.show) return;
+  $("live-start").disabled = true; $("live-start").textContent = "Starting…";
+  try {
+    const r = await api("/api/live", { show: state.show });
+    live.code = r.code; live.nearTotal = 0;
+    $("live-code").textContent = r.code;
+    $("live-qr").innerHTML = r.qr;
+    $("live-url").href = r.pad_url; $("live-url").textContent = r.pad_url;
+    $("live-warn").hidden = r.reachable;
+    $("live-idle").hidden = true; $("live-on").hidden = false;
+    player.pause(); $("anim").style.display = "none";
+    for (const id of ["tweak", "fly", "play"]) $(id).disabled = true;
+    const g = $("live"); g.replaceChildren();
+    live.dots = player.T.actors.map(() => g.appendChild(el("circle", { r: 5 })));
+    const gh = $("ghosts"); gh.replaceChildren();
+    live.ghosts = player.T.actors.map(() => [gh.appendChild(el("line", {})), gh.appendChild(el("circle", { r: 4 }))]);
+    const st = $("streaks"); st.replaceChildren();
+    live.streaks = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), k: 0.6 + Math.random() * 0.8, node: st.appendChild(el("line", {})) }));
+    for (const [k, v] of [["wind-x", 0], ["wind-y", 0]]) $(k).value = v;
+    live.ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/live/${r.code}`);
+    live.ws.onmessage = (e) => drawLive(JSON.parse(e.data));
+    live.ws.onclose = () => { setStatus("Live session ended.", true); stopLive(); };
+    setStatus("Live: the swarm is flying the show in real time. Tilt or shake the phone, or use the sliders.");
+  } catch (err) { setStatus(String(err.message || err), true); }
+  finally { $("live-start").textContent = "Go live"; $("live-start").disabled = !state.show; }
+};
+function drawLive(f) {
+  if (f.type !== "frame" || !player.T) return;
+  const T = player.T;
+  f.pos.forEach(([x, z, depth], i) => {
+    const c = live.dots[i];
+    if (!c) return;
+    c.setAttribute("cx", x * PPM); c.setAttribute("cy", H() - z * PPM);
+    c.setAttribute("r", (5 * Math.min(1.8, Math.max(0.6, 1 - depth / 30))).toFixed(1)); // closer to the crowd looks bigger
+    c.setAttribute("fill", fillAt(T.actors[i], f.frame));
+  });
+  // Where each drone should be (faint dot) and how far the wind has pushed it (line): drift you can see.
+  f.pos.forEach(([x, z], i) => {
+    const want = actorCenter(T.actors[i].id, f.frame), g = live.ghosts[i];
+    if (!want || !g) return;
+    const [ax, ay] = [x * PPM, H() - z * PPM];
+    const d = Math.hypot(ax - want[0], ay - want[1]) / PPM;
+    const show = d > 0.3;
+    g[1].setAttribute("cx", want[0]); g[1].setAttribute("cy", want[1]);
+    g[1].setAttribute("fill", show ? fillAt(T.actors[i], f.frame) : "none");
+    for (const [k, v] of [["x1", want[0]], ["y1", want[1]], ["x2", ax], ["y2", ay]]) g[0].setAttribute(k, show ? v : 0);
+    g[0].setAttribute("class", d > state.limits.max_tracking_error ? "far" : "");
+  });
+  drawStreaks(f);
+  hl.replaceChildren();
+  for (const [a, b] of f.near) {
+    const [p, q] = [f.pos[a], f.pos[b]];
+    hl.appendChild(el("line", { class: "near", x1: p[0] * PPM, y1: H() - p[1] * PPM, x2: q[0] * PPM, y2: H() - q[1] * PPM }));
+    hl.appendChild(el("circle", { cx: p[0] * PPM, cy: H() - p[1] * PPM, r: 16 }));
+  }
+  live.nearTotal += f.near.length ? 1 : 0;
+  $("lv-wind").textContent = Math.hypot(...f.wind).toFixed(0);
+  $("lv-sep").textContent = f.min_sep.toFixed(1);
+  $("lv-near").textContent = live.nearTotal;
+  $("lv-near-box").classList.toggle("bad", f.near.length > 0);
+  $("lv-drift").textContent = f.drift.toFixed(1);
+  $("live-pad").classList.toggle("on", f.pad);
+  $("scrub").value = f.frame;
+  $("time").textContent = `${f.t.toFixed(1)} / ${T.duration.toFixed(1)} s · live`;
+  markChip(f.t);
+}
+// Wind streaks drift across the sky at the wind's speed (across the show; depth wind is spelled out in the label).
+function drawStreaks(f) {
+  const vb = stage.viewBox.baseVal, [wx, wy] = f.wind, speed = Math.hypot(wx, wy);
+  const dir = wx >= 0 ? 1 : -1, len = Math.min(140, 12 + Math.abs(wx) * 9);
+  for (const s of live.streaks) {
+    s.x += (wx * PPM * s.k / 30) / vb.width;
+    s.x = ((s.x % 1) + 1) % 1;
+    const x = vb.x + s.x * vb.width, y = vb.y + s.y * vb.height;
+    s.node.setAttribute("x1", x); s.node.setAttribute("y1", y);
+    s.node.setAttribute("x2", x - dir * len * s.k); s.node.setAttribute("y2", y);
+    s.node.setAttribute("stroke-width", 2 + Math.min(4, f.gust / 3));
+    s.node.setAttribute("opacity", Math.abs(wx) < 0.5 ? 0 : Math.min(0.6, 0.12 + Math.abs(wx) / 25 + f.gust / 40));
+  }
+  const lbl = $("wind-label");
+  lbl.setAttribute("x", vb.x + vb.width * 0.02); lbl.setAttribute("y", vb.y + vb.height * 0.07);
+  const across = Math.abs(wx) >= 0.5 ? (wx > 0 ? "→ right" : "← left") : "", depth = Math.abs(wy) >= 0.5 ? (wy > 0 ? "away from crowd" : "toward crowd") : "";
+  lbl.textContent = speed < 0.5 ? "calm" : `wind ${speed.toFixed(0)} m/s ${[across, depth].filter(Boolean).join(", ")}${f.gust > 1 ? `  · gust ${f.gust.toFixed(0)}` : ""}`;
+}
+const liveSend = (m) => { if (live.ws?.readyState === 1) live.ws.send(JSON.stringify(m)); };
+for (const id of ["wind-x", "wind-y"]) $(id).oninput = () => liveSend({ wind: [+$("wind-x").value, +$("wind-y").value] });
+$("live-gust").onclick = () => liveSend({ shake: 0.75 });
+$("live-calm").onclick = () => { $("wind-x").value = $("wind-y").value = 0; liveSend({ wind: [0, 0] }); };
+$("live-stop").onclick = () => { stopLive(); setStatus("Live stopped."); };
 
 // ---------- voice (copied from SketchDynamics app.js; moves to motionlang/static/voice.js after judging) ----------
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;

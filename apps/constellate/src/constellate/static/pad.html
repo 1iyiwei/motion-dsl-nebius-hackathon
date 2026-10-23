@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0b0d17">
+<title>Constellate · wind pad</title>
+<style>
+  :root { --bg: #0b0d17; --surface: #13162a; --fg: #e8e9f3; --muted: #8d90ad; --line: #2a2e4d; --accent: #ffd166; --ok: #4cc27a; --bad: #ef6b5b; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui, -apple-system, sans-serif; overscroll-behavior: none; }
+  main { min-height: 100%; display: flex; flex-direction: column; gap: 14px; padding: 18px 16px 24px; max-width: 480px; margin: 0 auto; }
+  h1 { margin: 0; font-size: 18px; } h1 span { color: var(--accent); }
+  .muted { color: var(--muted); font-size: 13px; }
+  #dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--bad); margin-right: 6px; }
+  #dot.on { background: var(--ok); }
+  .dial { position: relative; align-self: center; width: min(70vw, 280px); aspect-ratio: 1; border-radius: 50%; border: 1px solid var(--line); background: radial-gradient(circle, #1a1e38 0%, #0b0d17 70%); }
+  .dial .ring { position: absolute; inset: 25%; border-radius: 50%; border: 1px dashed var(--line); }
+  .dial svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .dial .lbl { position: absolute; font-size: 11px; color: var(--muted); }
+  .readout { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+  .readout div { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 4px; }
+  .readout b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .readout .bad b { color: var(--bad); }
+  button { font: inherit; color: inherit; border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 14px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #1a1400; font-weight: 700; }
+  #gust { font-size: 22px; font-weight: 700; padding: 22px; touch-action: manipulation; }
+  #gust:active { transform: scale(.98); background: #20254a; }
+  .row { display: flex; gap: 10px; } .row > * { flex: 1; }
+  label.switch { display: flex; align-items: center; gap: 8px; justify-content: center; border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+  #msg { min-height: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <h1><span>✦</span> Constellate wind pad</h1>
+  <div class="muted"><span id="dot"></span><span id="conn">Connecting…</span></div>
+
+  <button id="start" class="primary">Start: be the wind</button>
+
+  <div class="dial" id="dial">
+    <div class="ring"></div>
+    <span class="lbl" style="top:6px;left:50%;transform:translateX(-50%)">away</span>
+    <span class="lbl" style="bottom:6px;left:50%;transform:translateX(-50%)">toward crowd</span>
+    <span class="lbl" style="left:8px;top:50%;transform:translateY(-50%)">left</span>
+    <span class="lbl" style="right:8px;top:50%;transform:translateY(-50%)">right</span>
+    <svg viewBox="-100 -100 200 200"><line id="arrow" x1="0" y1="0" x2="0" y2="0" stroke="#ffd166" stroke-width="7" stroke-linecap="round"/><circle r="6" fill="#ffd166"/></svg>
+  </div>
+
+  <div class="readout">
+    <div><b id="wind">0</b><span class="muted">wind m/s</span></div>
+    <div id="sep-box"><b id="sep">–</b><span class="muted">closest m</span></div>
+    <div id="near-box"><b id="near">0</b><span class="muted">near misses</span></div>
+  </div>
+
+  <button id="gust">Gust! <span class="muted">(or shake the phone)</span></button>
+  <div class="row">
+    <label class="switch"><input id="use-tilt" type="checkbox" checked> tilt = wind</label>
+    <button id="calm">Calm</button>
+  </div>
+  <div id="msg" class="muted">Tilt the phone to set the wind's direction and strength; shake it (or tap Gust) for a gust. Watch the big screen.</div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const code = new URLSearchParams(location.search).get("code") || "";
+let ws = null, zero = null, tilt = [0, 0], lastSend = 0, lastShake = 0, started = false;
+
+function connect() {
+  ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/pad/${encodeURIComponent(code)}`);
+  ws.onopen = () => { $("dot").classList.add("on"); $("conn").textContent = `Connected to show ${code}`; };
+  ws.onclose = (e) => {
+    $("dot").classList.remove("on");
+    $("conn").textContent = e.code === 4404 ? "This live show has ended. Scan the new QR code on the big screen." : "Disconnected; retrying…";
+    if (e.code !== 4404) setTimeout(connect, 1500);
+  };
+  ws.onmessage = (e) => {
+    const s = JSON.parse(e.data);
+    if (s.type !== "status") return;
+    $("wind").textContent = Math.hypot(s.wind[0], s.wind[1]).toFixed(0);
+    $("sep").textContent = s.min_sep.toFixed(1);
+    $("near").textContent = s.near;
+    $("near-box").classList.toggle("bad", s.near > 0);
+    $("sep-box").classList.toggle("bad", s.near > 0);
+  };
+}
+const send = (m) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(m)); };
+
+function drawArrow(beta, gamma) {
+  const x = Math.max(-1, Math.min(1, gamma / 45)), y = Math.max(-1, Math.min(1, -beta / 45));
+  const on = Math.hypot(x, y) >= 0.12 && $("use-tilt").checked;
+  $("arrow").setAttribute("x2", on ? x * 90 : 0);
+  $("arrow").setAttribute("y2", on ? -y * 90 : 0);
+}
+
+function onOrientation(e) {
+  if (e.beta == null) return;
+  if (!zero) zero = [e.beta, e.gamma];
+  tilt = [e.beta - zero[0], e.gamma - zero[1]];
+  drawArrow(...tilt);
+  const now = performance.now();
+  if (now - lastSend > 66 && $("use-tilt").checked) { send({ tilt }); lastSend = now; }
+}
+
+function onMotion(e) {
+  const a = e.acceleration && e.acceleration.x != null ? e.acceleration : null;
+  let jolt;
+  if (a) jolt = Math.hypot(a.x, a.y, a.z);
+  else if (e.accelerationIncludingGravity) { const g = e.accelerationIncludingGravity; jolt = Math.abs(Math.hypot(g.x, g.y, g.z) - 9.81); }
+  else return;
+  const now = performance.now();
+  if (jolt > 7 && now - lastShake > 250) {
+    lastShake = now;
+    const strength = Math.min(1, (jolt - 7) / 18 + 0.3);
+    send({ shake: strength });
+    if (navigator.vibrate) navigator.vibrate(40);
+    $("msg").textContent = `Gust ${Math.round(strength * 100)}%`;
+  }
+}
+
+async function start() {
+  try {
+    for (const E of [window.DeviceOrientationEvent, window.DeviceMotionEvent]) {
+      if (E && typeof E.requestPermission === "function") await E.requestPermission(); // iOS asks; Android doesn't
+    }
+  } catch (err) { $("msg").textContent = "Motion sensors were not allowed; use the Gust button."; }
+  window.addEventListener("deviceorientation", onOrientation);
+  window.addEventListener("devicemotion", onMotion);
+  try { await navigator.wakeLock?.request("screen"); } catch { /* optional */ }
+  zero = null; started = true;
+  $("start").textContent = "Re-center (hold the phone flat-ish, then tap)";
+  if (!window.isSecureContext) $("msg").textContent = "Motion sensors need HTTPS; open the pad from the Tailscale (https) address. The Gust button works anyway.";
+  else setTimeout(() => { if (!zero) $("msg").textContent = "No tilt readings from this browser; the Gust button still works."; }, 1500);
+}
+
+$("start").onclick = () => { if (started) { zero = null; $("msg").textContent = "Re-centered."; } else start(); };
+$("gust").onclick = () => { send({ shake: 0.75 }); if (navigator.vibrate) navigator.vibrate(60); $("msg").textContent = "Gust!"; };
+$("calm").onclick = () => { zero = null; $("use-tilt").checked = false; send({ wind: [0, 0] }); drawArrow(0, 0); $("msg").textContent = "Calm air. Turn tilt back on to steer the wind."; };
+$("use-tilt").onchange = () => { if (!$("use-tilt").checked) send({ wind: [0, 0] }); drawArrow(...tilt); };
+if (!code) $("conn").textContent = "No show code: scan the QR code on the big screen.";
+else connect();
+</script>
+</body>
+</html>

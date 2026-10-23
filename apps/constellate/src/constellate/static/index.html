@@ -19,6 +19,10 @@
       <svg id="stage" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
         <rect id="sky" x="-100000" y="-100000" width="200000" height="200000" fill="#020309"></rect>
         <g id="anim"></g>
+        <g id="streaks"></g>
+        <g id="ghosts"></g>
+        <g id="live"></g>
+        <text id="wind-label" x="0" y="0"></text>
         <rect id="fence" x="0" y="0" width="1280" height="720"></rect>
         <g id="ink"></g>
         <g id="hl"></g>
@@ -96,6 +100,30 @@
       <div id="heatmap" class="heatmap"></div>
       <button id="video" type="button" disabled title="Night-sky video of the simulated flight at the design wind">Render night-sky video</button>
       <video id="player-video" controls playsinline hidden></video>
+    </div>
+
+    <div class="card">
+      <h3>Live wind <span class="tag">your phone is the wind</span></h3>
+      <div id="live-idle">
+        <div class="muted" style="font-size:12px;margin-bottom:8px">Fly the show in real time. Scan the QR code with a phone: tilt it to steer the wind, shake it for gusts. No phone? Use the sliders.</div>
+        <button id="live-start" type="button" disabled>Go live</button>
+      </div>
+      <div id="live-on" hidden>
+        <div class="live-pair">
+          <div id="live-qr" class="qr"></div>
+          <div class="live-info">
+            <div>Show code <b id="live-code"></b> <span id="live-pad" class="pad-dot" title="phone connected"></span></div>
+            <a id="live-url" target="_blank" rel="noopener"></a>
+            <div id="live-warn" class="warn-text" hidden>This page is on localhost, so a phone can't reach it. Open the app through its Tailscale https address (see README), or use the sliders.</div>
+          </div>
+        </div>
+        <div class="live-read">
+          <div><b id="lv-wind">0</b>wind m/s</div><div><b id="lv-sep">–</b>closest m</div><div id="lv-near-box"><b id="lv-near">0</b>near misses</div><div><b id="lv-drift">0</b>max drift m</div>
+        </div>
+        <label class="slider">across <input id="wind-x" type="range" min="-12" max="12" step="0.5" value="0"></label>
+        <label class="slider" title="right = away from the crowd">depth <input id="wind-y" type="range" min="-12" max="12" step="0.5" value="0"></label>
+        <div class="row-buttons"><button id="live-gust" type="button">Gust!</button><button id="live-calm" type="button">Calm</button><button id="live-stop" type="button">Stop live</button></div>
+      </div>
     </div>
 
     <div class="card">

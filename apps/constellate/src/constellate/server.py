@@ -5,15 +5,19 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 import queue
+import time
 import tempfile
 import threading
 import uuid
 from pathlib import Path
 from typing import Callable, Iterator
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
@@ -23,6 +27,7 @@ from motionlang.preview import player_js_path
 
 from . import agent
 from .flight import tracks_m
+from .live import FPS, LiveSession
 from .pipeline import Checked, load_show, run
 from .show import Limits, Show
 
@@ -110,14 +115,16 @@ def create_app(media_dir: Path | None = None, llm_factory: Callable[[], LLM] = L
     def index() -> str:
         return (STATIC / "index.html").read_text()
 
+    @app.get("/pad", response_class=HTMLResponse)
+    def pad_page() -> str:
+        return (STATIC / "pad.html").read_text()
+
     @app.get("/healthz")
     def healthz() -> dict:
         return {"status": "ok"}
 
     @app.get("/config")
     def config() -> dict:
-        import os
-
         return {"llm": bool(os.environ.get("NEBIUS_API_KEY")), "tavily": bool(os.environ.get("TAVILY_API_KEY")),
                 "limits": Limits().model_dump()}
 
@@ -236,6 +243,93 @@ def create_app(media_dir: Path | None = None, llm_factory: Callable[[], LLM] = L
         if not p.is_file() or p.parent != media:
             raise HTTPException(404)
         return FileResponse(p)
+
+    # ---------- live mode: the phone is the wind ----------
+    sessions: dict[str, LiveSession] = {}
+    viewers: dict[str, set[WebSocket]] = {}
+    pads: dict[str, set[WebSocket]] = {}
+
+    async def broadcast(code: str, msg: dict, to: dict[str, set[WebSocket]]) -> None:
+        text = json.dumps(msg, separators=(",", ":"))
+        for ws in list(to.get(code, ())):
+            try:
+                await ws.send_text(text)
+            except Exception:
+                to[code].discard(ws)
+
+    async def fly_live(code: str) -> None:
+        s = sessions[code]
+        idle_since = time.time()
+        n = 0
+        while sessions.get(code) is s:
+            t0 = time.perf_counter()
+            frame = s.tick()
+            await broadcast(code, frame, viewers)
+            n += 1
+            if n % 6 == 0:  # the pad shows a slower summary
+                await broadcast(code, {"type": "status", "wind": frame["wind"], "gust": frame["gust"], "min_sep": frame["min_sep"],
+                                       "near": len(frame["near"]), "drift": frame["drift"], "viewers": len(viewers.get(code, ()))}, pads)
+            if viewers.get(code) or pads.get(code):
+                idle_since = time.time()
+            elif time.time() - idle_since > 120:
+                sessions.pop(code, None)
+                break
+            await asyncio.sleep(max(0.0, 1 / FPS - (time.perf_counter() - t0)))
+
+    @app.post("/api/live")
+    async def live_start(req: ShowReq, request: Request) -> dict:
+        show = _show(req.show)
+        checked = await run_in_threadpool(run, show)
+        s = LiveSession(checked)
+        while len(sessions) >= 4:  # keep a few; the oldest stops
+            sessions.pop(next(iter(sessions)))
+        sessions[s.code] = s
+        asyncio.get_running_loop().create_task(fly_live(s.code))
+        base = os.environ.get("CONSTELLATE_PUBLIC_URL") or str(request.base_url)
+        url = base.rstrip("/") + f"/pad?code={s.code}"
+        import segno
+
+        qr = segno.make(url, error="m").svg_inline(scale=5, dark="#0b0d17", light="#ffffff", border=4, omitsize=True)  # viewBox only, so CSS scales it
+        host = request.url.hostname or ""
+        return {"code": s.code, "pad_url": url, "qr": qr,
+                "reachable": bool(os.environ.get("CONSTELLATE_PUBLIC_URL")) or host not in ("localhost", "127.0.0.1", "::1"),
+                "fps": FPS, "frames": len(s.times)}
+
+    @app.post("/api/live/{code}/stop")
+    def live_stop(code: str) -> dict:
+        sessions.pop(code, None)
+        return {"stopped": code}
+
+    async def listen(ws: WebSocket, code: str, group: dict[str, set[WebSocket]]) -> None:
+        if code not in sessions:
+            await ws.close(code=4404)
+            return
+        await ws.accept()
+        group.setdefault(code, set()).add(ws)
+        try:
+            while True:
+                msg = json.loads(await ws.receive_text())
+                s = sessions.get(code)
+                if s is None:
+                    break
+                if "tilt" in msg:
+                    s.set_tilt(float(msg["tilt"][0]), float(msg["tilt"][1]))
+                if "wind" in msg:
+                    s.set_wind(float(msg["wind"][0]), float(msg["wind"][1]))
+                if "shake" in msg:
+                    s.shake(float(msg["shake"]), msg.get("dir"))
+        except (WebSocketDisconnect, ValueError, KeyError, TypeError):
+            pass
+        finally:
+            group.get(code, set()).discard(ws)
+
+    @app.websocket("/ws/live/{code}")
+    async def ws_view(ws: WebSocket, code: str) -> None:
+        await listen(ws, code, viewers)
+
+    @app.websocket("/ws/pad/{code}")
+    async def ws_pad(ws: WebSocket, code: str) -> None:
+        await listen(ws, code, pads)
 
     return app
 
