@@ -98,7 +98,8 @@ def sweep(show: Show, comp: Compiled, baked, winds=WINDS, seeds: int = SEEDS, wo
     times, plan = tracks_m(baked, show)
     lim = show.limits.model_dump()
     jobs = [(times, plan, lim, w, s) for w in winds for s in range(seeds)]
-    workers = workers or min(len(jobs), max(1, (os.cpu_count() or 2) - 1))
+    # CONSTELLATE_SWEEP_WORKERS caps the pool on small hosts, where os.cpu_count() reports the machine, not the container.
+    workers = workers or int(os.environ.get("CONSTELLATE_SWEEP_WORKERS") or 0) or min(len(jobs), max(1, (os.cpu_count() or 2) - 1))
     if workers == 1:
         runs = [run_one(j) for j in jobs]
     else:

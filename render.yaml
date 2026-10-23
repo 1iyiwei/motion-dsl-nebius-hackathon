@@ -1,4 +1,4 @@
-# Render Blueprint for the hosted SketchDynamics and MotionHarness demos (render.com → New → Blueprint → this repo).
+# Render Blueprint for the hosted SketchDynamics, MotionHarness and Constellate demos (render.com → New → Blueprint → this repo).
 # Secrets (sync: false) are entered in Render's dashboard when the Blueprint is created, never committed.
 services:
   - type: web
@@ -54,3 +54,29 @@ services:
         value: "3000000"
       - key: MOTIONHARNESS_BEHIND_PROXY  # Render's proxy sets X-Forwarded-For
         value: "1"
+
+  # Constellate (apps/constellate): drone light show choreographer. Live mode's phone pad works over this https URL.
+  - type: web
+    name: constellate
+    runtime: python
+    plan: free  # sleeps after ~15 min idle; a sweep uses CPU for a few seconds, so a paid plan is smoother during judging
+    buildCommand: pip install uv && uv sync --frozen --no-dev
+    startCommand: uv run --frozen --no-dev constellate serve --host 0.0.0.0 --port $PORT --no-browser
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: NEBIUS_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY  # site briefing
+        sync: false
+      - key: CONSTELLATE_ACCESS_CODE  # share with judges in the submission's "additional info"
+        sync: false
+      - key: CONSTELLATE_RATE_LIMIT  # plan / tweak / make flyable / brief requests per visitor per hour
+        value: "20"
+      - key: CONSTELLATE_DAILY_TOKENS  # all visitors together, per UTC day (a plan + repair is typically 3-8k)
+        value: "1500000"
+      - key: CONSTELLATE_MAX_JOBS  # sweeps, videos and live sessions running at once
+        value: "2"
+      - key: CONSTELLATE_SWEEP_WORKERS  # simulation processes per sweep; keep small on small instances
+        value: "2"

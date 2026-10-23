@@ -53,7 +53,7 @@ Open the app from that https address on the computer too: the pairing QR code po
 - **Start:** `uv run --frozen --no-dev constellate serve --host 0.0.0.0 --port $PORT --no-browser`. When `$PORT` is set, `serve` already defaults to `0.0.0.0` and that port, so the flags just make it explicit. Without them it listens on `127.0.0.1:8780`, which a hosting proxy can't reach ("no open ports detected on 0.0.0.0").
 - **Health check:** `/healthz`. **Environment:** `NEBIUS_API_KEY`, `TAVILY_API_KEY`, and `PYTHON_VERSION=3.12.7`.
 - Behind the host's proxy, the app trusts `X-Forwarded-*` headers (automatic when `$PORT` is set, or with `CONSTELLATE_BEHIND_PROXY=1`), so the pairing QR code points at the public `https://` address, and any phone can be the wind without Tailscale.
-- **There is no access code or rate limit yet:** anyone with the link can run Nemotron and Tavily calls on your keys. Keep the URL private.
+- **Guardrails** (all off by default; [`render.yaml`](../../render.yaml) at the repo root turns them on): `CONSTELLATE_ACCESS_CODE` (model calls, sweeps, videos and live sessions need it; the page shows a field next to the title), `CONSTELLATE_RATE_LIMIT` (model requests per visitor per hour), `CONSTELLATE_DAILY_TOKENS` (all visitors, per UTC day), `CONSTELLATE_MAX_JOBS` (sweeps, videos and live sessions at once) and `CONSTELLATE_SWEEP_WORKERS` (processes per sweep; small instances report the host's CPU count, not theirs). Loading examples and the flight check stay open without a code. Counters live in memory, so a restart resets them: the access code is the real gate.
 
 ## The web app
 

@@ -27,6 +27,7 @@ from motionlang.preview import player_js_path
 
 from . import agent
 from .flight import tracks_m
+from .guard import Guard
 from .live import FPS, LiveSession
 from .pipeline import Checked, load_show, run
 from .show import Limits, Show
@@ -84,8 +85,8 @@ def sweep_json(sw) -> dict:
                       "min_sep": round(r.min_sep, 2), "direction": round(r.direction)} for r in sw.runs]}
 
 
-def streamed(job: Callable[[Callable[[dict], None]], dict]) -> StreamingResponse:
-    """Run `job(emit)` in a thread; stream its events and then its result as NDJSON."""
+def streamed(job: Callable[[Callable[[dict], None]], dict], finish: Callable[[], None] | None = None) -> StreamingResponse:
+    """Run `job(emit)` in a thread; stream its events and then its result as NDJSON. `finish` runs afterwards."""
     q: queue.Queue[dict | None] = queue.Queue()
 
     def worker() -> None:
@@ -93,6 +94,9 @@ def streamed(job: Callable[[Callable[[dict], None]], dict]) -> StreamingResponse
             q.put({"type": "result", **job(q.put)})
         except Exception as e:  # shown in the page's log
             q.put({"type": "error", "msg": f"{type(e).__name__}: {e}"})
+        finally:
+            if finish:
+                finish()
         q.put(None)
 
     threading.Thread(target=worker, daemon=True).start()
@@ -104,8 +108,13 @@ def streamed(job: Callable[[Callable[[dict], None]], dict]) -> StreamingResponse
     return StreamingResponse(events(), media_type="application/x-ndjson")
 
 
-def create_app(media_dir: Path | None = None, llm_factory: Callable[[], LLM] = LLM) -> FastAPI:
+def spent(llm: LLM) -> int:
+    return sum(c.prompt_tokens + c.completion_tokens for c in llm.calls)
+
+
+def create_app(media_dir: Path | None = None, llm_factory: Callable[[], LLM] = LLM, guard: Guard | None = None) -> FastAPI:
     app = FastAPI(title="Constellate")
+    guard = guard or Guard.from_env()
     media = Path(media_dir or tempfile.mkdtemp(prefix="constellate-media-"))
     media.mkdir(parents=True, exist_ok=True)
     videos: dict[str, dict] = {}
@@ -126,7 +135,7 @@ def create_app(media_dir: Path | None = None, llm_factory: Callable[[], LLM] = L
     @app.get("/config")
     def config() -> dict:
         return {"llm": bool(os.environ.get("NEBIUS_API_KEY")), "tavily": bool(os.environ.get("TAVILY_API_KEY")),
-                "limits": Limits().model_dump()}
+                "limits": Limits().model_dump(), **guard.status()}
 
     @app.get("/player.js")
     def player_js() -> FileResponse:  # motionlang's own player, so the app and `motionlang preview` never drift
@@ -157,61 +166,84 @@ def create_app(media_dir: Path | None = None, llm_factory: Callable[[], LLM] = L
     def check(req: ShowReq) -> dict:
         return checked_json(run(_show(req.show)))
 
+    def model_job(request: Request, heavy: bool = False):
+        """Gate a model request; returns (llm, finish) where finish books its tokens (and frees a job slot)."""
+        guard.check(request)
+        if heavy:
+            guard.acquire_job()
+        llm = llm_factory()
+
+        def finish() -> None:
+            guard.spend(spent(llm))
+            if heavy:
+                guard.release_job()
+        return llm, finish
+
     @app.post("/api/plan")
-    def plan(req: PlanReq):
+    def plan(req: PlanReq, request: Request):
         base = _show({"formations": {"x": {"kind": "preset", "shape": "ring"}}, "steps": [{"kind": "form", "id": "x", "formation": "x"}],
                       "drones": req.drones, "sources": req.sources, "limits": {**Limits().model_dump(), **req.limits}})
 
+        llm, finish = model_job(request)
+
         def job(emit):
-            show = agent.plan(req.intent, base, llm_factory(), emit)
+            show = agent.plan(req.intent, base, llm, emit)
             return checked_json(run(show))
-        return streamed(job)
+        return streamed(job, finish)
 
     @app.post("/api/tweak")
-    def tweak(req: TweakReq):
+    def tweak(req: TweakReq, request: Request):
         show = _show(req.show)
+        llm, finish = model_job(request)
 
         def job(emit):
-            new, ops, note = agent.tweak(show, req.request, llm_factory(), emit)
+            new, ops, note = agent.tweak(show, req.request, llm, emit)
             emit({"type": "repair", "msg": note or f"{len(ops)} edits", "ops": ops})
             return {**checked_json(run(new)), "ops": ops, "note": note}
-        return streamed(job)
+        return streamed(job, finish)
 
     @app.post("/api/fly")
-    def fly(req: ShowReq):
+    def fly(req: ShowReq, request: Request):
         show = _show(req.show)
+        llm, finish = model_job(request, heavy=True)
 
         def job(emit):
-            out = agent.make_flyable(show, llm_factory(), emit)
+            out = agent.make_flyable(show, llm, emit)
             res = {**checked_json(out.checked), "flyable": out.ok, "rounds": len(out.rounds)}
             if out.sweep:
                 res["sweep"] = sweep_json(out.sweep)
             return res
-        return streamed(job)
+        return streamed(job, finish)
 
     @app.post("/api/sweep")
-    def sweep_only(req: ShowReq) -> dict:
+    def sweep_only(req: ShowReq, request: Request) -> dict:
         from .sweep import sim_issues, sweep
 
+        guard.check(request, model=False)
         show = _show(req.show)
-        c = run(show)
-        if not c.flight.ok:
-            raise HTTPException(409, detail="fix the flight check first")
-        sw = sweep(show, c.compiled, c.baked)
+        with guard.job():
+            c = run(show)
+            if not c.flight.ok:
+                raise HTTPException(409, detail="fix the flight check first")
+            sw = sweep(show, c.compiled, c.baked)
         return {**sweep_json(sw), "issues": [i.to_dict() for i in sim_issues(show, c.compiled, c.baked, sw)]}
 
     @app.post("/api/brief")
-    def brief(req: BriefReq):
+    def brief(req: BriefReq, request: Request):
         from .briefing import brief as do_brief
 
+        llm, finish = model_job(request)
+
         def job(emit):
-            b = do_brief(req.venue, req.date, llm_factory(), emit)
+            b = do_brief(req.venue, req.date, llm, emit)
             return {"briefing": b.to_dict()}
-        return streamed(job)
+        return streamed(job, finish)
 
     @app.post("/api/video")
-    def video(req: ShowReq) -> dict:
+    def video(req: ShowReq, request: Request) -> dict:
+        guard.check(request, model=False)
         show = _show(req.show)
+        guard.acquire_job()
         vid = uuid.uuid4().hex[:12]
         videos[vid] = {"status": "rendering"}
 
@@ -228,6 +260,8 @@ def create_app(media_dir: Path | None = None, llm_factory: Callable[[], LLM] = L
                 videos[vid] = {"status": "done", "url": f"/media/{out.name}", "wind": wind.speed}
             except Exception as e:
                 videos[vid] = {"status": "error", "msg": f"{type(e).__name__}: {e}"}
+            finally:
+                guard.release_job()
         threading.Thread(target=work, daemon=True).start()
         return {"id": vid}
 
@@ -258,6 +292,12 @@ def create_app(media_dir: Path | None = None, llm_factory: Callable[[], LLM] = L
                 to[code].discard(ws)
 
     async def fly_live(code: str) -> None:
+        try:
+            await _fly_live(code)
+        finally:
+            guard.release_job()
+
+    async def _fly_live(code: str) -> None:
         s = sessions[code]
         idle_since = time.time()
         n = 0
@@ -278,8 +318,14 @@ def create_app(media_dir: Path | None = None, llm_factory: Callable[[], LLM] = L
 
     @app.post("/api/live")
     async def live_start(req: ShowReq, request: Request) -> dict:
+        guard.check(request, model=False)
         show = _show(req.show)
-        checked = await run_in_threadpool(run, show)
+        guard.acquire_job()  # released when the session's loop ends
+        try:
+            checked = await run_in_threadpool(run, show)
+        except Exception:
+            guard.release_job()
+            raise
         s = LiveSession(checked)
         while len(sessions) >= 4:  # keep a few; the oldest stops
             sessions.pop(next(iter(sessions)))

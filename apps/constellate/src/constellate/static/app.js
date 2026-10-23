@@ -178,14 +178,25 @@ wrap.addEventListener("drop", async (e) => {
 });
 
 // ---------- server calls ----------
+// A hosted copy may need an access code (GET /config says so); it's kept in this browser only.
+const ACCESS_KEY = "constellate.access";
+function headers() {
+  let code = "";
+  try { code = localStorage.getItem(ACCESS_KEY) || ""; } catch { /* storage blocked */ }
+  return { "Content-Type": "application/json", ...(code ? { "X-Access-Code": code } : {}) };
+}
+async function failure(r) {
+  if (r.status === 401) { $("access-code").hidden = false; $("access-code").focus(); }
+  return new Error((await r.json().catch(() => ({}))).detail || `${r.status} ${r.statusText}`);
+}
 async function api(url, body) {
-  const r = await fetch(url, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });
-  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `${r.status} ${r.statusText}`);
+  const r = await fetch(url, { method: body ? "POST" : "GET", headers: headers(), body: body && JSON.stringify(body) });
+  if (!r.ok) throw await failure(r);
   return r.json();
 }
 async function stream(url, body) {
-  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `${r.status} ${r.statusText}`);
+  const r = await fetch(url, { method: "POST", headers: headers(), body: JSON.stringify(body) });
+  if (!r.ok) throw await failure(r);
   const reader = r.body.getReader(), dec = new TextDecoder();
   let buf = "", result = null;
   for (;;) {
@@ -644,6 +655,12 @@ attachMic("mic-instruction", "instruction");
 (async () => {
   const cfg = await api("/config");
   state.limits = cfg.limits;
+  if (cfg.access_required) {
+    const input = $("access-code");
+    input.hidden = false;
+    try { input.value = localStorage.getItem(ACCESS_KEY) || ""; } catch { /* storage blocked */ }
+    input.onchange = () => { try { localStorage.setItem(ACCESS_KEY, input.value.trim()); } catch { /* ignore */ } };
+  }
   renderLimits();
   if (!cfg.llm) setStatus("NEBIUS_API_KEY is not set: planning and repairs need it (examples and checks still work).", true);
   if (!cfg.tavily) { $("brief").disabled = true; $("brief").title = "TAVILY_API_KEY is not set"; }
