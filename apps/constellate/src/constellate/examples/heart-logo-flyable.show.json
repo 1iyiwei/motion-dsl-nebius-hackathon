@@ -46,7 +46,7 @@
       "kind": "form",
       "id": "logo_to_thanks",
       "formation": "thanks",
-      "transition": 9.5,
+      "transition": 8.5,
       "hold": 4,
       "color": "#ffd166"
     }

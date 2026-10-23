@@ -76,7 +76,7 @@ services:
         value: "20"
       - key: CONSTELLATE_DAILY_TOKENS  # all visitors together, per UTC day (a plan + repair is typically 3-8k)
         value: "1500000"
-      - key: CONSTELLATE_MAX_JOBS  # sweeps, videos and live sessions running at once
-        value: "2"
-      - key: CONSTELLATE_SWEEP_WORKERS  # simulation processes per sweep; keep small on small instances
-        value: "2"
+      - key: CONSTELLATE_MAX_JOBS  # sweeps, videos and live sessions running at once (each peaks near 300 MB)
+        value: "1"
+      - key: CONSTELLATE_SWEEP_WORKERS  # 1 = the sweep runs in the server process; each extra worker costs ~220 MB
+        value: "1"

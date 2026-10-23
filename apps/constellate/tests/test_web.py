@@ -33,7 +33,10 @@ def test_pages_examples_and_check(tmp_path):
     show = c.get("/api/examples/heart-logo").json()
     assert show["sources"]["svgs"]["orbit"].startswith("<svg")
     r = c.post("/api/check", json={"show": show}).json()
-    assert r["motion_ok"] and not r["ok"] and r["tracks"]["frames"] > 100
+    assert r["motion_ok"] and not r["ok"] and r["frames"] > 100
+    tracks = c.get(r["tracks_url"]).json()  # served separately, merged from per-chunk bakes
+    assert tracks["frames"] == r["frames"] and len(tracks["actors"]) == show["drones"]
+    assert c.get("/api/tracks/nope").status_code == 404
     assert {i["code"] for i in r["flight"]["issues"]} >= {"E_SPEED", "E_GEOFENCE"}
     assert r["steps"][-1]["id"] == "land"
     assert c.get("/api/examples/../server").status_code == 404
@@ -47,7 +50,7 @@ def test_plan_streams_events_then_a_checked_result(tmp_path):
     assert evs[0]["type"] == "call_start" and any(e["type"] == "call" and e["model"] for e in evs)
     res = evs[-1]
     assert res["type"] == "result" and res["show"]["drones"] == 60 and res["show"]["limits"]["design_wind"] == 4
-    assert res["tracks"]["actors"]
+    assert len(c.get(res["tracks_url"]).json()["actors"]) == 60
 
 
 def test_fly_reports_rounds_and_errors_stream_as_events(tmp_path):

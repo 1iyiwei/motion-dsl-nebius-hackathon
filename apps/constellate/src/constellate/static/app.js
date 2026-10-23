@@ -211,6 +211,7 @@ async function stream(url, body) {
       else onEvent(ev);
     }
   }
+  if (!result) throw new Error("The server closed the connection before finishing (it may have restarted or run out of memory). Try again; if it keeps happening, check the server log.");
   return result;
 }
 function setBusy(on, text = "Working…") {
@@ -255,8 +256,9 @@ function renderTotals() {
 }
 
 // ---------- results ----------
-function applyResult(r) {
+async function applyResult(r) {
   if (live.code) stopLive();
+  if (r.tracks_url) r.tracks = await api(r.tracks_url); // fetched separately: tracks are large
   state.res = r;
   state.show = r.show;
   $("drones").value = r.show.drones;
@@ -281,7 +283,7 @@ function applyResult(r) {
 }
 async function loadShow(show) {
   setBusy(true, "Compiling and checking…");
-  try { applyResult(await api("/api/check", { show })); setStatus("Loaded. Press “Make flyable” to repair and simulate it."); }
+  try { await applyResult(await api("/api/check", { show })); setStatus("Loaded. Press “Make flyable” to repair and simulate it."); }
   finally { setBusy(false); }
 }
 
@@ -467,7 +469,7 @@ $("plan-form").onsubmit = async (e) => {
   try {
     const r = await stream("/api/plan", { intent, drones: +$("drones").value || 100, sources: { strokes: strokesMetres(), svgs: state.svgs }, limits: state.limits });
     state.sweep = null; state.simIssues = [];
-    applyResult(r);
+    await applyResult(r);
     setStatus(r.ok ? "Planned, and it already passes the flight check. Press “Make flyable” to simulate wind." : "Planned. The flight check found problems (red); press “Make flyable” to let Nemotron fix them.");
   } catch (err) { setStatus(String(err.message || err), true); }
   finally { setBusy(false); }
@@ -480,7 +482,7 @@ $("tweak-form").onsubmit = async (e) => {
   try {
     const r = await stream("/api/tweak", { show: state.show, request });
     state.sweep = null; state.simIssues = [];
-    applyResult(r);
+    await applyResult(r);
     $("instruction").value = "";
     setStatus(`${r.note || "Changed."} ${r.ok ? "Flight check passes." : "The flight check found problems."}`);
   } catch (err) { setStatus(String(err.message || err), true); }
@@ -491,7 +493,7 @@ $("fly").onclick = async () => {
   setBusy(true, "Checking…");
   try {
     const r = await stream("/api/fly", { show: state.show });
-    applyResult(r);
+    await applyResult(r);
     const c = r.sweep?.certificate;
     setStatus(r.flyable ? `Flyable after ${r.rounds} repair round${r.rounds === 1 ? "" : "s"}: certified up to ${c.certified_wind} m/s.` : "Not flyable yet; see the problems on the right.", !r.flyable);
   } catch (err) { setStatus(String(err.message || err), true); }

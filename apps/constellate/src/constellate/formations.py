@@ -162,8 +162,19 @@ def _spread(cand: np.ndarray, n: int, seed: int) -> np.ndarray:
         cand = cand[rng.choice(len(cand), MAX_CANDIDATES, replace=False)]
     if len(cand) < n:
         raise ValueError(f"shape too small to place {n} drones")
-    cent, _ = kmeans2(cand, n, iter=30, minit="++", seed=seed)
+    cent, _ = kmeans2(cand, _kmeanspp(cand, n, rng), iter=30, minit="matrix")
     return _relax(cand[cKDTree(cand).query(cent)[1]], cand)
+
+
+def _kmeanspp(cand: np.ndarray, n: int, rng: np.random.Generator) -> np.ndarray:
+    """k-means++ seeding in O(len(cand)) memory (SciPy's minit="++" peaks near 1 GB on 24k points)."""
+    centers = [cand[rng.integers(len(cand))]]
+    d2 = ((cand - centers[0]) ** 2).sum(axis=1)
+    for _ in range(1, n):
+        c = cand[rng.choice(len(cand), p=d2 / d2.sum())] if d2.sum() > 0 else cand[rng.integers(len(cand))]
+        centers.append(c)
+        d2 = np.minimum(d2, ((cand - c) ** 2).sum(axis=1))
+    return np.array(centers)
 
 
 def _relax(pts: np.ndarray, cand: np.ndarray) -> np.ndarray:

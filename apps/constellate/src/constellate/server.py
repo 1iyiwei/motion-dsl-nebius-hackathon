@@ -18,7 +18,7 @@ from typing import Callable, Iterator
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
@@ -66,11 +66,34 @@ def _show(raw: dict) -> Show:
         raise HTTPException(422, detail=str(e)) from e
 
 
-def checked_json(c: Checked) -> dict:
-    """Everything the page draws for a show: the script, tracks for the player, the flight report, step spans."""
+class TrackStore:
+    """The last few shows' player tracks, served by URL so results stay small (tracks are ~0.1 MB per drone-minute)."""
+
+    def __init__(self, keep: int = 6):
+        self.keep, self.items, self.lock = keep, {}, threading.Lock()
+
+    def put(self, text: str) -> str:
+        tid = uuid.uuid4().hex[:16]
+        with self.lock:
+            self.items[tid] = text
+            while len(self.items) > self.keep:
+                self.items.pop(next(iter(self.items)))
+        return tid
+
+    def get(self, tid: str) -> str | None:
+        with self.lock:
+            return self.items.get(tid)
+
+
+TRACKS = TrackStore()
+
+
+def checked_json(c: Checked, store: TrackStore = TRACKS) -> dict:
+    """Everything the page draws for a show: the script, a URL for the player's tracks, the flight report, step spans."""
     return {
         "show": c.show.model_dump(mode="json"),
-        "tracks": c.baked.to_json(precision=2) if c.baked is not None else None,
+        "tracks_url": f"/api/tracks/{store.put(c.baked.player_json)}" if c.baked is not None else None,
+        "frames": len(c.baked.times) if c.baked is not None else 0,
         "flight": c.flight.to_dict(),
         "motion_ok": c.motion.ok,
         "steps": [{"id": s.step, "kind": s.kind, "index": s.index, "t0": round(s.t0, 2), "t1": round(s.t1, 2),
@@ -140,6 +163,13 @@ def create_app(media_dir: Path | None = None, llm_factory: Callable[[], LLM] = L
     @app.get("/player.js")
     def player_js() -> FileResponse:  # motionlang's own player, so the app and `motionlang preview` never drift
         return FileResponse(player_js_path(), media_type="text/javascript")
+
+    @app.get("/api/tracks/{tid}")
+    def tracks(tid: str) -> Response:
+        text = TRACKS.get(tid)
+        if text is None:
+            raise HTTPException(404, detail="these tracks have expired; recheck the show")
+        return Response(text, media_type="application/json")
 
     @app.get("/api/examples")
     def examples() -> list[dict]:
