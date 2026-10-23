@@ -43,6 +43,19 @@
         "--no-browser"
       ],
       "port": 8768
+    },
+    {
+      "name": "constellate",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": [
+        "run",
+        "constellate",
+        "serve",
+        "--port",
+        "8780",
+        "--no-browser"
+      ],
+      "port": 8780
     }
   ]
 }

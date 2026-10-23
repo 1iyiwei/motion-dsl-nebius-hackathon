@@ -10,7 +10,7 @@ from constellate.formations import launch_grid, sample
 from constellate.pipeline import load_show, run
 from constellate.show import Limits, Show
 
-EX = Path(__file__).parent.parent / "examples"
+EX = Path(__file__).parent.parent / "src" / "constellate" / "examples"
 
 
 def show(formations, steps, **kw):

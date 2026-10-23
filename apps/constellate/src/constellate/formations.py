@@ -223,6 +223,7 @@ def sample(f: Formation, n: int, limits: Limits, sources: Sources, seed: int = 0
         px[:, 1] = px[:, 1].max() - px[:, 1]  # rows count downward, like pixels
     else:
         px = None
+        band = False
         if f.kind == "preset":
             contours, open_line = _preset(f.shape)
             layers = [(contours, None, not open_line)]
@@ -234,13 +235,14 @@ def sample(f: Formation, n: int, limits: Limits, sources: Sources, seed: int = 0
             closed = len(pts) > 2 and np.linalg.norm(pts[0] - pts[-1]) < 0.08 * np.ptp(pts, axis=0).max()
             layers = [([(pts, bool(closed))], None, f.fill == "fill" and bool(closed))]
             fill_mode = f.fill if closed else "outline"
+            band = f.fill == "fill" and not closed  # an open line "filled" is a band of drones along it
         elif f.kind == "svg":
             layers = _svg_layers(_svg_text(sources.svgs[f.svg]))
             fill_mode = f.fill
         else:
             layers = None
             fill_mode = f.fill
-        if layers is not None and fill_mode == "outline" and f.kind in ("preset", "stroke"):
+        if layers is not None and fill_mode == "outline" and f.kind in ("preset", "stroke") and not band:
             k = RES / max(np.ptp(np.vstack([c for c, _ in layers[0][0]]), axis=0).max(), 1e-9)
             px = _relax(_along(layers[0][0], n) * k, _along(layers[0][0], 8000) * k)
             layers = None
@@ -248,7 +250,7 @@ def sample(f: Formation, n: int, limits: Limits, sources: Sources, seed: int = 0
         elif layers is None:
             mask, line, colors_img = _text_raster(f.text)
         else:
-            mask, line, colors_img = _raster(layers)
+            mask, line, colors_img = _raster(layers, line_frac=0.07 if f.kind == "stroke" and band else 0.012)
         if px is None:
             area = mask if fill_mode == "fill" else _boundary(mask)
             area = ImageChops.logical_or(area, line)

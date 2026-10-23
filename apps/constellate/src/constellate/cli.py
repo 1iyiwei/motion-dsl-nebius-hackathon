@@ -5,6 +5,7 @@
     constellate fly show.json --design-wind 8 --mp4 show.mp4   # repair loop + wind sweep + certificate + night-sky video
     constellate compile SHOW.json -o show.motion.json --preview show.html   # compile + flight check only
     constellate sweep SHOW.json       # wind sweep + certificate, no model calls
+    constellate serve                 # the web app: http://127.0.0.1:8780/
     constellate jobs-check            # can this machine start Nebius Serverless Jobs? (dry run, no cost)
     constellate jobs-check --run      # start a tiny CPU hello-world job (billed while it runs)
 """
@@ -179,6 +180,13 @@ def cmd_sweep(args: argparse.Namespace) -> int:
     return 0 if sw.certificate()["flyable"] else 2
 
 
+def cmd_serve(args: argparse.Namespace) -> int:
+    from .server import serve
+
+    serve(args.host, args.port, open_browser=not args.no_browser)
+    return 0
+
+
 def cmd_jobs_check(args: argparse.Namespace) -> int:
     project = jobs.project_id()
     if not project:
@@ -198,6 +206,11 @@ def main(argv: list[str] | None = None) -> int:
     load_env()
     ap = argparse.ArgumentParser(prog="constellate", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
+    sc = sub.add_parser("serve", help="run the web app")
+    sc.add_argument("--host", default="127.0.0.1")
+    sc.add_argument("--port", type=int, default=8780)
+    sc.add_argument("--no-browser", action="store_true")
+    sc.set_defaults(func=cmd_serve)
     bc = sub.add_parser("brief", help="Tavily site briefing: venue + date → cited limits")
     bc.add_argument("venue")
     bc.add_argument("--date", required=True, help='e.g. "Oct 31 2026, 9 pm"')

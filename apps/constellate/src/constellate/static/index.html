@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Constellate</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">✦</span> Constellate <span class="sub">sketch or say a drone light show · make it flyable</span></div>
+  <div class="powered">Nemotron on Nebius Token Factory · Tavily</div>
+</header>
+
+<main class="layout">
+  <section class="work">
+    <div class="stage-wrap">
+      <svg id="stage" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">
+        <rect id="sky" x="-100000" y="-100000" width="200000" height="200000" fill="#020309"></rect>
+        <g id="anim"></g>
+        <rect id="fence" x="0" y="0" width="1280" height="720"></rect>
+        <g id="ink"></g>
+        <g id="hl"></g>
+      </svg>
+      <div id="hint" class="stage-hint">Draw a shape for the swarm to form, drop an SVG logo here, or just say what the show should do.</div>
+      <div id="busy" class="busy" hidden><span class="spinner"></span><span id="busy-text">Working…</span></div>
+      <div id="scale" class="scale"></div>
+    </div>
+
+    <div class="bar">
+      <button id="play" class="icon" title="Play / pause (space)" disabled>▶</button>
+      <input id="scrub" type="range" min="0" max="0" step="1" value="0" disabled>
+      <span id="time" class="time">0.0 / 0.0 s</span>
+      <span class="zoom">
+        <button id="zoom-out" class="icon" title="Zoom out">−</button>
+        <button id="zoom-fit" title="Fit the airspace and every drone">Fit</button>
+        <button id="zoom-in" class="icon" title="Zoom in">+</button>
+      </span>
+      <span class="sep"></span>
+      <button id="undo-stroke" title="Remove the last stroke">Undo stroke</button>
+      <button id="clear">Clear</button>
+      <span class="sep"></span>
+      <button id="logo-pick" title="Use your logo as a formation (SVG)">Add SVG logo</button>
+      <input id="logo-file" type="file" accept=".svg,image/svg+xml" hidden>
+      <button id="sample-logo" title="Use the sample logo">Sample logo</button>
+      <select id="examples" title="Load an example show"><option value="">Examples…</option></select>
+    </div>
+
+    <div id="sources" class="sources"></div>
+
+    <form id="plan-form" class="ask">
+      <input id="intent" autocomplete="off" placeholder="What should the swarm do? e.g. a red heart that spins, then our logo, then THANK YOU">
+      <button id="mic-intent" type="button" class="mic" title="Say it (speech recognition by your browser)" hidden>🎤</button>
+      <label class="drones" title="Number of drones; changing it recompiles the current show">drones <input id="drones" type="number" min="10" max="500" step="10" value="100"></label>
+      <button id="plan" type="submit" class="primary">Plan show</button>
+    </form>
+
+    <div id="script" class="script" hidden>
+      <div class="script-head">
+        <span class="chips-prefix">Show script</span>
+        <div id="chips" class="chips"></div>
+      </div>
+      <form id="tweak-form" class="ask">
+        <input id="instruction" autocomplete="off" placeholder="Change it: slower spin, make the heart bigger, end in blue…">
+        <button id="mic-instruction" type="button" class="mic" title="Say the change" hidden>🎤</button>
+        <button id="tweak" type="submit">Tweak</button>
+        <button id="fly" type="button" class="primary" title="Repair until the flight check and the wind sweep pass">Make flyable</button>
+      </form>
+      <details class="json"><summary>Script JSON</summary><pre id="script-json"></pre></details>
+    </div>
+    <div id="status" class="status"></div>
+  </section>
+
+  <aside class="panel">
+    <div class="card">
+      <h3>Site briefing <span class="tag">Tavily</span></h3>
+      <form id="brief-form" class="brief">
+        <input id="venue" autocomplete="off" placeholder="Venue, e.g. Marina Green, San Francisco">
+        <input id="date" autocomplete="off" placeholder="Date and time, e.g. Oct 31 2026, 9 pm">
+        <button id="brief" type="submit">Brief</button>
+      </form>
+      <div id="briefing" class="briefing"></div>
+      <div id="limits" class="limits"></div>
+    </div>
+
+    <div class="card">
+      <h3>Flight check</h3>
+      <div id="badges" class="badges"></div>
+      <div id="issues" class="issues"></div>
+    </div>
+
+    <div class="card">
+      <h3>Wind sweep <span class="tag">physics sim</span></h3>
+      <div id="certificate" class="certificate"><span class="muted">Run “Make flyable” to simulate the show in wind.</span></div>
+      <div id="heatmap" class="heatmap"></div>
+      <button id="video" type="button" disabled title="Night-sky video of the simulated flight at the design wind">Render night-sky video</button>
+      <video id="player-video" controls playsinline hidden></video>
+    </div>
+
+    <div class="card">
+      <h3>Agent log</h3>
+      <div id="log" class="log"></div>
+      <div id="totals" class="totals"></div>
+    </div>
+  </aside>
+</main>
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

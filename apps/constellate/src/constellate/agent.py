@@ -73,7 +73,7 @@ choice that changes limits (a lower design wind), take the other option.
 
 TWEAK_SYSTEM = f"""You edit drone show scripts. Apply the user's change with as few ops as possible.
 Reply with JSON: {{"ops": [op, ...], "note": "one short sentence"}}. Op format: {{"op": "set"|"add"|"remove", "path": <JSON pointer>,
-"value": ...}}. Never touch "/limits", "/sources" or "/drones".
+"value": ...}}. Never touch "/limits" or "/sources". Set "/drones" (10-500) only when the user asks for a different number of drones.
 
 {SCRIPT_GUIDE}"""
 
@@ -105,6 +105,11 @@ def _noop(_: dict) -> None:
     pass
 
 
+def call_event(call) -> dict:
+    return {"type": "call", "msg": str(call), "purpose": call.purpose, "model": call.model.split("/")[-1],
+            "seconds": round(call.seconds, 2), "tokens": [call.prompt_tokens, call.completion_tokens], "think": call.think}
+
+
 def sources_brief(show_or_sources) -> str:
     src = getattr(show_or_sources, "sources", show_or_sources)
     parts = []
@@ -127,13 +132,13 @@ def _walk(doc: Any, path: str) -> tuple[Any, str]:
     return cur, parts[-1]
 
 
-def apply_ops(raw: dict, ops: list[dict]) -> dict:
+def apply_ops(raw: dict, ops: list[dict], protected: tuple[str, ...] = PROTECTED) -> dict:
     """Apply JSON-pointer ops atomically; raises ValueError naming the failing op."""
     doc = copy.deepcopy(raw)
     for n, op in enumerate(ops):
         try:
             path = op["path"]
-            if path.startswith(PROTECTED):
+            if path.startswith(protected):
                 raise ValueError(f"{path} is not editable")
             parent, key = _walk(doc, path)
             kind = op.get("op", "set")
@@ -160,11 +165,12 @@ def _script(show: Show) -> dict:
     return d
 
 
-def _merge(raw: dict, base: Show) -> Show:
+def _merge(raw: dict, base: Show, allow_drones: bool = False) -> Show:
     raw = dict(raw)
+    drones = raw.pop("drones", base.drones) if allow_drones else base.drones
     for k in ("sources", "limits", "drones"):
         raw.pop(k, None)
-    return Show.model_validate({**raw, "sources": base.sources.model_dump(), "limits": base.limits.model_dump(), "drones": base.drones})
+    return Show.model_validate({**raw, "sources": base.sources.model_dump(), "limits": base.limits.model_dump(), "drones": drones})
 
 
 def _issue_lines(issues: list[Issue]) -> str:
@@ -180,7 +186,7 @@ def plan(intent: str, base: Show, llm: LLM, emit: Emit = _noop, retries: int = 2
     for attempt in range(retries + 1):
         emit({"type": "call_start", "msg": "planner writes the show script"})
         text, call = llm.json("planner", "show script", msgs)
-        emit({"type": "call", "msg": str(call)})
+        emit(call_event(call))
         try:
             raw = json.loads(extract_json_text(text))
             show = _merge(raw, base)
@@ -195,17 +201,17 @@ def plan(intent: str, base: Show, llm: LLM, emit: Emit = _noop, retries: int = 2
 
 
 def _edit(show: Show, system: str, user: str, llm: LLM, emit: Emit, purpose: str, role: str = "editor",
-          think: bool = False) -> tuple[Show, list[dict], str]:
+          think: bool = False, protected: tuple[str, ...] = PROTECTED) -> tuple[Show, list[dict], str]:
     msgs = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     last = ""
     for _ in range(3):
         emit({"type": "call_start", "msg": purpose})
         text, call = llm.json(role, purpose, msgs, think=think, max_tokens=4000, temperature=0.1)
-        emit({"type": "call", "msg": str(call)})
+        emit(call_event(call))
         try:
             reply = json.loads(extract_json_text(text))
             ops = reply.get("ops") or []
-            new = _merge(apply_ops(show.model_dump(mode="json"), ops), show)
+            new = _merge(apply_ops(show.model_dump(mode="json"), ops, protected), show, allow_drones="/drones" not in protected)
             return new, ops, str(reply.get("note", ""))
         except (ValueError, ValidationError) as e:
             last = str(e)[:1200]
@@ -217,7 +223,8 @@ def _edit(show: Show, system: str, user: str, llm: LLM, emit: Emit, purpose: str
 
 def tweak(show: Show, request: str, llm: LLM, emit: Emit = _noop) -> tuple[Show, list[dict], str]:
     user = f"Script:\n{json.dumps(_script(show))}\n\nChange: {request}"
-    return _edit(show, TWEAK_SYSTEM, user, llm, emit, "editor applies the change")
+    # The user may ask for a different fleet size; the repair loop may not change it.
+    return _edit(show, TWEAK_SYSTEM, user, llm, emit, "editor applies the change", protected=("/limits", "/sources"))
 
 
 def _signature(issues: list[Issue]) -> frozenset:

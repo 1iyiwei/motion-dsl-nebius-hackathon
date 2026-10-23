@@ -17,7 +17,7 @@ from constellate.sim import Wind, simulate
 from constellate.sweep import sim_issues, sweep
 from constellate.video import baked_colors, frames, write_mp4
 
-EX = Path(__file__).parent.parent / "examples"
+EX = Path(__file__).parent.parent / "src" / "constellate" / "examples"
 
 
 @pytest.fixture(scope="module")
@@ -119,3 +119,12 @@ def test_live_plan_and_repair():
     show = agent.plan("a red heart that spins once, then our logo", base, llm)
     out = agent.make_flyable(show, llm, simulate=False, max_rounds=4)
     assert out.ok, [str(i) for i in out.checked.flight.issues]
+
+
+def test_tweak_may_change_the_drone_count_but_repairs_may_not():
+    show = load_show(EX / "heart-logo-flyable.show.json")
+    backend = Scripted([json.dumps({"ops": [{"op": "set", "path": "/drones", "value": 150}], "note": "150 drones"})])
+    new, ops, _ = agent.tweak(show, "use 150 drones", LLM(backend))
+    assert new.drones == 150 and new.limits == show.limits
+    with pytest.raises(ValueError, match="not editable"):
+        agent.apply_ops(show.model_dump(mode="json"), [{"op": "set", "path": "/drones", "value": 150}])

@@ -13,5 +13,5 @@
     {"kind": "form", "id": "heart_to_logo", "formation": "logo", "transition": 6, "hold": 4},
     {"kind": "form", "id": "logo_to_thanks", "formation": "thanks", "transition": 6, "hold": 4, "color": "#ffd166"}
   ],
-  "sources": {"svgs": {"orbit": "../src/constellate/samples/orbit-mark.svg"}}
+  "sources": {"svgs": {"orbit": "../samples/orbit-mark.svg"}}
 }

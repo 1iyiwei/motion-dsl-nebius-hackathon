@@ -81,11 +81,24 @@ def check_flight(show: Show, comp: Compiled, baked: Baked) -> FlightReport:
         size = f.size * need / s.min_spacing * SAFETY
         fewer = int(show.drones * (s.min_spacing / need) ** (2 if f.fill == "fill" else 1))
         sev = "error" if s.min_spacing < lim.min_separation else "warning"
-        fix = f"set formations.{fid}.size to {min(size, 1):.2f}" if size <= 1 else f"use about {fewer} drones or a `fill` formation"
+        # The largest size that still fits inside the airspace margins, so this hint can't fight E_GEOFENCE.
+        span = np.ptp(s.points, axis=0)
+        cx, cz = f.center[0] * lim.width, f.center[1] * lim.height
+        room = 2 * np.array([min(cx - lim.margin, lim.width - lim.margin - cx), min(cz - lim.margin, lim.height - lim.margin - cz)])
+        fits = f.size * float(np.min(np.where(span > 1e-6, room / np.maximum(span, 1e-6), np.inf)))
+        cap = math.floor(min(1.0, fits) * 100) / 100
+        if size <= cap or size / SAFETY <= cap:
+            fix = f"set formations.{fid}.size to {min(size, cap):.2f} (spacing grows with size)"
+        elif f.kind == "preset" and f.shape == "ring":
+            fix = f"set formations.{fid}.shape to `circle` and fill to `fill` (a ring this size can't space {show.drones} drones)"
+        elif f.fill != "fill":
+            fix = f"set formations.{fid}.fill to `fill` (drones spread over the shape, or a band along a drawn line, instead of one outline)"
+        else:
+            fix = f"the airspace can't hold {show.drones} drones in this shape; ask the user for about {fewer} drones or another shape"
         out.append(Issue("E_DENSITY", f"formation {fid!r}: closest drones are {s.min_spacing:.2f} m apart; "
                          f"{'minimum separation' if sev == 'error' else 'collision-free transitions need'} "
                          f"{lim.min_separation if sev == 'error' else need:.2f} m",
-                         hint=f"{fix} (size scales spacing proportionally)", severity=sev,
+                         hint=fix, severity=sev,
                          pointer=f"/formations/{fid}"))
 
     # Speed and acceleration, per moving step: one issue each, with the duration that fits.

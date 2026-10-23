@@ -17,6 +17,7 @@ from typing import Callable
 
 from motionlang.agent.llm import LLM, extract_json_text
 
+from .agent import call_event
 from .show import Limits
 
 BRIEFER_MODEL = "nvidia/nemotron-3-super-120b-a12b"
@@ -121,7 +122,7 @@ def brief(venue: str, date: str, llm: LLM, emit: Callable[[dict], None] = lambda
     text, call = llm.json("editor", "briefing queries", [{"role": "user", "content": QUERIES_PROMPT.format(venue=venue, date=date)}],
                           think=False, max_tokens=400, temperature=0.2)
     calls.append(str(call))
-    emit({"type": "call", "msg": str(call)})
+    emit(call_event(call))
     queries = [str(q) for q in json.loads(extract_json_text(text)).get("queries", [])][:4]
     results, seen = [], set()
     for q in queries:
@@ -137,7 +138,7 @@ def brief(venue: str, date: str, llm: LLM, emit: Callable[[dict], None] = lambda
     text, call = llm.json("briefer", "briefing limits", [{"role": "user", "content": READ_PROMPT.format(venue=venue, date=date, results=listing)}],
                           think=False, max_tokens=1500, temperature=0.1)
     calls.append(str(call))
-    emit({"type": "call", "msg": str(call)})
+    emit(call_event(call))
     raw = json.loads(extract_json_text(text))
     by_id = {r["id"]: r for r in results}
 

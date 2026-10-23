@@ -11,7 +11,15 @@ uv sync
 cp apps/constellate/.env.example .env   # fill in the keys; never commit them
 ```
 
-## Try it
+## The web app
+
+```bash
+uv run constellate serve      # http://127.0.0.1:8780/
+```
+
+Draw a shape on the night-sky canvas (or drop an SVG logo, or pick the sample), say or type what the swarm should do, and press **Plan show**: Nemotron Ultra writes the show script, the compiler flies 100 drones through it, and the flight check marks problems on the step chips and as badges (click a problem to jump to that moment and circle the drones). **Make flyable** runs the repair loop and the wind sweep, then shows the certificate and the wind × gust heatmap; **Render night-sky video** draws the simulated flight from the ground. **Brief** fills in the airspace, crowd setback and design wind for a real venue from cited sources. The agent log shows every Nemotron call (model, latency, tokens) and every edit it made. Pick **Examples… → Heart, spin, logo** to start from the deliberately unsafe show.
+
+## Try it from the command line
 
 ```bash
 # Site briefing: Tavily searches the venue's drone rules and typical wind; Nemotron reads them into cited limits (needs TAVILY_API_KEY)
@@ -22,14 +30,14 @@ uv run constellate plan "The swarm rises into a red heart that slowly spins, the
 # Repair loop: flight check → Nemotron edit ops → wind sweep → more ops, until certified; then the night-sky video
 uv run constellate fly out/constellate/planned.show.json --design-wind 8 --save out/constellate/flyable.show.json --mp4 out/constellate/show.mp4
 # No model calls: check and sweep a script yourself
-uv run constellate sweep apps/constellate/examples/heart-logo-flyable.show.json --design-wind 8
+uv run constellate sweep apps/constellate/src/constellate/examples/heart-logo-flyable.show.json --design-wind 8
 ```
 
 ## The deterministic core (no model calls)
 
 ```bash
-uv run constellate compile apps/constellate/examples/heart-logo.show.json --preview out/constellate/unsafe.html
-uv run constellate compile apps/constellate/examples/heart-logo-flyable.show.json -o out/constellate/show.motion.json --preview out/constellate/show.html
+uv run constellate compile apps/constellate/src/constellate/examples/heart-logo.show.json --preview out/constellate/unsafe.html
+uv run constellate compile apps/constellate/src/constellate/examples/heart-logo-flyable.show.json -o out/constellate/show.motion.json --preview out/constellate/show.html
 ```
 
 The first show is deliberately unsafe: the checker reports speed, acceleration and geofence problems, each with the exact fix. The second is the same show with those fixes applied.

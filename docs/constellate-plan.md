@@ -8,7 +8,7 @@ Agreed Oct 23. Deadline **Fri Oct 30, 10:00 am PT**; target is to submit **Thu O
 
 **Prizes**: Physical AI track award; bonus: Best Use of Tavily (real runtime call, below) and Most Valuable Feedback.
 
-**Progress (Oct 24)**: the Sat, Sun and Mon milestones are done, ahead of schedule: show script, CAPT compiler, flight checker, wind sim + sweep + certificate, Nemotron plan/repair loop, night-sky MP4, and the Tavily site briefing (`constellate brief | plan | fly | sweep | compile`). Next: the desktop web UI (Tue), then the phone pad (Wed).
+**Progress (Oct 24)**: the Sat–Tue milestones are done, ahead of schedule: show script, CAPT compiler, flight checker, wind sim + sweep + certificate, Nemotron plan/repair loop, night-sky MP4, Tavily site briefing, and the desktop web app (`constellate serve`, port 8780; CanvasMind holds 8770). Next: the phone pad (Wed).
 
 ## Why this fits
 
