@@ -104,6 +104,19 @@ In short: sketch or say a drone light show. Nemotron Ultra writes a show script 
 3. If P2 is late, ship it CLI + MCP only and skip the dashboard.
 4. Never cut a project's video. A finished smaller project beats an unfinished bigger one.
 
+## After judging (Dec 16 onward): shared-code refactor
+
+Decided Oct 24: don't refactor during the hackathon. The submitted apps are tagged and must keep working through judging (Dec 1–15), so new apps copy small helpers instead, each copy with a one-line comment naming its source. Once judging ends, move the copies into `motionlang`, not a new `lib/` package. `motionlang` already ships browser code for apps (`player.js`), and `scripts/export_submission.py` exports exactly `packages/motionlang` + one app, so nothing else has to change.
+
+| What | Copies today | Move to | Then |
+| --- | --- | --- | --- |
+| Tavily search (~15 lines: POST `/search`, auth, timeout, result trimming) | SketchDynamics `shapes.py`, MotionHarness `harness.py`, CanvasMind `digest.py`, Constellate (site briefing) | `motionlang.web.tavily` (`search(query, max_results, include_domains)`), behind an optional `web` extra | Each app calls it; keep the app-specific parts (SketchDynamics' icon-site filters, CanvasMind's query building) in the app |
+| Canvas stroke capture (pointer events, pen pressure, simplification) | SketchDynamics `static/app.js`, Constellate | `motionlang/static/sketch.js`, served like `player.js` (`sketch_js_path()`) | Unit coordinates in, so Constellate's metres and SketchDynamics' pixels both work |
+| Web Speech voice input (start/stop, interim text, mic permission) | SketchDynamics `static/app.js`, Constellate | `motionlang/static/voice.js` | |
+| Swarm constraints | Constellate `flight.py` (app-level) | MotionLang constraints: `min_distance` over an actor set (spatial index instead of pairwise `no_overlap`), and `max_accel` | Spec §7 update in the same change; Constellate keeps its metres/hints layer on top |
+
+Rules for the refactor: one app per change, re-run that app's tests and its demo checklist, update SPEC.md and each app's README, and re-tag (`<app>-submitted` stays at the judged commit; add `<app>-v0.2`). Run `export_submission.py` for every app afterwards to confirm the exports still build.
+
 ## Team: one human + Claude
 
 Greenfield; nothing is reused, so prefer off-the-shelf pieces (tldraw, LangGraph, Hermes, LanceDB) over custom infrastructure.
