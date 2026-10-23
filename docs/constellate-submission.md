@@ -94,6 +94,7 @@ https://youtu.be/l9vzaz39vT8
 * New or existing prior to August 26, 2026: New
 * Public code repository: https://github.com/1iyiwei/motion-dsl-nebius-hackathon/tree/main/apps/constellate
 * Working demo: not required for Physical AI. The app runs locally (`uv run constellate serve`); the video shows the key modules in action, as the track allows when there is no hardware.
+https://constellate-1siz.onrender.com/
 
 * Which model(s) did you use, and why that size/variant?
 
