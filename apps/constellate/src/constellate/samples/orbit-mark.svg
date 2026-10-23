@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120">
+  <title>Orbit mark (Constellate sample, Apache-2.0)</title>
+  <circle id="planet" cx="100" cy="60" r="34" fill="#3fa9f5"/>
+  <path id="ring" d="M20 70 C 40 40, 160 40, 180 50 C 160 80, 40 95, 20 70 Z M 40 69 C 70 82, 140 72, 160 54 C 130 52, 60 55, 40 69 Z" fill="#ffd166" fill-rule="evenodd"/>
+  <polygon id="spark" points="168,10 172,22 184,24 174,31 177,44 168,36 159,44 162,31 152,24 164,22" fill="#ffffff"/>
+</svg>

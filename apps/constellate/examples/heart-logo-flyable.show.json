@@ -1,0 +1,59 @@
+{
+  "title": "Heart, spin, logo (flyable)",
+  "drones": 100,
+  "color": "#ffffff",
+  "formations": {
+    "heart": {
+      "kind": "preset",
+      "shape": "heart",
+      "fill": "fill",
+      "size": 0.6
+    },
+    "logo": {
+      "kind": "svg",
+      "svg": "orbit",
+      "size": 0.7
+    },
+    "thanks": {
+      "kind": "text",
+      "text": "THANK YOU",
+      "size": 0.2
+    }
+  },
+  "steps": [
+    {
+      "kind": "form",
+      "id": "rise_heart",
+      "formation": "heart",
+      "transition": 12.5,
+      "hold": 3,
+      "color": "#ff3366"
+    },
+    {
+      "kind": "spin",
+      "id": "heart_spin",
+      "turns": 1,
+      "duration": 34.5
+    },
+    {
+      "kind": "form",
+      "id": "heart_to_logo",
+      "formation": "logo",
+      "transition": 7.5,
+      "hold": 4
+    },
+    {
+      "kind": "form",
+      "id": "logo_to_thanks",
+      "formation": "thanks",
+      "transition": 9.5,
+      "hold": 4,
+      "color": "#ffd166"
+    }
+  ],
+  "sources": {
+    "svgs": {
+      "orbit": "../src/constellate/samples/orbit-mark.svg"
+    }
+  }
+}

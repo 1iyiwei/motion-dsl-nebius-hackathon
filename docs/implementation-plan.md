@@ -86,6 +86,12 @@ Open question for you: build on GSAP, Lottie or your prior motion-blocks work ra
 
 In short: an always-on studio assistant for a motion designer. You message it from your phone; it files your sketches and references privately, learns your motion style from what you accept and reject, drafts animations in that style (MotionLang → GIF), and sends a weekly Tavily trend digest. Stack: Hermes Agent inside OpenShell, installed with NemoClaw, inference on Token Factory Nemotron; our `apps/canvasmind` is a host-side library + MCP server reached over Tailscale HTTPS. Developed and demoed on the MacBook; the judging host (Mac or a Nebius VM for Dec 1–15) is decided around Nov 25. NemoClaw spike Oct 21 morning, with the plain Hermes fallback.
 
+## P4: Constellate · Physical AI (Oct 23–29)
+
+**Full plan: [constellate-plan.md](constellate-plan.md)** (agreed Oct 23; replaces the "embodiedsketcher" idea).
+
+In short: sketch or say a drone light show. Nemotron Ultra writes a show script (formations, transitions, spins, colours); a deterministic compiler (Hungarian assignment + CAPT straight-line paths) turns it into MotionLang with one actor per drone; an app-level flight checker (hash-grid separation, speed, acceleration, geofence, battery) and a point-mass quadrotor sim with wind feed hint-carrying issues back to Nemotron, which repairs with edit ops. A local process-pool sweep (wind × seeds) renders a night-sky MP4 from simulated positions and produces a flight certificate (Serverless Jobs were cut Oct 23: AI Cloud billing is separate from Token Factory credits). A Tavily site briefing sets the limits and sweep range from local rules and wind. Desktop canvas first; the phone is an optional QR-paired sensor controller (shake/tilt for live wind, motion wand as a stretch). Runs on the Mac over Tailscale HTTPS, no public hosting. No `motionlang` changes.
+
 ## Oct 29: videos and submissions
 
 - Three videos of 3 minutes or less, three Devpost entries, three READMEs with the Nebius/NVIDIA usage and feedback sections.

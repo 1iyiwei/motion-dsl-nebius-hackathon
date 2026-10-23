@@ -130,3 +130,18 @@ Add an entry when something surprises us. Include the date, what happened, and t
   emitting zeros until `max_tokens` (16k): 63–79 s, then unparseable JSON. Plain `json_object` mode didn't do this.
   A grammar-level cap on number length (or `maxLength`-style support for numbers) would prevent it. Client-side, we cap
   `max_tokens` and fall back to JSON mode after an unparseable structured reply.
+
+## 2026-10-23 (Constellate: Serverless Jobs spike)
+
+- **Two kinds of project id, same name.** Our Token Factory account's id is `aiproject-…` (and the CLI profile's parent is
+  `aitenant-…`), but `nebius ai job …` and `nebius compute platform list` only accept a Nebius AI Cloud `project-…` id. The
+  error ("expected id type project, got aiproject") is clear, but nothing says how to get from a Token Factory account to an
+  AI Cloud project where Serverless Jobs can run, or whether hackathon credits cover it.
+- **`nebius ai job create` defaults to an H100** (`gpu-h100-sxm` in eu-north1) with a 250 GiB disk and a 24 h timeout.
+  A CPU simulation job has to set `--platform`/`--preset` explicitly, and you can't list platforms without an AI Cloud project.
+  A forgotten flag means an expensive GPU job.
+- **Federated CLI re-auth** opens a browser on each command once the token is rejected, even for a request that then fails
+  on the id type. Scripts need `--no-browser` to avoid stacking login tabs.
+- **Job creation before billing is set up fails as a bare `PermissionDenied`**, even with `--dry-run`, while listing platforms
+  and jobs works. A new AI Cloud tenant needs a payment method (Token Factory credits don't carry over), but the error and its
+  hints point at profiles and `--parent-id`, not billing. Saying "billing not activated" would save the detour.

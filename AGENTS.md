@@ -11,8 +11,8 @@ The single repo for all Nebius x NVIDIA Global AI Hackathon submissions (deadlin
 | `packages/motionlang/` | **MotionLang**, the DSL: spec, schema, validator, baker, exporters | (shared library) |
 | `apps/sketchdynamics/` | Sketch + talk → animation app (`uv run sketchdynamics`) | Best Apps & Agents |
 | `apps/motionharness/` | Coding agent that writes, tests (Token Factory Sandboxes) and critiques (Nemotron VL) MotionLang verb plugins; CLI, dashboard (`uv run motionharness serve`), MCP | Coding & Agentic Engineering |
-| `apps/canvasmind/` (planned) | Private creative-memory assistant (Hermes Agent + OpenShell/NemoClaw) | Personal AI |
-| `apps/embodiedsketcher/` (maybe) | Sketches → robot/edge-agent motion, only if time allows | Physical AI |
+| `apps/canvasmind/` | Private creative-memory assistant (Hermes Agent + OpenShell/NemoClaw) | Personal AI |
+| `apps/constellate/` (planned) | Sketch/voice → drone light show: Nemotron show script, CAPT compiler, flight checker, wind sim ([plan](docs/constellate-plan.md)) | Physical AI |
 
 Plans and rationale are in `docs/` (`implementation-plan.md`, `ideation.md`). `docs/` stays in this repo: if this repo goes public, so does `docs/`. Per-app public repos made with `scripts/export_submission.py` never include it.
 
