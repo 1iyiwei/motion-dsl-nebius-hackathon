@@ -84,6 +84,8 @@ Image gallery (3:2, ≤ 5 MB each), suggested:
 
 * Demo video URL: (to add; see `docs/constellate-demo.md`)
 
+https://youtu.be/l9vzaz39vT8
+
 ## Additional info
 
 * Submitter Type: individual **(your call)**
@@ -99,7 +101,7 @@ Nemotron 3 Ultra 550B-A55B for the creative step that needs the most judgement (
 
 * How would you rate Nemotron's output quality for your use case? (1–10) **(your call)**
 
-Draft: **8.** Ultra's show scripts were valid on the first try in every live run and made sensible artistic choices (a staggered ripple into a logo, colours that match the request). Nano applied hint lists precisely, and once a hint named an exact field and value it almost never deviated. Super's extraction quoted sources verbatim, which our substring check confirmed. Short of a 10: Nano follows hints literally even when two of them conflict (we fixed the hints), and unit conversions needed the factors in the prompt.
+**8.** Ultra's show scripts were valid on the first try in every live run and made sensible artistic choices (a staggered ripple into a logo, colours that match the request). Nano applied hint lists precisely, and once a hint named an exact field and value it almost never deviated. Super's extraction quoted sources verbatim, which our substring check confirmed. Short of a 10: Nano follows hints literally even when two of them conflict (we fixed the hints), and unit conversions needed the factors in the prompt.
 
 * Fine-tune, prompt-engineer, or out of the box?
 
@@ -107,7 +109,7 @@ Out of the box, with prompt engineering and tool feedback. The design puts the p
 
 * How did Nemotron compare to other models you've used? **(your call)**
 
-Draft: No rigorous comparison. Nano with reasoning off stood out for latency: a repair round in under two seconds keeps an interactive tool interactive, and escalating to Ultra only when needed kept quality without the wait.
+No rigorous comparison. Nano with reasoning off stood out for latency: a repair round in under two seconds keeps an interactive tool interactive, and escalating to Ultra only when needed kept quality without the wait.
 
 * Which Nebius platform capabilities were most valuable?
 
@@ -115,11 +117,11 @@ Draft: No rigorous comparison. Nano with reasoning off stood out for latency: a 
 
 * How likely are you to recommend running Nemotron on Nebius? (1–10) **(your call)**
 
-Draft: **8.** One endpoint for Nano through Ultra makes model-size routing trivial. What would make it a 10: a path from a Token Factory account to Serverless Jobs, clearer errors when billing isn't active, and a per-request reasoning budget.
+**8.** One endpoint for Nano through Ultra makes model-size routing trivial. What would make it a 10: a path from a Token Factory account to Serverless Jobs, clearer errors when billing isn't active, and a per-request reasoning budget.
 
 * Experience compared to previous environments (1–10) **(your call)**
 
-Draft: **8.** Nothing to deploy, standard SDK, models far too large to run locally. The friction was all on the Serverless Jobs side (project ids, billing, the H100 default).
+**8.** Nothing to deploy, standard SDK, models far too large to run locally. The friction was all on the Serverless Jobs side (project ids, billing, the H100 default).
 
 * What would have made Nemotron on Nebius more effective?
 
@@ -131,7 +133,7 @@ Draft: **8.** Nothing to deploy, standard SDK, models far too large to run local
 
 * What do you most hope to see from the Nemotron team next? **(your call)**
 
-Draft: Reasoning budgets per request, and Cosmos or GR00T on Token Factory, so a project like this could add a learned world model or a robot policy next to the analytic simulator.
+Reasoning budgets per request, and Cosmos or GR00T on Token Factory, so a project like this could add a learned world model or a robot policy next to the analytic simulator.
 
 * Did you use Tavily? Yes.
 

@@ -343,4 +343,7 @@ def serve(host: str = "127.0.0.1", port: int = PORT, open_browser: bool = True) 
     if open_browser:
         threading.Timer(1.0, webbrowser.open, (url,)).start()
     print(f"Constellate on {url}")
-    uvicorn.run(create_app(), host=host, port=port, log_level="warning")
+    # Behind a hosting proxy, trust its X-Forwarded-* headers so the pad's QR code gets the public https:// address.
+    behind_proxy = bool(os.environ.get("CONSTELLATE_BEHIND_PROXY") or os.environ.get("PORT"))
+    uvicorn.run(create_app(), host=host, port=port, log_level="warning", proxy_headers=True,
+                forwarded_allow_ips="*" if behind_proxy else "127.0.0.1")

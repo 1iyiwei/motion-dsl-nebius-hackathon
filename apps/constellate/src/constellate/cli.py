@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -207,8 +208,9 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="constellate", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     sc = sub.add_parser("serve", help="run the web app")
-    sc.add_argument("--host", default="127.0.0.1")
-    sc.add_argument("--port", type=int, default=8780)
+    # A host's $PORT (Render, Railway, …) means "listen publicly on that port"; locally it's 127.0.0.1:8780.
+    sc.add_argument("--host", default="0.0.0.0" if os.environ.get("PORT") else "127.0.0.1")
+    sc.add_argument("--port", type=int, default=int(os.environ.get("PORT") or 8780))
     sc.add_argument("--no-browser", action="store_true")
     sc.set_defaults(func=cmd_serve)
     bc = sub.add_parser("brief", help="Tavily site briefing: venue + date → cited limits")

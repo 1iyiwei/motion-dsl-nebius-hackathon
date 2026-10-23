@@ -1,0 +1,45 @@
+{
+ "sources": {
+  "W": "constellate_v2.mp4"
+ },
+ "output": "constellate_v3.mp4",
+ "size": [
+  1920,
+  1080
+ ],
+ "fps": 30,
+ "note": "cut to under 3:00 from v2: hook to 0:15, dropped 0:28-0:55 (typing the venue), 2:00-2:35 (most of the playback), 3:28-3:44 (camera scanning the QR code)",
+ "segments": [
+  {
+   "src": "W",
+   "in": 0,
+   "out": 15,
+   "note": "hook"
+  },
+  {
+   "src": "W",
+   "in": 25,
+   "out": 28,
+   "note": "briefing starts"
+  },
+  {
+   "src": "W",
+   "in": 55,
+   "out": 120,
+   "note": "briefing results, plan, problems"
+  },
+  {
+   "src": "W",
+   "in": 155,
+   "out": 208,
+   "note": "make flyable, certificate, go live"
+  },
+  {
+   "src": "W",
+   "in": 224,
+   "out": 267.4,
+   "note": "phone pad and live wind"
+  }
+ ],
+ "crossfade": 0.4
+}

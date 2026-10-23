@@ -1,0 +1,84 @@
+{
+ "sources": {
+  "W": "constellate_v1.mp4"
+ },
+ "output": "constellate_v2.mp4",
+ "size": [
+  1920,
+  1080
+ ],
+ "fps": 30,
+ "note": "silent waits removed (per-second RMS below -51 dB for 3 s or more, 0.5 s kept at each side), cropped to 16:9 without the macOS menu bar and Dock, loudness normalized",
+ "segments": [
+  {
+   "src": "W",
+   "in": 0.0,
+   "out": 47.5,
+   "crop": "screen"
+  },
+  {
+   "src": "W",
+   "in": 51.5,
+   "out": 53.5,
+   "crop": "screen"
+  },
+  {
+   "src": "W",
+   "in": 57.5,
+   "out": 69.5,
+   "crop": "screen"
+  },
+  {
+   "src": "W",
+   "in": 74.5,
+   "out": 122.5,
+   "crop": "screen"
+  },
+  {
+   "src": "W",
+   "in": 128.5,
+   "out": 140.5,
+   "crop": "screen"
+  },
+  {
+   "src": "W",
+   "in": 161.5,
+   "out": 173.5,
+   "crop": "screen"
+  },
+  {
+   "src": "W",
+   "in": 175.5,
+   "out": 211.5,
+   "crop": "screen"
+  },
+  {
+   "src": "W",
+   "in": 228.5,
+   "out": 322.5,
+   "crop": "screen"
+  },
+  {
+   "src": "W",
+   "in": 327.5,
+   "out": 331.23,
+   "crop": "screen"
+  }
+ ],
+ "crops": {
+  "screen": [
+   1920,
+   1080,
+   0,
+   25
+  ]
+ },
+ "audio": {
+  "loudnorm": {
+   "I": -16,
+   "TP": -1.5,
+   "LRA": 11
+  },
+  "edge_fade": 0.05
+ }
+}
