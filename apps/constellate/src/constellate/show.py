@@ -28,6 +28,9 @@ class Limits(Strict):
     max_accel: float = Field(6.0, gt=0, description="m/s^2")
     max_flight_time: float = Field(900.0, gt=0, description="battery endurance, s")
     battery_reserve: float = Field(0.2, ge=0, lt=1, description="fraction of endurance kept in reserve at landing")
+    design_wind: float = Field(6.0, ge=0, description="mean wind the show must be certified for in simulation, m/s")
+    near_miss: float = Field(1.0, gt=0, description="simulated distance between drones that counts as a near miss, m")
+    max_tracking_error: float = Field(1.0, gt=0, description="largest simulated drift from the planned path, m")
 
     @property
     def show_time_budget(self) -> float:

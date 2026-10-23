@@ -1,6 +1,9 @@
 """constellate: sketch or say a drone light show, then make it flyable.
 
-    constellate compile SHOW.json -o show.motion.json --preview show.html   # compile + flight check
+    constellate plan "a heart that spins, then our logo" --svg logo=logo.svg -o show.json   # Nemotron writes the script
+    constellate fly show.json --design-wind 8 --mp4 show.mp4   # repair loop + wind sweep + certificate + night-sky video
+    constellate compile SHOW.json -o show.motion.json --preview show.html   # compile + flight check only
+    constellate sweep SHOW.json       # wind sweep + certificate, no model calls
     constellate jobs-check            # can this machine start Nebius Serverless Jobs? (dry run, no cost)
     constellate jobs-check --run      # start a tiny CPU hello-world job (billed while it runs)
 """
@@ -14,8 +17,9 @@ from pathlib import Path
 
 from motionlang.agent.llm import load_env
 
-from . import jobs
+from . import agent, jobs
 from .pipeline import load_show, run
+from .show import Show
 
 
 def cmd_compile(args: argparse.Namespace) -> int:
@@ -41,6 +45,112 @@ def cmd_compile(args: argparse.Namespace) -> int:
     return 0 if c.ok else 2
 
 
+def _base(args: argparse.Namespace) -> Show:
+    svgs = {}
+    for spec in args.svg or []:
+        sid, _, path = spec.partition("=")
+        svgs[sid] = Path(path).read_text()
+    return Show.model_validate({"formations": {"x": {"kind": "preset", "shape": "ring"}},
+                                "steps": [{"kind": "form", "id": "x", "formation": "x"}],
+                                "drones": args.drones, "sources": {"svgs": svgs}})
+
+
+def _print_event(e: dict) -> None:
+    if e["type"] != "call_start":
+        print(f"  {e['type']:>8}: {e['msg']}", flush=True)
+        for i in e.get("issues", []) if e["type"] in ("flight", "sim") else []:
+            if i.get("severity", "error") == "error":
+                print(f"            ✖ {i['code']} {i.get('block', '')}: {i.get('hint', '')}")
+        for op in e.get("ops", []):
+            print(f"            ✎ {json.dumps(op)}")
+
+
+def cmd_plan(args: argparse.Namespace) -> int:
+    from motionlang.agent.llm import LLM
+
+    llm = LLM()
+    show = agent.plan(args.intent, _base(args), llm, emit=_print_event)
+    raw = show.model_dump(mode="json", exclude={"limits"})
+    raw["title"] = raw.get("title") or args.intent[:60]
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(raw, indent=2))
+    print(f"wrote {args.out}")
+    return 0
+
+
+def _write_outputs(args, show: Show, checked, sw) -> None:
+    if args.mp4 and checked.baked is not None:
+        from .flight import tracks_m
+        from .sim import Wind, simulate
+        from .video import baked_colors, write_mp4
+
+        times, plan = tracks_m(checked.baked, show)
+        wind = Wind(speed=show.limits.design_wind, direction_deg=60)
+        r = simulate(times, plan, show.limits.max_flight_time, wind, seed=0, alert=show.limits.near_miss)
+        out = write_mp4(args.mp4, r.pos, baked_colors(checked.baked, show.drones), show.limits)
+        print(f"wrote {out} (simulated flight in {wind.speed:g} m/s wind)")
+    if args.report:
+        rep = checked.summary()
+        if sw:
+            rep["sweep"] = sw.to_dict()
+        args.report.parent.mkdir(parents=True, exist_ok=True)
+        args.report.write_text(json.dumps(rep, indent=2, default=float))
+    if getattr(args, "save", None):
+        args.save.parent.mkdir(parents=True, exist_ok=True)
+        args.save.write_text(json.dumps(show.model_dump(mode="json"), indent=2))  # sources inlined, so it stands alone
+        print(f"wrote {args.save}")
+
+
+def _print_cert(cert: dict | None) -> None:
+    if cert:
+        print(f"certificate: {'FLYABLE' if cert['flyable'] else 'not certified'} up to {cert['certified_wind']} m/s "
+              f"(design wind {cert['design_wind']} m/s, {cert['runs']} runs, worst separation {cert['worst_separation']} m, "
+              f"max drift {cert['max_tracking_error']} m, battery left {cert['battery_left']:.0%}); {cert['note']}")
+
+
+def _with_limits(show: Show, args) -> Show:
+    if args.design_wind is None:
+        return show
+    d = show.model_dump(mode="json")
+    d["limits"]["design_wind"] = args.design_wind
+    return Show.model_validate(d)
+
+
+def cmd_fly(args: argparse.Namespace) -> int:
+    from motionlang.agent.llm import LLM
+
+    llm = LLM()
+    show = _with_limits(load_show(args.show), args)
+    out = agent.make_flyable(show, llm, emit=_print_event, max_rounds=args.rounds)
+    print(f"{'flyable' if out.ok else 'NOT flyable'} after {len(out.rounds)} repair rounds; model calls:")
+    for c in llm.calls:
+        print(f"  {c}")
+    _print_cert(out.certificate)
+    _write_outputs(args, out.show, out.checked, out.sweep)
+    return 0 if out.ok else 2
+
+
+def cmd_sweep(args: argparse.Namespace) -> int:
+    from .sweep import sim_issues, sweep
+
+    show = _with_limits(load_show(args.show), args)
+    c = run(show)
+    if not c.flight.ok:
+        print("fix the flight check first:")
+        for i in c.flight.issues:
+            print(f"  {i}")
+        return 2
+    sw = sweep(show, c.compiled, c.baked)
+    for w, v in sw.by_wind().items():
+        print(f"  {w:4g} m/s: {v['passed']}/{v['runs']} pass, max drift {v['max_err']} m, min separation {v['min_sep']} m")
+    for i in sim_issues(show, c.compiled, c.baked, sw):
+        print(f"  ✖ {i}")
+    _print_cert(sw.certificate())
+    args.save = None
+    _write_outputs(args, show, c, sw)
+    return 0 if sw.certificate()["flyable"] else 2
+
+
 def cmd_jobs_check(args: argparse.Namespace) -> int:
     project = jobs.project_id()
     if not project:
@@ -60,6 +170,23 @@ def main(argv: list[str] | None = None) -> int:
     load_env()
     ap = argparse.ArgumentParser(prog="constellate", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
+    pc = sub.add_parser("plan", help="Nemotron writes a show script from a request")
+    pc.add_argument("intent")
+    pc.add_argument("--svg", action="append", help="ID=PATH artwork the show may use (repeatable)")
+    pc.add_argument("--drones", type=int, default=100)
+    pc.add_argument("-o", "--out", type=Path, required=True)
+    pc.set_defaults(func=cmd_plan)
+    for name, fn, hlp in (("fly", cmd_fly, "repair loop until flyable, wind sweep, certificate"),
+                          ("sweep", cmd_sweep, "wind sweep and certificate (no model calls)")):
+        fc = sub.add_parser(name, help=hlp)
+        fc.add_argument("show", type=Path)
+        fc.add_argument("--design-wind", type=float, help="m/s the show must be certified for (default 6)")
+        fc.add_argument("--mp4", type=Path, help="night-sky video of the simulated flight at the design wind")
+        fc.add_argument("--report", type=Path, help="JSON report (flight check, sweep, certificate)")
+        if name == "fly":
+            fc.add_argument("--rounds", type=int, default=6)
+            fc.add_argument("--save", type=Path, help="write the repaired show script")
+        fc.set_defaults(func=fn)
     cc = sub.add_parser("compile", help="compile a show script to MotionLang and check that it is flyable")
     cc.add_argument("show", type=Path)
     cc.add_argument("-o", "--out", type=Path, help="write the MotionLang document")

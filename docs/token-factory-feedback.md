@@ -145,3 +145,13 @@ Add an entry when something surprises us. Include the date, what happened, and t
 - **Job creation before billing is set up fails as a bare `PermissionDenied`**, even with `--dry-run`, while listing platforms
   and jobs works. A new AI Cloud tenant needs a payment method (Token Factory credits don't carry over), but the error and its
   hints point at profiles and `--parent-id`, not billing. Saying "billing not activated" would save the detour.
+
+## 2026-10-24 (Constellate: Nemotron in the drone-show repair loop)
+
+- **Nano with reasoning off is the right tool for "apply these hints".** Turning 8 checker problems into 5 JSON-pointer ops
+  took 1.9 s and 1.7k→195 tokens; a one-problem fix took 1.2 s. Ultra wrote a whole show script in 3.9 s (660→1038 tokens)
+  in plain JSON mode, valid on the first try. When Nano's fix didn't clear a wind problem, escalating that round to Ultra
+  with reasoning on (3.5 s) produced the bigger change that got the show certified.
+- **Keeping the model away from the safety envelope is the app's job.** The repair prompt says `limits` are off-limits, and
+  the op applier enforces it. Without enforcement, "lower the design wind" is the easiest way for a model to make a check pass.
+  A per-request "read-only JSON paths" option in structured output would make this a platform guarantee.
