@@ -76,6 +76,7 @@ https://github.com/1iyiwei/motion-dsl-nebius-hackathon/tree/main/apps/constellat
 ### Project Media
 
 Image gallery (3:2, ≤ 5 MB each), suggested:
+0. The architecture card: `demos/constellate/architecture-card.png` (`uv run python demos/constellate/architecture-card.py`).
 1. The night-sky video frame: the logo in its artwork colours over the tree line.
 2. The app after "Make flyable": green badges, the certificate and the heatmap.
 3. The unsafe example: red step chips and the problem list with hints, one problem focused on the stage.

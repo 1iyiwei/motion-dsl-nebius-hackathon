@@ -37,6 +37,10 @@ def test_pages_examples_and_check(tmp_path):
     tracks = c.get(r["tracks_url"]).json()  # served separately, merged from per-chunk bakes
     assert tracks["frames"] == r["frames"] and len(tracks["actors"]) == show["drones"]
     assert c.get("/api/tracks/nope").status_code == 404
+    html = c.get(r["tracks_url"] + "/export.html", params={"title": "Heart, spin & logo"})
+    assert html.status_code == 200 and "<svg" in html.text and 'filename="heart-spin-logo.html"' in html.headers["content-disposition"]
+    doc = c.get(r["tracks_url"] + "/export.motion.json").json()
+    assert doc["motion"] == "0.1" and len(doc["actors"]) == show["drones"]
     assert {i["code"] for i in r["flight"]["issues"]} >= {"E_SPEED", "E_GEOFENCE"}
     assert r["steps"][-1]["id"] == "land"
     assert c.get("/api/examples/../server").status_code == 404

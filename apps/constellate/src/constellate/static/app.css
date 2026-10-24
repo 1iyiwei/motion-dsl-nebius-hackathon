@@ -156,3 +156,5 @@ details.json pre { max-height: 280px; overflow: auto; background: var(--surface)
 #ghosts line { stroke: var(--warn); stroke-width: 2; opacity: .8; }
 #ghosts line.far { stroke: var(--bad); stroke-width: 3; }
 #wind-label { fill: #c9d3ff; font-size: 30px; font-weight: 600; }
+.export { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.export button { padding: 4px 10px; font-size: 12px; }

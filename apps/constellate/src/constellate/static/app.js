@@ -511,6 +511,22 @@ $("drones").onchange = async () => {
   catch (err) { setStatus(String(err.message || err), true); }
 };
 
+// ---------- export ----------
+const exportTitle = () => state.show?.title || "Drone show";
+const exportSlug = () => exportTitle().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "drone-show";
+function download(href, name) {
+  const a = Object.assign(document.createElement("a"), { href, download: name });
+  document.body.appendChild(a); a.click(); a.remove();
+}
+$("export-html").onclick = () => { if (state.res?.tracks_url) download(`${state.res.tracks_url}/export.html?title=${encodeURIComponent(exportTitle())}`, `${exportSlug()}.html`); };
+$("export-motion").onclick = () => { if (state.res?.tracks_url) download(`${state.res.tracks_url}/export.motion.json?title=${encodeURIComponent(exportTitle())}`, `${exportSlug()}.motion.json`); };
+$("export-script").onclick = () => {
+  if (!state.show) return;
+  const url = URL.createObjectURL(new Blob([JSON.stringify(state.show, null, 2)], { type: "application/json" }));
+  download(url, `${exportSlug()}.show.json`);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+};
+
 // ---------- video ----------
 $("video").onclick = async () => {
   if (!state.show) return;

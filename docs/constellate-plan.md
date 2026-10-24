@@ -64,7 +64,7 @@ One module, `constellate.sim`, with two entry points.
 - **Phone: optional sensor controller, paired by QR code.** The desktop shows a QR code; the phone opens `/pad?code=…` and streams sensors over a WebSocket. Unpaired or absent → nothing breaks.
   1. **"Be the wind"** (first): the live sim streams positions to the desktop at 30 Hz; shaking (accelerometer) injects a gust in proportion to how hard you shake; tilt (orientation) sets the steady wind direction. The swarm gets pushed, recovers, and the near-miss badge flashes when overdone.
   2. **Motion wand** (second, first cut): laser-pointer mapping (orientation → point on the show plane, timestamped at ~60 Hz) gives a timed stroke; Nemotron turns it into a flight path with the user's timing. Phone yaw can set a spin angle and speed. No ARCore needed (the moto g stylus 5G 2023 isn't confirmed on Google's ARCore list; accelerometer-integrated position drifts anyway).
-- **Deployment**: no public hosting (not required for this track, and it avoids a third service to keep up through judging). Run on the Mac; the phone reaches it over **Tailscale HTTPS** (`tailscale serve`), since mic and motion sensors need a secure page. The Nebius CLI and credentials stay on the Mac. README documents `uv run constellate` with localhost or Tailscale.
+- **Deployment** (as planned Oct 23; superseded Oct 24, see §6 below): no public hosting (not required for this track, and it avoids a third service to keep up through judging). Run on the Mac; the phone reaches it over **Tailscale HTTPS** (`tailscale serve`), since mic and motion sensors need a secure page. The Nebius CLI and credentials stay on the Mac. README documents `uv run constellate` with localhost or Tailscale.
 
 ## 4. Tavily site briefing, video, submission (decision 4)
 
@@ -117,3 +117,13 @@ Cut model waits in editing; keep panel timers visible.
 **Never cut**: compiler + flight checker + repair loop, the sim, the Tavily briefing, the video.
 
 **Protecting the submitted apps**: no edits to `packages/motionlang`; new deps (scipy, a WebSocket server, video encoding) stay in `apps/constellate`; core ideas go on a post-deadline list; run `uv run pytest` daily. Code reused from other apps (Tavily search, canvas strokes, Web Speech voice) is copied with a source comment, not shared, until the post-judging refactor in [implementation-plan.md](implementation-plan.md#after-judging-dec-16-onward-shared-code-refactor).
+
+## 6. Hosting and judging ops (added Oct 24)
+
+The app is also hosted on Render (`render.yaml` service `constellate`), next to SketchDynamics and MotionHarness, with the access code, rate limit and daily token budget on (`CONSTELLATE_*`, see the app README "Hosting it").
+
+- **Now (free plan)**: 512 MB and about a tenth of a CPU. Settings that fit: `CONSTELLATE_MAX_JOBS=1`, `CONSTELLATE_SWEEP_WORKERS=1`, `CONSTELLATE_SWEEP_SEEDS=6` (42 flights). Plan and make flyable work but are slow (a sweep can take minutes), and the instance sleeps after ~15 idle minutes (about a minute to wake).
+- **Before judging (by ~Nov 25)**: switch the service to a paid instance for Dec 1–15: Starter (0.5 CPU) at least, Standard (1 CPU, 2 GB) for a smooth sweep. With 2 GB, `CONSTELLATE_SWEEP_WORKERS=2` and `CONSTELLATE_SWEEP_SEEDS=12` (the full 84-flight sweep) fit. Downgrade after Dec 15.
+- **During judging**: don't push breaking changes to `main` (Render redeploys on push unless auto-deploy is off); check that Token Factory and Tavily credits cover the daily budget for the whole window; put the URL and the access code in the judges-only field of the submission.
+- **Fallback**: the Mac over Tailscale (`tailscale serve --bg --https=10000 http://127.0.0.1:8780`) for the phone pad, if Render misbehaves.
+

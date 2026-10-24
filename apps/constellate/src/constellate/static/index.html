@@ -74,6 +74,12 @@
         <button id="tweak" type="submit">Tweak</button>
         <button id="fly" type="button" class="primary" title="Repair until the flight check and the wind sweep pass">Make flyable</button>
       </form>
+      <div class="export">
+        <span class="chips-prefix">Export:</span>
+        <button id="export-html" type="button" title="A self-contained HTML player of the planned show; opens anywhere, no server">HTML player</button>
+        <button id="export-motion" type="button" title="The compiled MotionLang document, one actor per drone">MotionLang JSON</button>
+        <button id="export-script" type="button" title="The show script (load it again by dropping it on the canvas)">Show script</button>
+      </div>
       <details class="json"><summary>Script JSON</summary><pre id="script-json"></pre></details>
     </div>
     <div id="status" class="status"></div>

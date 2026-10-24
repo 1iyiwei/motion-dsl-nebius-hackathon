@@ -1,10 +1,14 @@
 # Constellate
 
+Nebius x NVIDIA Global AI Hackathon, **Physical AI** track. License: Apache-2.0.
+
 **Sketch or say a drone light show. Nemotron choreographs it, a deterministic compiler makes it flyable, and a wind simulation certifies it before anything leaves the ground. Then your phone becomes the wind.**
 
-Nebius x NVIDIA Global AI Hackathon, Physical AI track. License: Apache-2.0.
+<a href="https://youtu.be/l9vzaz39vT8"><img src="https://img.youtube.com/vi/l9vzaz39vT8/mqdefault.jpg" width="320" alt="Constellate demo video"></a>
 
 Drone light shows are motion graphics made of physical things: a few hundred quadrotors with thrust limits, batteries and wind to fight, flying metres apart in front of a crowd. Designing one today means weeks of specialist work in tools built for the safety problem, not the creative one. Constellate splits the job the way it should be split: the model makes the artistic choices, and deterministic code and a physics simulation make it safe, then hand their findings back to the model to repair.
+
+
 
 ```
 "a red heart that slowly spins, then our logo, then THANK YOU in gold"  +  a sketch / an SVG logo
@@ -64,6 +68,7 @@ Open the app from that https address on the computer too: the pairing QR code po
 - **Render night-sky video**: an MP4 of the *simulated* flight in the design wind, seen from the ground (about 11 s to render an 85 s show).
 - **Site briefing** (Tavily): a venue and a date become cited limits (see below).
 - **Go live**: the swarm flies the show in real time while the phone is the wind. Tilt sets a steady wind (up to 12 m/s); a shake adds a gust that dies down over about two seconds. Streaks show the wind, a faint dot marks where each drone should be with a line to where the wind has pushed it, and near misses are circled.
+- **Export**: a self-contained HTML player of the planned show (MotionLang's own player, ~10 MB for 100 drones over 90 s; opens anywhere, no server), the compiled MotionLang JSON, or the show script (drop it back on the canvas to load it).
 - **Agent log**: every Nemotron call (model, latency, tokens), every Tavily search, and every edit the model made.
 
 ## The command line

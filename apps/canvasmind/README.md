@@ -2,9 +2,9 @@
 
 License: Apache-2.0 · Nebius x NVIDIA Global AI Hackathon, **Personal AI** track
 
-<a href="https://youtu.be/z8SF8A0VLks"><img src="https://img.youtube.com/vi/z8SF8A0VLks/mqdefault.jpg" width="320" alt="CanvasMind demo video"></a>
-
 **Try it:** [t.me/CanvasMindBot](https://t.me/CanvasMindBot) (a public demo: your own library, reset daily, with daily limits).
+
+<a href="https://youtu.be/z8SF8A0VLks"><img src="https://img.youtube.com/vi/z8SF8A0VLks/mqdefault.jpg" width="320" alt="CanvasMind demo video"></a>
 
 A private, always-on studio assistant for motion designers. You message it on Telegram like a studio assistant: send a logo, a reference photo or a link, say "animate the café logo in my style", "slower", "👍 love the calm pace", "that sunrise logo from last week?". Everything you send is filed in a library **on your own machine** and described by NVIDIA Nemotron VL so you can find it by meaning. Every 👍/👎 updates a readable style profile, and every new animation follows it. Once a week it sends a short motion-design digest, picked from the web for your style, with one of your logos animated after a trend.
 

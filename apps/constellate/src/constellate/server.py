@@ -9,6 +9,7 @@ import asyncio
 import json
 import os
 import queue
+import re
 import time
 import tempfile
 import threading
@@ -23,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
 from motionlang.agent.llm import LLM
-from motionlang.preview import player_js_path
+from motionlang.preview import player_js_path, preview_html
 
 from . import agent
 from .flight import tracks_m
@@ -73,15 +74,16 @@ class TrackStore:
     def __init__(self, keep: int = 6):
         self.keep, self.items, self.lock = keep, {}, threading.Lock()
 
-    def put(self, text: str) -> str:
+    def put(self, text: str, doc: str = "") -> str:
+        """text: player tracks JSON; doc: the MotionLang document JSON (for export)."""
         tid = uuid.uuid4().hex[:16]
         with self.lock:
-            self.items[tid] = text
+            self.items[tid] = (text, doc)
             while len(self.items) > self.keep:
                 self.items.pop(next(iter(self.items)))
         return tid
 
-    def get(self, tid: str) -> str | None:
+    def get(self, tid: str) -> tuple[str, str] | None:
         with self.lock:
             return self.items.get(tid)
 
@@ -93,7 +95,7 @@ def checked_json(c: Checked, store: TrackStore = TRACKS) -> dict:
     """Everything the page draws for a show: the script, a URL for the player's tracks, the flight report, step spans."""
     return {
         "show": c.show.model_dump(mode="json"),
-        "tracks_url": f"/api/tracks/{store.put(c.baked.player_json)}" if c.baked is not None else None,
+        "tracks_url": f"/api/tracks/{store.put(c.baked.player_json, json.dumps(c.compiled.doc))}" if c.baked is not None else None,
         "frames": len(c.baked.times) if c.baked is not None else 0,
         "flight": c.flight.to_dict(),
         "motion_ok": c.motion.ok,
@@ -173,12 +175,29 @@ def create_app(media_dir: Path | None = None, llm_factory: Callable[[], LLM] = L
     def player_js() -> FileResponse:  # motionlang's own player, so the app and `motionlang preview` never drift
         return FileResponse(player_js_path(), media_type="text/javascript")
 
+    def stored(tid: str) -> tuple[str, str]:
+        item = TRACKS.get(tid)
+        if item is None:
+            raise HTTPException(404, detail="this show has expired from the server; load or recheck it, then export again")
+        return item
+
+    def slug(title: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60] or "drone-show"
+
     @app.get("/api/tracks/{tid}")
     def tracks(tid: str) -> Response:
-        text = TRACKS.get(tid)
-        if text is None:
-            raise HTTPException(404, detail="these tracks have expired; recheck the show")
-        return Response(text, media_type="application/json")
+        return Response(stored(tid)[0], media_type="application/json")
+
+    @app.get("/api/tracks/{tid}/export.html")
+    def export_html(tid: str, title: str = "Drone show") -> Response:
+        """A self-contained HTML player (MotionLang's own) for the planned show: open it anywhere, no server."""
+        html = preview_html(json.loads(stored(tid)[0]), title=title)
+        return Response(html, media_type="text/html", headers={"Content-Disposition": f'attachment; filename="{slug(title)}.html"'})
+
+    @app.get("/api/tracks/{tid}/export.motion.json")
+    def export_motion(tid: str, title: str = "Drone show") -> Response:
+        return Response(stored(tid)[1], media_type="application/json",
+                        headers={"Content-Disposition": f'attachment; filename="{slug(title)}.motion.json"'})
 
     @app.get("/api/examples")
     def examples() -> list[dict]:
