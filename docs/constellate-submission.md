@@ -84,14 +84,16 @@ Image gallery (3:2, ≤ 5 MB each), suggested:
 4. Live mode: wind streaks and drift lines, with the phone pad beside it.
 5. The site briefing card with its cited findings.
 
+Load the v2 video (about 4.5 minutes) containing all the key moments above plus the result html animations under [here](../demos/constellate/).
+
 * Demo video URL: (to add; see `docs/constellate-demo.md`)
 
 https://youtu.be/l9vzaz39vT8
 
 ## Additional info
 
-* Submitter Type: individual **(your call)**
-* Organization Name: Dragoniac **(your call; as on the other submissions)**
+* Submitter Type: individual
+* Organization Name: Dragoniac
 * Which track: Physical AI
 * New or existing prior to August 26, 2026: New
 * Public code repository: https://github.com/1iyiwei/motion-dsl-nebius-hackathon/tree/main/apps/constellate
@@ -150,8 +152,8 @@ Reasoning budgets per request, and Cosmos or GR00T on Token Factory, so a projec
 
 ## Before submitting
 
-- [ ] Commit and push; check the repo link opens `apps/constellate`.
-- [ ] Record the video (`docs/constellate-demo.md`) and add its URL.
-- [ ] Gallery images (5, 3:2).
-- [ ] Tag the repo `constellate-submitted`.
+- [x] Commit and push; check the repo link opens `apps/constellate`.
+- [x] Record the video (`docs/constellate-demo.md`) and add its URL.
+- [x] Gallery images (5, 3:2).
+- [x] Tag the repo `constellate-submitted`.
 - [ ] Optional: `python3 scripts/export_submission.py constellate` for a standalone public repo.
