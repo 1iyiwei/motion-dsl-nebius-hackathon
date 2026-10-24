@@ -4,7 +4,7 @@ Nebius x NVIDIA Global AI Hackathon, **Physical AI** track. License: Apache-2.0.
 
 **Sketch or say a drone light show. Nemotron choreographs it, a deterministic compiler makes it flyable, and a wind simulation certifies it before anything leaves the ground. Then your phone becomes the wind.**
 
-<a href="https://youtu.be/l9vzaz39vT8"><img src="https://img.youtube.com/vi/l9vzaz39vT8/mqdefault.jpg" width="320" alt="Constellate demo video"></a>
+<a href="https://youtu.be/_y1b2w2uSE4"><img src="https://img.youtube.com/vi/_y1b2w2uSE4/mqdefault.jpg" width="320" alt="Constellate demo video"></a>
 
 Drone light shows are motion graphics made of physical things: a few hundred quadrotors with thrust limits, batteries and wind to fight, flying metres apart in front of a crowd. Designing one today means weeks of specialist work in tools built for the safety problem, not the creative one. Constellate splits the job the way it should be split: the model makes the artistic choices, and deterministic code and a physics simulation make it safe, then hand their findings back to the model to repair.
 

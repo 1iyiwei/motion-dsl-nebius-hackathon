@@ -1,6 +1,7 @@
 # Constellate: submission draft (Physical AI)
 
-Draft for the Devpost form (fields as in `docs/submission-form.md`). Not submitted yet. Fields marked **(your call)** are opinions or facts only you can give; the drafts there are suggestions.
+Draft for the Devpost form (fields as in `docs/submission-form.md`).
+Fields marked **(your call)** are opinions or facts only you can give; the drafts there are suggestions.
 
 ## General info
 
